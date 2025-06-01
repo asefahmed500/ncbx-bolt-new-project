@@ -19,6 +19,15 @@ export const authOptions: NextAuthConfig = {
       async authorize(credentials) {
         console.log("[Auth][Authorize] Attempting authorization...");
 
+        // Explicitly check MONGODB_URI at the start of authorize
+        const MONGODB_URI_ENV = process.env.MONGODB_URI;
+        if (!MONGODB_URI_ENV || MONGODB_URI_ENV.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || MONGODB_URI_ENV.endsWith("/?retryWrites=true&w=majority&appName=Cluster0")) {
+          console.error("[Auth][Authorize] CRITICAL PRE-CHECK FAILED: MONGODB_URI is not set correctly in environment variables. It must be set and point to a specific database.");
+          console.error("[Auth][Authorize] Current MONGODB_URI (potentially undefined or problematic):", MONGODB_URI_ENV);
+          console.error("[Auth][Authorize] Login flow cannot proceed without a valid database URI. This will likely result in a 'Failed to fetch' error on the client if the auth API route crashes or is unresponsive.");
+          return null; 
+        }
+
         // Dynamically import models only within this server-side function
         const User = (await import('@/models/User')).default;
         const Subscription = (await import('@/models/Subscription')).default;
@@ -35,14 +44,7 @@ export const authOptions: NextAuthConfig = {
         const normalizedEmail = email.toLowerCase();
         console.log(`[Auth][Authorize] Processing for normalized email: ${normalizedEmail}`);
 
-        const mongoUri = process.env.MONGODB_URI || "MONGODB_URI NOT SET";
-        if (mongoUri === "MONGODB_URI NOT SET" || mongoUri.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || mongoUri.endsWith("/?retryWrites=true&w=majority&appName=Cluster0")) {
-          console.error("[Auth][Authorize] CRITICAL: MONGODB_URI is not set correctly, or is missing a database name, or still contains placeholder. Please check .env file.");
-          return null;
-        }
-
         try {
-          // User and Subscription models are already imported above dynamically
           await dbConnect();
           const connectionState = mongoose.connection.readyState;
           if (connectionState !== mongoose.ConnectionStates.connected) {
@@ -104,7 +106,15 @@ export const authOptions: NextAuthConfig = {
           return userToReturn;
 
         } catch (error: any) {
-          console.error(`[Auth][Authorize] CRITICAL UNHANDLED ERROR for ${normalizedEmail}:`, error);
+          console.error(`[Auth][Authorize] CRITICAL ERROR during authorization process for ${normalizedEmail}:`, error.message);
+          if (error.stack) {
+            console.error("[Auth][Authorize] Stack trace:", error.stack);
+          }
+          if (typeof error.message === 'string' && error.message.toLowerCase().includes('mongodb_uri')) {
+            console.error("[Auth][Authorize] This error seems related to the MONGODB_URI configuration. Ensure it's correctly set in your environment variables and points to a valid, accessible MongoDB instance and database.");
+          } else if (typeof error.message === 'string' && (error.message.toLowerCase().includes('enodata') || error.message.toLowerCase().includes('eservfail') || error.message.toLowerCase().includes('bad auth'))) {
+            console.error("[Auth][Authorize] This error suggests a problem connecting to or authenticating with MongoDB. Check connection string, IP whitelisting, credentials, and cluster status.");
+          }
           return null;
         }
       },
@@ -204,6 +214,7 @@ declare module "next-auth" {
       subscriptionStatus?: string | null; 
       subscriptionPlanId?: 'free' | 'pro' | 'enterprise';
       subscriptionLimits?: PlanLimit;
+      projectsUsed?: number; // Added for consistency if needed directly on session.user from token
     };
   }
 
@@ -218,6 +229,7 @@ declare module "next-auth" {
     subscriptionStatus?: string | null;
     subscriptionPlanId?: 'free' | 'pro' | 'enterprise';
     subscriptionLimits?: PlanLimit;
+    projectsUsed?: number; // For user object passed to JWT callback
   }
 }
 
@@ -233,6 +245,7 @@ declare module "next-auth/jwt" {
     subscriptionStatus?: string | null;
     subscriptionPlanId?: 'free' | 'pro' | 'enterprise';
     subscriptionLimits?: PlanLimit;
+    projectsUsed?: number; // Ensure JWT can carry this if set from User object
     error?: string;
   }
 }
