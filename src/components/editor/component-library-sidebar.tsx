@@ -3,16 +3,16 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DraggableComponentItem } from "./draggable-component-item";
-import { Type, Image as ImageIcon, Square, Box, Columns, Heading1, Minus, Bold, Italic, Underline, List, Quote } from "lucide-react";
+import { Type, Image as ImageIcon, Square, Box, Columns, Heading1, Minus } from "lucide-react";
 
 const components = [
   { id: "heading", label: "Heading", icon: Heading1, description: "Add titles and subheadings." },
-  { id: "text", label: "Text Block", icon: Type, description: "Add and edit paragraphs." },
+  { id: "text", label: "Rich Text Block", icon: Type, description: "Add and format text, paragraphs, and lists." },
   { id: "image", label: "Image", icon: ImageIcon, description: "Embed images and graphics." },
-  { id: "button", label: "Button", icon: Square, description: "Create interactive buttons." },
-  { id: "section", label: "Section", icon: Box, description: "Organize content into sections." },
-  { id: "columns", label: "Columns", icon: Columns, description: "Arrange content in columns." },
-  { id: "divider", label: "Divider", icon: Minus, description: "Add a horizontal line." },
+  { id: "button", label: "Button", icon: Square, description: "Create interactive call-to-action buttons." },
+  { id: "section", label: "Section / Container", icon: Box, description: "Organize content into distinct sections or containers." },
+  { id: "columns", label: "Columns Layout", icon: Columns, description: "Arrange content side-by-side in responsive columns." },
+  { id: "divider", label: "Divider", icon: Minus, description: "Add a visual horizontal separator line." },
   // Example of more specific components if needed later
   // { id: "paragraph", label: "Paragraph", icon: Pilcrow, description: "For longer text content." },
   // { id: "list", label: "List", icon: List, description: "Create bulleted or numbered lists." },
