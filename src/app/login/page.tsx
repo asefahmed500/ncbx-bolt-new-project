@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { signIn } from "next-auth/react"; // Corrected import
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -30,10 +30,12 @@ export default function LoginPage() {
         password,
       });
 
+      console.log("[LoginPage] signIn result:", result); // Client-side log
+
       if (result?.error) {
         toast({
           title: "Login Failed",
-          description: result.error === "CredentialsSignin" ? "Invalid email or password." : "An unexpected error occurred.",
+          description: result.error === "CredentialsSignin" ? "Invalid email or password." : `An unexpected error occurred: ${result.error}`,
           variant: "destructive",
         });
       } else if (result?.ok && !result?.error) { 
@@ -44,18 +46,24 @@ export default function LoginPage() {
         router.push("/"); 
         router.refresh(); 
       } else {
-        // Fallback for unexpected result structure, though usually covered by result.error
          toast({
           title: "Login Attempted",
           description: "Could not determine login status. Please try again.",
           variant: "destructive",
         });
       }
-    } catch (error) {
-      console.error("Login error (exception):", error);
+    } catch (error: any) { // Catching potential errors from signIn itself
+      console.error("[LoginPage] CRITICAL: Error during signIn call:", error);
+      let errorMessage = "An unexpected error occurred during login.";
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      if (error.type === 'CredentialsSignin') { // NextAuth can throw specific error types
+        errorMessage = "Invalid email or password.";
+      }
       toast({
         title: "Login Failed",
-        description: "An unexpected error occurred during login.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
