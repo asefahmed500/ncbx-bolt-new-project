@@ -26,6 +26,8 @@ export interface ITemplate extends Document {
   previewImageUrl?: string;
   category?: string;
   pages: ITemplatePage[]; // Array of predefined pages for the template
+  isPremium: boolean;
+  price?: number; // In cents, only if isPremium is true
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +53,24 @@ const TemplateSchema = new Schema<ITemplate>(
       trim: true,
     },
     pages: [TemplatePageSchema], // Array of embedded template page structures
+    isPremium: {
+      type: Boolean,
+      default: false,
+    },
+    price: { // Price in cents
+      type: Number,
+      min: 0,
+      validate: {
+        validator: function(this: ITemplate, value: number | undefined) {
+          // Price is only required if isPremium is true
+          if (this.isPremium) {
+            return typeof value === 'number' && value >= 0;
+          }
+          return true; // Not premium, price can be anything (or undefined)
+        },
+        message: 'Price must be a non-negative number for premium templates.',
+      },
+    },
   },
   {
     timestamps: true,
@@ -59,6 +79,7 @@ const TemplateSchema = new Schema<ITemplate>(
 
 TemplateSchema.index({ name: 1 });
 TemplateSchema.index({ category: 1 });
+TemplateSchema.index({ isPremium: 1 });
 
 const Template = models.Template || model<ITemplate>('Template', TemplateSchema);
 

@@ -6,6 +6,7 @@ import { stripe } from '@/lib/stripe';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
 import Subscription from '@/models/Subscription';
+import mongoose from 'mongoose';
 
 const relevantEvents = new Set([
   'checkout.session.completed',
@@ -45,11 +46,9 @@ export async function POST(req: NextRequest) {
       console.log('[Stripe Webhook] Database connected.');
 
       switch (event.type) {
-        // Subscription related events
         case 'checkout.session.completed': {
           const session = event.data.object as Stripe.Checkout.Session;
           console.log('[Stripe Webhook] Handling checkout.session.completed for session ID:', session.id);
-          // Ensure it's for a subscription, not a one-time payment handled by PaymentIntent
           if (session.mode === 'subscription' && session.customer && session.subscription && session.metadata?.userId) {
             const customerId = session.customer as string;
             const subscriptionId = session.subscription as string;
@@ -113,7 +112,7 @@ export async function POST(req: NextRequest) {
         case 'invoice.payment_succeeded': {
           const invoice = event.data.object as Stripe.Invoice;
           console.log('[Stripe Webhook] Handling invoice.payment_succeeded for invoice ID:', invoice.id);
-          if (invoice.subscription) { // Typically for recurring subscription payments
+          if (invoice.subscription) { 
             const subscriptionId = invoice.subscription as string;
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
             await Subscription.findOneAndUpdate(
@@ -126,7 +125,6 @@ export async function POST(req: NextRequest) {
             );
             console.log(`[Stripe Webhook] Updated Subscription ${subscriptionId} on invoice.payment_succeeded.`);
           } else if (invoice.payment_intent) {
-            // Could be for a one-time payment invoice
             console.log(`[Stripe Webhook] Invoice ${invoice.id} paid, related to PaymentIntent ${invoice.payment_intent}. PaymentIntent success will handle main logic.`);
           }
           break;
@@ -145,22 +143,36 @@ export async function POST(req: NextRequest) {
           }
           break;
         }
-        // Payment Intent related events
         case 'payment_intent.succeeded': {
           const paymentIntent = event.data.object as Stripe.PaymentIntent;
-          console.log(`[Stripe Webhook] PaymentIntent ${paymentIntent.id} succeeded.`);
-          // TODO: Fulfill the purchase (e.g., grant access to a digital product, update order status)
-          // You can retrieve metadata.userId if you set it during PaymentIntent creation.
-          if (paymentIntent.metadata?.userId) {
-             console.log(`[Stripe Webhook] Payment for user ${paymentIntent.metadata.userId} of ${paymentIntent.amount / 100} ${paymentIntent.currency.toUpperCase()} succeeded.`);
-             // Example: await fulfillOrder(paymentIntent.metadata.userId, paymentIntent.id, paymentIntent.amount);
+          console.log(`[Stripe Webhook] PaymentIntent ${paymentIntent.id} succeeded. Metadata:`, JSON.stringify(paymentIntent.metadata));
+          
+          const userId = paymentIntent.metadata.userId;
+          const templateId = paymentIntent.metadata.templateId;
+
+          if (userId && templateId) {
+            console.log(`[Stripe Webhook] Payment for template purchase. User ID: ${userId}, Template ID: ${templateId}`);
+            const user = await User.findById(userId);
+            if (user) {
+              if (!user.purchasedTemplateIds.map(id => id.toString()).includes(templateId)) {
+                user.purchasedTemplateIds.push(new mongoose.Types.ObjectId(templateId));
+                await user.save();
+                console.log(`[Stripe Webhook] User ${userId} granted access to template ${templateId}.`);
+              } else {
+                console.log(`[Stripe Webhook] User ${userId} already had access to template ${templateId}.`);
+              }
+            } else {
+              console.warn(`[Stripe Webhook] User ${userId} not found for template purchase.`);
+            }
+          } else if (userId) {
+             console.log(`[Stripe Webhook] General payment for user ${userId} of ${paymentIntent.amount / 100} ${paymentIntent.currency.toUpperCase()} succeeded.`);
+             // TODO: Fulfill other types of purchases based on metadata
           }
           break;
         }
         case 'payment_intent.payment_failed': {
           const paymentIntent = event.data.object as Stripe.PaymentIntent;
           console.warn(`[Stripe Webhook] PaymentIntent ${paymentIntent.id} failed. Reason: ${paymentIntent.last_payment_error?.message}`);
-          // TODO: Notify the user, log the failure, etc.
           if (paymentIntent.metadata?.userId) {
             console.warn(`[Stripe Webhook] Payment failure for user ${paymentIntent.metadata.userId}.`);
           }

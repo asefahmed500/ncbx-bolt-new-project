@@ -7,8 +7,10 @@ export interface IUser extends Document {
   password?: string; 
   avatarUrl?: string;
   role: 'user' | 'admin';
+  isActive: boolean; // Added for admin management
   stripeCustomerId?: string; 
   projectsUsed?: number; // Conceptual field for usage limits
+  purchasedTemplateIds: mongoose.Schema.Types.ObjectId[]; // For paid templates
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +43,10 @@ const UserSchema = new Schema<IUser>(
       default: 'user', 
       required: true,
     },
+    isActive: { // For admin to suspend/activate users
+      type: Boolean,
+      default: true,
+    },
     stripeCustomerId: { 
       type: String,
       unique: true,
@@ -49,12 +55,21 @@ const UserSchema = new Schema<IUser>(
     projectsUsed: { // Conceptual field for usage limits
         type: Number,
         default: 0,
-    }
+    },
+    purchasedTemplateIds: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Template'
+    }]
   },
   {
     timestamps: true, 
   }
 );
+
+UserSchema.index({ email: 1 });
+UserSchema.index({ stripeCustomerId: 1 });
+UserSchema.index({ isActive: 1 });
+
 
 const User = models.User || model<IUser>('User', UserSchema);
 
