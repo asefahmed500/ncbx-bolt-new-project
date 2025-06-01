@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2 } from "lucide-react";
+import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2, Tag } from "lucide-react";
 import { createStripeCheckoutSession, createOneTimePaymentIntent } from '@/actions/stripe';
 import { useToast } from '@/hooks/use-toast';
 
@@ -22,19 +22,20 @@ export default function DashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSubscribing, setIsSubscribing] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState("10.00"); 
+  const [paymentAmount, setPaymentAmount] = useState("10.00");
+  const [couponCode, setCouponCode] = useState(""); // New state for coupon code
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.role === 'admin') {
-      router.replace('/admin/dashboard'); 
+      router.replace('/admin/dashboard');
     }
   }, [session, status, router]);
 
   const handleSubscribe = async () => {
     setIsSubscribing(true);
-    const priceId = 'price_YOUR_STRIPE_PRICE_ID'; 
+    const priceId = 'price_YOUR_STRIPE_PRICE_ID';
     if (priceId === 'price_YOUR_STRIPE_PRICE_ID') {
         toast({
             title: "Configuration Needed",
@@ -55,7 +56,7 @@ export default function DashboardPage() {
         variant: "destructive",
       });
     } else if (result.url) {
-      router.push(result.url); 
+      router.push(result.url);
     }
     setIsSubscribing(false);
   };
@@ -71,16 +72,24 @@ export default function DashboardPage() {
       return;
     }
 
-    const result = await createOneTimePaymentIntent(amountInCents, 'usd');
+    const result = await createOneTimePaymentIntent(amountInCents, 'usd', couponCode.trim() || undefined);
 
     if (result.error) {
       toast({ title: "Payment Error", description: result.error, variant: "destructive" });
     } else if (result.clientSecret && result.paymentIntentId) {
+      let description = `Client Secret ready. PI ID: ${result.paymentIntentId}. Final amount: $${(result.finalAmount!/100).toFixed(2)}.`;
+      if(result.couponApplied) {
+        description += ` Discount of $${(result.discountApplied!/100).toFixed(2)} applied with coupon.`
+      }
+      description += ` Integrate Stripe Elements to complete payment.`
+
       toast({
         title: "Payment Intent Created",
-        description: `Client Secret ready. PI ID: ${result.paymentIntentId}. Integrate Stripe Elements to complete payment.`,
+        description: description,
       });
       console.log("PaymentIntent Client Secret:", result.clientSecret);
+      // Here you would typically proceed with Stripe Elements to confirm the payment
+      // e.g., stripe.confirmCardPayment(result.clientSecret, { payment_method: { card: cardElement } })
     }
     setIsProcessingPayment(false);
   };
@@ -103,7 +112,7 @@ export default function DashboardPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="flex-1 p-6 md:p-10">
       <div className="flex items-center justify-between mb-8">
@@ -117,11 +126,10 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">You haven't created any websites yet.</p>
-            {/* TODO: Link to editor or website creation flow */}
             <Button className="mt-4 w-full">Create New Website</Button>
           </CardContent>
         </Card>
-        
+
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle className="font-headline flex items-center"><CreditCard className="mr-2 h-5 w-5 text-primary" />Subscription</CardTitle>
@@ -129,15 +137,15 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-muted-foreground">You are currently on the free plan.</p>
-            <Button 
-              onClick={handleSubscribe} 
+            <Button
+              onClick={handleSubscribe}
               disabled={isSubscribing}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {isSubscribing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" /> }
               {isSubscribing ? "Processing..." : "Upgrade to Pro"}
             </Button>
-            <p className="text-xs text-muted-foreground text-center">You will be redirected to Stripe Checkout.</p>
+            <p className="text-xs text-muted-foreground text-center">Stripe Checkout allows promotion codes.</p>
           </CardContent>
         </Card>
 
@@ -148,11 +156,10 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">No invoices found.</p>
-            {/* Placeholder for invoice list or link to Stripe Customer Portal */}
              <Button variant="outline" className="mt-4 w-full" disabled>View Invoices</Button>
           </CardContent>
         </Card>
-        
+
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle className="font-headline flex items-center"><Settings2 className="mr-2 h-5 w-5 text-primary" />Payment Methods</CardTitle>
@@ -160,7 +167,6 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">No payment methods saved.</p>
-            {/* Placeholder for payment method list or link to Stripe Customer Portal */}
             <Button variant="outline" className="mt-4 w-full" disabled>Manage Payment Methods</Button>
           </CardContent>
         </Card>
@@ -173,10 +179,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">Usage data will be displayed here.</p>
-            {/* Placeholder for usage charts or statistics */}
           </CardContent>
         </Card>
-        
+
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle className="font-headline flex items-center"><ShoppingCart className="mr-2 h-5 w-5 text-primary" />One-Time Payment</CardTitle>
@@ -193,17 +198,31 @@ export default function DashboardPage() {
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   placeholder="e.g., 10.00"
                   step="0.01"
-                  min="0.50" 
+                  min="0.50" // Stripe minimum
                   required
                   className="bg-input mt-1"
                 />
               </div>
-              <div className="p-3 border border-dashed rounded-md bg-muted/50 text-center text-muted-foreground">
-                Stripe Card Element would be here.
+              <div>
+                <Label htmlFor="couponCode" className="text-sm flex items-center">
+                  <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
+                  Coupon Code (Optional)
+                </Label>
+                <Input
+                  id="couponCode"
+                  type="text"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  placeholder="e.g., SUMMER25"
+                  className="bg-input mt-1"
+                />
               </div>
-              <Button 
-                type="submit" 
-                disabled={isProcessingPayment} 
+              <div className="p-3 border border-dashed rounded-md bg-muted/50 text-center text-muted-foreground">
+                Stripe Card Element would be here for secure input.
+              </div>
+              <Button
+                type="submit"
+                disabled={isProcessingPayment}
                 className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
               >
                 {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
@@ -215,7 +234,7 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">This is a demo. Full card input with Stripe Elements is needed for actual payments.</p>
           </CardFooter>
         </Card>
-        
+
       </div>
       <div className="mt-10 p-6 bg-accent/10 rounded-lg border border-accent/30">
         <div className="flex items-start gap-3">
