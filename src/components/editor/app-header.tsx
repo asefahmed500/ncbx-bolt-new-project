@@ -47,6 +47,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   const isEditorPage = pathname === '/editor';
 
   useEffect(() => {
+    // Theme initialization
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     const storedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
     if (storedTheme) {
@@ -59,17 +60,16 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   }, []);
 
   useEffect(() => {
+    // Editor auto-save simulation
     let saveInterval: NodeJS.Timeout | undefined;
     if (isEditorPage) {
-      setSaveStatus('saved'); // Initial status
+      setSaveStatus('saved'); 
       saveInterval = setInterval(() => {
         setSaveStatus('saving');
-        // console.log("Simulating auto-save...");
         setTimeout(() => {
           setSaveStatus('saved'); 
-          // console.log("Simulated save complete.");
         }, 1500);
-      }, 30000); // Simulate auto-save every 30 seconds
+      }, 30000); 
     }
     return () => {
       if (saveInterval) clearInterval(saveInterval);
@@ -158,7 +158,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
             <AppLogo className="h-7" />
           </Link>
           {!isEditorPage && status !== 'authenticated' && (
-            <nav className="hidden md:flex items-center gap-3 ml-6">
+             <nav className="hidden md:flex items-center gap-3 ml-6">
               {publicNavLinks.map(link => (
                 <Link key={link.href} href={link.href} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                   {link.label}
@@ -200,29 +200,25 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
 
           {status === "authenticated" && session.user ? (
             <>
-              {/* General authenticated buttons for NON-EDITOR pages */}
-              {!isEditorPage && (
-                <>
-                  <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
-                    <Link href="/dashboard"><LayoutDashboard className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Dashboard</span></Link>
-                  </Button>
-                  <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
-                    <Link href="/editor"><PencilRuler className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Editor</span></Link>
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setIsTemplateGalleryModalOpen(true)} className="hidden sm:flex">
-                    <LayoutGrid className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Templates</span>
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setIsAiCopyModalOpen(true)} className="hidden sm:flex">
-                    <Wand2 className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">AI Copy</span>
-                  </Button>
-                </>
-              )}
-
-              {/* Editor-specific prominent button */}
-              {isEditorPage && (
-                <Button variant="default" size="sm" onClick={handlePublish} className="bg-primary hover:bg-primary/90 text-primary-foreground hidden xs:flex">
+              {isEditorPage ? (
+                 <Button variant="default" size="sm" onClick={handlePublish} className="bg-primary hover:bg-primary/90 text-primary-foreground hidden xs:flex">
                   <ArrowUpCircle className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Publish</span>
                 </Button>
+              ) : (
+                <>
+                  <Button variant="ghost" size="sm" asChild className="hidden sm:flex items-center">
+                    <Link href="/dashboard"><LayoutDashboard className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Dashboard</span></Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild className="hidden sm:flex items-center">
+                    <Link href="/editor"><PencilRuler className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Editor</span></Link>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setIsTemplateGalleryModalOpen(true)} className="hidden sm:flex items-center">
+                    <LayoutGrid className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Templates</span>
+                  </Button>
+                   <Button variant="outline" size="sm" onClick={() => setIsAiCopyModalOpen(true)} className="hidden sm:flex items-center">
+                    <Wand2 className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">AI Copy</span>
+                  </Button>
+                </>
               )}
               
               <DropdownMenu>
@@ -245,17 +241,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                   
                   <DropdownMenuItem asChild><Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</Link></DropdownMenuItem>
                   
-                  {/* Items for small screens when NOT on editor page */}
-                  {!isEditorPage && (
-                    <>
-                      <DropdownMenuItem asChild className="sm:hidden"><Link href="/editor"><PencilRuler className="mr-2 h-4 w-4" />Editor</Link></DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setIsTemplateGalleryModalOpen(true)} className="sm:hidden"><LayoutGrid className="mr-2 h-4 w-4" />Templates</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)} className="sm:hidden"><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
-                    </>
-                  )}
-                  
-                  {/* Specific actions for EDITOR page in dropdown */}
-                  {isEditorPage && (
+                  {isEditorPage ? (
                     <>
                       <DropdownMenuItem onClick={() => setIsTemplateGalleryModalOpen(true)}><LayoutGrid className="mr-2 h-4 w-4" />Templates</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)}><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
@@ -264,6 +250,12 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                       <DropdownMenuItem onClick={handlePreview} disabled><Eye className="mr-2 h-4 w-4" />Preview Site</DropdownMenuItem>
                       <DropdownMenuItem onClick={handlePublish} className="xs:hidden"><ArrowUpCircle className="mr-2 h-4 w-4" />Publish Site</DropdownMenuItem> 
                       <DropdownMenuItem onClick={handleExportCode}><Download className="mr-2 h-4 w-4" />Export Code</DropdownMenuItem>
+                    </>
+                  ) : (
+                     <>
+                      <DropdownMenuItem asChild className="sm:hidden"><Link href="/editor"><PencilRuler className="mr-2 h-4 w-4" />Editor</Link></DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setIsTemplateGalleryModalOpen(true)} className="sm:hidden"><LayoutGrid className="mr-2 h-4 w-4" />Templates</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)} className="sm:hidden"><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
                     </>
                   )}
                   
@@ -319,3 +311,5 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     </>
   );
 }
+
+    
