@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { signIn } from "next-auth/react"; // Correct import for client-side signIn
+import { signIn } from "next-auth/react"; 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -26,16 +26,16 @@ export default function LoginPage() {
 
     try {
       const result = await signIn("credentials", {
-        redirect: false, // Handle redirect manually after checking result
-        email: email.trim(), // Trim whitespace
+        redirect: false, 
+        email: email.trim(), 
         password,
       });
 
-      console.log("[LoginPage] signIn result object:", result);
+      console.log("[LoginPage] signIn result object:", JSON.stringify(result, null, 2));
 
       if (result?.error) {
         console.error("[LoginPage] signIn returned an error:", result.error);
-        let errorMessage = "Invalid email or password."; // Default for CredentialsSignin
+        let errorMessage = "Invalid email or password."; 
         if (result.error !== "CredentialsSignin") {
             errorMessage = `Login error: ${result.error}. Check server logs for details.`;
         }
@@ -44,24 +44,23 @@ export default function LoginPage() {
           description: errorMessage,
           variant: "destructive",
         });
-      } else if (result?.ok) { // result.ok is true on successful sign in with redirect: false
+      } else if (result?.ok) { 
         console.log("[LoginPage] Login successful, redirecting to dashboard...");
         toast({
           title: "Login Successful",
           description: "Welcome back!",
         });
-        router.push("/"); // Or router.push("/dashboard") or wherever you want to redirect
-        router.refresh(); // Important to refresh server session state
+        router.push("/dashboard"); 
+        router.refresh(); 
       } else {
-         // This case should ideally not be hit if result.error or result.ok is always populated
-         console.warn("[LoginPage] signIn result was not 'ok' and had no specific error, or result was undefined/null. Result:", result);
+         console.warn("[LoginPage] signIn result was not 'ok' and had no specific error, or result was undefined/null. Result:", JSON.stringify(result, null, 2));
          toast({
           title: "Login Attempted",
           description: "Could not determine login status. Please check server logs and try again.",
           variant: "destructive",
         });
       }
-    } catch (error: any) { // Catch network errors or other unexpected issues
+    } catch (error: any) { 
       console.error("[LoginPage] CRITICAL: Exception during signIn call or subsequent logic.");
       console.error("[LoginPage] Error object raw:", error);
       let errorMessage = "An unexpected error occurred during login. Please try again.";
@@ -69,9 +68,9 @@ export default function LoginPage() {
         console.error("[LoginPage] Exception name:", error.name);
         console.error("[LoginPage] Exception message:", error.message);
         console.error("[LoginPage] Exception stack:", error.stack);
-        // Specifically for "TypeError: Failed to fetch"
+        
         if (error.name === 'TypeError' && error.message.toLowerCase().includes('failed to fetch')) {
-            errorMessage = "Failed to connect to the authentication server. Please check your internet connection and server status (see server logs).";
+            errorMessage = "Failed to connect to the authentication server. Please check your internet connection and ensure the server is running (see server logs).";
         } else if (error.message && error.name !== 'TypeError') {
            errorMessage = error.message;
         }
