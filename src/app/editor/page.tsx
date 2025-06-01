@@ -6,11 +6,12 @@ import { AppHeader, type DeviceType } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquare, Type, Image as ImageIcon, Square as ButtonIcon } from 'lucide-react'; // Added more icons
+import { Settings, MousePointerSquare, Type, Image as ImageIcon, Square as ButtonIcon, BarChart2 } from 'lucide-react'; // Added BarChart2 icon
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator'; // Import Separator
 
 // Define a type for the selected element, including potential properties
 interface SelectedElement {
@@ -164,7 +165,20 @@ export default function EditorPage() {
                         <Label htmlFor="pageBgColor" className="text-xs">Page Background Color</Label>
                         <Input type="text" id="pageBgColor" placeholder="#FFFFFF" className="text-xs" />
                     </div>
-                     <p className="text-xs text-muted-foreground">Other page settings like custom CSS, header/footer scripts would go here.</p>
+
+                    <Separator className="my-3" />
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 flex items-center">
+                        <BarChart2 className="w-4 h-4 mr-2 text-muted-foreground" /> Analytics
+                      </h4>
+                       <div className="space-y-1">
+                        <Label htmlFor="analyticsTrackingId" className="text-xs">Tracking ID (e.g., Google Analytics G-XXXX)</Label>
+                        <Input type="text" id="analyticsTrackingId" placeholder="Enter your tracking ID" className="text-xs" />
+                         <p className="text-xs text-muted-foreground mt-1">This ID would be used by the publishing system to inject analytics scripts (e.g., gtag.js) into your site.</p>
+                      </div>
+                    </div>
+
+                     <p className="text-xs text-muted-foreground mt-4">Other page settings like custom CSS, header/footer scripts would go here.</p>
                 </div>
                 </>
               )}
