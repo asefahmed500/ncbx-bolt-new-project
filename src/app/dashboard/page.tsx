@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lightbulb, Loader2, CreditCard, ShoppingCart } from "lucide-react";
+import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2 } from "lucide-react";
 import { createStripeCheckoutSession, createOneTimePaymentIntent } from '@/actions/stripe';
 import { useToast } from '@/hooks/use-toast';
 
@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSubscribing, setIsSubscribing] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState("10.00"); // Default to $10.00
+  const [paymentAmount, setPaymentAmount] = useState("10.00"); 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
 
@@ -34,7 +34,7 @@ export default function DashboardPage() {
 
   const handleSubscribe = async () => {
     setIsSubscribing(true);
-    const priceId = 'price_YOUR_STRIPE_PRICE_ID'; // TODO: Replace with actual Stripe Price ID
+    const priceId = 'price_YOUR_STRIPE_PRICE_ID'; 
     if (priceId === 'price_YOUR_STRIPE_PRICE_ID') {
         toast({
             title: "Configuration Needed",
@@ -81,8 +81,6 @@ export default function DashboardPage() {
         description: `Client Secret ready. PI ID: ${result.paymentIntentId}. Integrate Stripe Elements to complete payment.`,
       });
       console.log("PaymentIntent Client Secret:", result.clientSecret);
-      // TODO: Implement Stripe Elements and stripe.confirmCardPayment(result.clientSecret, { payment_method: ... })
-      // For now, we just log it.
     }
     setIsProcessingPayment(false);
   };
@@ -111,20 +109,22 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-headline font-semibold">Dashboard</h1>
       </div>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle className="font-headline">My Websites</CardTitle>
+            <CardTitle className="font-headline flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary" />My Websites</CardTitle>
             <CardDescription>View and manage your created websites.</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">You haven't created any websites yet.</p>
+            {/* TODO: Link to editor or website creation flow */}
+            <Button className="mt-4 w-full">Create New Website</Button>
           </CardContent>
         </Card>
         
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle className="font-headline">Subscription</CardTitle>
+            <CardTitle className="font-headline flex items-center"><CreditCard className="mr-2 h-5 w-5 text-primary" />Subscription</CardTitle>
             <CardDescription>Manage your subscription plan.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -143,8 +143,44 @@ export default function DashboardPage() {
 
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle className="font-headline">One-Time Payment</CardTitle>
-            <CardDescription>Make a single payment.</CardDescription>
+            <CardTitle className="font-headline flex items-center"><FileText className="mr-2 h-5 w-5 text-primary" />Invoice History</CardTitle>
+            <CardDescription>View your past invoices and payments.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">No invoices found.</p>
+            {/* Placeholder for invoice list or link to Stripe Customer Portal */}
+             <Button variant="outline" className="mt-4 w-full" disabled>View Invoices</Button>
+          </CardContent>
+        </Card>
+        
+        <Card className="shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader>
+            <CardTitle className="font-headline flex items-center"><Settings2 className="mr-2 h-5 w-5 text-primary" />Payment Methods</CardTitle>
+            <CardDescription>Manage your saved payment methods.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">No payment methods saved.</p>
+            {/* Placeholder for payment method list or link to Stripe Customer Portal */}
+            <Button variant="outline" className="mt-4 w-full" disabled>Manage Payment Methods</Button>
+          </CardContent>
+        </Card>
+
+         <Card className="shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader>
+            <BarChart2 className="mr-2 h-5 w-5 text-primary" />
+            <CardTitle className="font-headline">Usage Metrics</CardTitle>
+            <CardDescription>Overview of your account usage.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">Usage data will be displayed here.</p>
+            {/* Placeholder for usage charts or statistics */}
+          </CardContent>
+        </Card>
+        
+        <Card className="shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader>
+            <CardTitle className="font-headline flex items-center"><ShoppingCart className="mr-2 h-5 w-5 text-primary" />One-Time Payment</CardTitle>
+            <CardDescription>Make a single payment for credits or services.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleOneTimePayment} className="space-y-4">
@@ -157,12 +193,11 @@ export default function DashboardPage() {
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   placeholder="e.g., 10.00"
                   step="0.01"
-                  min="0.50" // Stripe minimums may apply
+                  min="0.50" 
                   required
                   className="bg-input mt-1"
                 />
               </div>
-              {/* Placeholder for Stripe Elements Card Element */}
               <div className="p-3 border border-dashed rounded-md bg-muted/50 text-center text-muted-foreground">
                 Stripe Card Element would be here.
               </div>
@@ -186,10 +221,10 @@ export default function DashboardPage() {
         <div className="flex items-start gap-3">
           <Lightbulb className="w-6 h-6 text-accent mt-1" />
           <div>
-            <h3 className="font-semibold text-accent-foreground">Coming Soon!</h3>
+            <h3 className="font-semibold text-accent-foreground">Billing & Usage Insights</h3>
             <p className="text-sm text-muted-foreground">
-              We're working hard to bring you more dashboard features, including detailed analytics,
-              website management tools, and more quick actions. Stay tuned!
+              Your billing dashboard provides a clear overview of your subscription, payment history, and usage.
+              More detailed analytics and management options are coming soon!
             </p>
           </div>
         </div>

@@ -4,7 +4,8 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AppHeader } from '@/components/editor/app-header';
-import { CheckCircle, Info, Briefcase, DollarSign, Users, BarChart3, MessageSquare } from 'lucide-react';
+import { CheckCircle, Info, Briefcase, DollarSign, Users, BarChart3, MessageSquare, Zap, ToggleLeft, ToggleRight } from 'lucide-react';
+import { PricingSection } from '@/components/landing/pricing-section'; // Updated import
 
 export default function LandingPage() {
   return (
@@ -34,9 +35,13 @@ export default function LandingPage() {
       {/* Features Section */}
       <section id="features" className="py-16 md:py-24 bg-muted/30">
         <div className="container mx-auto px-6">
-          <h2 className="text-3xl md:text-4xl font-headline font-semibold text-center mb-16">
-            Why Choose NCBX Canvas?
-          </h2>
+          <div className="text-center mb-16">
+            <Zap className="w-12 h-12 text-primary mx-auto mb-4" />
+            <h2 className="text-3xl md:text-4xl font-headline font-semibold">
+              Why Choose NCBX Canvas?
+            </h2>
+            <p className="text-lg text-muted-foreground mt-3 max-w-xl mx-auto">Powerful features designed to bring your vision to life quickly and efficiently.</p>
+          </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[
               { title: 'Drag & Drop Editor', description: 'Visually design your website with our intuitive interface.', icon: <CheckCircle className="w-8 h-8 text-primary" /> },
@@ -63,10 +68,12 @@ export default function LandingPage() {
       {/* About Us Section Placeholder */}
       <section id="about" className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-6">
-          <h2 className="text-3xl md:text-4xl font-headline font-semibold text-center mb-12">
-            <Info className="w-10 h-10 inline-block mr-3 text-primary/80" />
-            About NCBX Canvas
-          </h2>
+          <div className="text-center mb-12">
+            <Info className="w-12 h-12 text-primary/80 mx-auto mb-4" />
+            <h2 className="text-3xl md:text-4xl font-headline font-semibold">
+              About NCBX Canvas
+            </h2>
+          </div>
           <div className="max-w-3xl mx-auto text-center">
             <p className="text-lg text-muted-foreground mb-4">
               We believe creating a powerful online presence shouldn't be complicated. NCBX Canvas was born from the desire to empower creators, entrepreneurs, and businesses of all sizes to build beautiful, high-performing websites without needing to write a single line of code.
@@ -82,10 +89,12 @@ export default function LandingPage() {
       {/* Services Section Placeholder */}
       <section id="services" className="py-16 md:py-24 bg-muted/30">
         <div className="container mx-auto px-6">
-          <h2 className="text-3xl md:text-4xl font-headline font-semibold text-center mb-16">
-            <Briefcase className="w-10 h-10 inline-block mr-3 text-primary/80" />
-            Our Core Offerings
-          </h2>
+          <div className="text-center mb-16">
+            <Briefcase className="w-12 h-12 text-primary/80 mx-auto mb-4" />
+            <h2 className="text-3xl md:text-4xl font-headline font-semibold">
+              Our Core Offerings
+            </h2>
+          </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-10">
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader>
@@ -117,63 +126,11 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      
+      {/* Pricing Section - Updated */}
+      <PricingSection />
 
-      {/* Pricing Section Placeholder */}
-      <section id="pricing" className="py-16 md:py-24 bg-background">
-        <div className="container mx-auto px-6 text-center">
-          <h2 className="text-3xl md:text-4xl font-headline font-semibold mb-12">
-            <DollarSign className="w-10 h-10 inline-block mr-3 text-primary/80" />
-            Simple, Transparent Pricing
-          </h2>
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {/* Basic Plan */}
-            <Card className="shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader className="bg-muted/50 p-6">
-                <CardTitle className="font-headline text-xl">Free Tier</CardTitle>
-                <p className="text-3xl font-bold mt-2">$0<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-              </CardHeader>
-              <CardContent className="p-6 space-y-3">
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> 1 Website</p>
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> Basic Templates</p>
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> Community Support</p>
-                <Button className="w-full mt-4" variant="outline">Get Started</Button>
-              </CardContent>
-            </Card>
-            {/* Pro Plan */}
-            <Card className="shadow-lg hover:shadow-xl transition-shadow border-2 border-primary">
-              <CardHeader className="bg-primary/10 p-6">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="font-headline text-xl text-primary">Pro Plan</CardTitle>
-                  <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full">Popular</span>
-                </div>
-                <p className="text-3xl font-bold mt-2">$19<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-              </CardHeader>
-              <CardContent className="p-6 space-y-3">
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> 5 Websites</p>
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> All Templates & AI Tools</p>
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> Custom Domain</p>
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> Priority Support</p>
-                <Button className="w-full mt-4 bg-primary hover:bg-primary/90 text-primary-foreground">Choose Pro</Button>
-              </CardContent>
-            </Card>
-            {/* Enterprise Plan */}
-            <Card className="shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader className="bg-muted/50 p-6">
-                <CardTitle className="font-headline text-xl">Enterprise</CardTitle>
-                 <p className="text-3xl font-bold mt-2">Custom</p>
-              </CardHeader>
-              <CardContent className="p-6 space-y-3">
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> Unlimited Websites</p>
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> Advanced Features</p>
-                <p><CheckCircle className="w-4 h-4 inline mr-2 text-green-500" /> Dedicated Support</p>
-                <Button className="w-full mt-4" variant="outline">Contact Us</Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Placeholder Section - Kept from original */}
+      {/* Testimonials Placeholder Section */}
       <section className="py-16 md:py-24 bg-muted/30">
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-headline font-semibold mb-12">
@@ -190,7 +147,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA Section - Kept from original */}
+      {/* CTA Section */}
       <section className="py-20 md:py-32 bg-primary/10">
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-headline font-semibold mb-8">
