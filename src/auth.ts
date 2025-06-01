@@ -1,8 +1,8 @@
 
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from 'next-auth/providers/credentials';
-// import dbConnect from '@/lib/dbConnect'; // Removed top-level import
-// import User from '@/models/User';         // Removed top-level import
+// import dbConnect from '@/lib/dbConnect'; // Dynamic import below
+// import User from '@/models/User';         // Dynamic import below
 import bcrypt from 'bcryptjs';
 import type { IUser } from '@/models/User'; // Still need the type
 
@@ -15,35 +15,51 @@ export const authOptions: NextAuthConfig = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        // Dynamically import dbConnect and User model here
-        const dbConnect = (await import('@/lib/dbConnect')).default;
-        const User = (await import('@/models/User')).default;
+        console.log("[Auth][Authorize] Attempting authorization for:", credentials?.email);
+        try {
+          const dbConnect = (await import('@/lib/dbConnect')).default;
+          const User = (await import('@/models/User')).default;
 
-        if (!credentials?.email || typeof credentials.email !== 'string' || 
-            !credentials.password || typeof credentials.password !== 'string') {
-          return null;
+          if (!credentials?.email || typeof credentials.email !== 'string' || 
+              !credentials.password || typeof credentials.password !== 'string') {
+            console.warn("[Auth][Authorize] Invalid credentials object received.");
+            return null;
+          }
+
+          await dbConnect();
+          console.log("[Auth][Authorize] Database connection established for:", credentials.email);
+
+          const user = await User.findOne({ email: credentials.email }).select('+password');
+
+          if (!user) {
+            console.log("[Auth][Authorize] User not found:", credentials.email);
+            return null;
+          }
+          if (!user.password) {
+            console.log("[Auth][Authorize] User found, but password is not set in DB (should not happen with bcrypt):", credentials.email);
+            return null; // Should not happen if password is required on creation
+          }
+
+          console.log("[Auth][Authorize] User found:", credentials.email, "ID:", user._id);
+          const isPasswordMatch = await bcrypt.compare(credentials.password, user.password);
+
+          if (!isPasswordMatch) {
+            console.log("[Auth][Authorize] Password mismatch for user:", credentials.email);
+            return null;
+          }
+          
+          console.log("[Auth][Authorize] Password match successful for user:", credentials.email);
+          return {
+            id: user._id.toString(),
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            avatarUrl: user.avatarUrl,
+          };
+        } catch (error) {
+          console.error("[Auth][Authorize] CRITICAL ERROR during authorization process for:", credentials?.email, error);
+          return null; // Important to return null on any error
         }
-        await dbConnect();
-        const user = await User.findOne({ email: credentials.email }).select('+password');
-
-        if (!user || !user.password) {
-          return null;
-        }
-
-        const isPasswordMatch = await bcrypt.compare(credentials.password, user.password);
-
-        if (!isPasswordMatch) {
-          return null;
-        }
-        
-        // Ensure the returned object matches the expected User type for NextAuth
-        return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          avatarUrl: user.avatarUrl,
-        };
       },
     }),
   ],
@@ -54,8 +70,6 @@ export const authOptions: NextAuthConfig = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // The user object from authorize might not directly have role/avatarUrl if not explicitly returned
-        // Cast `user` to include properties like role and avatarUrl, assuming authorize returns them
         const authorizedUser = user as IUser & { role: 'user' | 'admin', avatarUrl?: string };
         token.role = authorizedUser.role; 
         token.avatarUrl = authorizedUser.avatarUrl;
@@ -75,14 +89,11 @@ export const authOptions: NextAuthConfig = {
     signIn: '/login',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  // Trust "x-forwarded-host" and "x-forwarded-proto" headers from the proxy.
-  // Required if your app is behind a proxy and uses HTTPS.
-  // trustHost: true, // Uncomment if needed, ensure your proxy is configured correctly
+  // trustHost: true, 
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
 
-// Add type definition for session.user to include custom properties
 declare module "next-auth" {
   interface Session {
     user: {
@@ -94,7 +105,6 @@ declare module "next-auth" {
       avatarUrl?: string;
     };
   }
-  // If you also customize the User object passed to JWT/session callbacks
   interface User {
     role: 'user' | 'admin';
     avatarUrl?: string;
