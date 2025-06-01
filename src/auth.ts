@@ -56,14 +56,34 @@ export const authOptions: NextAuthConfig = {
             console.log(`[Auth][Authorize] User not found for email: ${normalizedEmail}.`);
             return null;
           }
+          
+          // Enhanced logging for the fetched user
+          console.log(`[Auth][Authorize] User found for ${normalizedEmail}. User object details (excluding password):`, 
+            JSON.stringify({ 
+              _id: user._id, 
+              email: user.email, 
+              name: user.name, 
+              role: user.role, 
+              isActive: user.isActive, 
+              hasPasswordProperty: user.hasOwnProperty('password'),
+              passwordFieldType: typeof user.password,
+            })
+          );
+
+          if (user.password && typeof user.password === 'string') {
+            console.log(`[Auth][Authorize] Retrieved password hash (snippet) for ${normalizedEmail}: ${user.password.substring(0, 10)}... (Length: ${user.password.length})`);
+          } else {
+            console.log(`[Auth][Authorize] Password field is MISSING, not a string, or undefined for ${normalizedEmail} after retrieval.`);
+          }
+
 
           if (!user.isActive) {
             console.log(`[Auth][Authorize] User ${normalizedEmail} is inactive.`);
             return null;
           }
 
-          if (!user.password) {
-            console.log(`[Auth][Authorize] User ${normalizedEmail} has no password set.`);
+          if (!user.password || typeof user.password !== 'string') { // Ensure password is a string
+            console.log(`[Auth][Authorize] User ${normalizedEmail} has no password set in the database, it was not retrieved, or it's not a string.`);
             return null;
           }
 
@@ -114,7 +134,6 @@ export const authOptions: NextAuthConfig = {
           } catch (stringifyError) {
             console.error("[Auth][Authorize] Could not stringify full error object. Logging raw error:", error);
           }
-
 
           if (typeof error.message === 'string' && error.message.toLowerCase().includes('mongodb_uri')) {
             console.error("[Auth][Authorize] This error seems related to the MONGODB_URI configuration. Ensure it's correctly set in your environment variables and points to a valid, accessible MongoDB instance and database.");
