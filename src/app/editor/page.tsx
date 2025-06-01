@@ -6,7 +6,7 @@ import { AppHeader, type DeviceType } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquare, Type, Image as ImageIcon, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Type, Image as ImageIcon, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -263,7 +263,7 @@ export default function EditorPage() {
       case 'Button': return <ButtonIconElement className="w-5 h-5 mr-2 text-primary" />;
       case 'Section': return <Box className="w-5 h-5 mr-2 text-primary" />;
       case 'Columns': return <ColumnsIcon className="w-5 h-5 mr-2 text-primary" />;
-      default: return <MousePointerSquare className="w-5 h-5 mr-2 text-primary" />;
+      default: return <MousePointerSquareDashed className="w-5 h-5 mr-2 text-primary" />;
     }
   };
 
