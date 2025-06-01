@@ -19,7 +19,6 @@ export const authOptions: NextAuthConfig = {
       async authorize(credentials) {
         console.log("[Auth][Authorize] Attempting authorization...");
 
-        // Explicitly check MONGODB_URI at the start of authorize
         const MONGODB_URI_ENV = process.env.MONGODB_URI;
         if (!MONGODB_URI_ENV || MONGODB_URI_ENV.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || MONGODB_URI_ENV.endsWith("/?retryWrites=true&w=majority&appName=Cluster0")) {
           console.error("[Auth][Authorize] CRITICAL PRE-CHECK FAILED: MONGODB_URI is not set correctly in environment variables. It must be set and point to a specific database.");
@@ -28,7 +27,6 @@ export const authOptions: NextAuthConfig = {
           return null; 
         }
 
-        // Dynamically import models only within this server-side function
         const User = (await import('@/models/User')).default;
         const Subscription = (await import('@/models/Subscription')).default;
 
@@ -48,7 +46,7 @@ export const authOptions: NextAuthConfig = {
           await dbConnect();
           const connectionState = mongoose.connection.readyState;
           if (connectionState !== mongoose.ConnectionStates.connected) {
-              console.error("[Auth][Authorize] Database not connected!");
+              console.error("[Auth][Authorize] Database not connected despite dbConnect() completing! State:", mongoose.ConnectionStates[connectionState]);
               return null;
           }
 
@@ -105,11 +103,19 @@ export const authOptions: NextAuthConfig = {
           console.log(`[Auth][Authorize] SUCCESS: Authorizing user: ${normalizedEmail}. Returning user object:`, JSON.stringify(userToReturn));
           return userToReturn;
 
-        } catch (error: any) {
-          console.error(`[Auth][Authorize] CRITICAL ERROR during authorization process for ${normalizedEmail}:`, error.message);
-          if (error.stack) {
-            console.error("[Auth][Authorize] Stack trace:", error.stack);
+        } catch (error: any) { 
+          console.error(`[Auth][Authorize] CRITICAL ERROR during authorization process for ${normalizedEmail}.`);
+          console.error("[Auth][Authorize] Error Name:", error?.name);
+          console.error("[Auth][Authorize] Error Message:", error?.message);
+          console.error("[Auth][Authorize] Error Stack:", error?.stack);
+          // Log the full error object structure for more detailed debugging
+          try {
+            console.error("[Auth][Authorize] Full error object (stringified):", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+          } catch (stringifyError) {
+            console.error("[Auth][Authorize] Could not stringify full error object. Logging raw error:", error);
           }
+
+
           if (typeof error.message === 'string' && error.message.toLowerCase().includes('mongodb_uri')) {
             console.error("[Auth][Authorize] This error seems related to the MONGODB_URI configuration. Ensure it's correctly set in your environment variables and points to a valid, accessible MongoDB instance and database.");
           } else if (typeof error.message === 'string' && (error.message.toLowerCase().includes('enodata') || error.message.toLowerCase().includes('eservfail') || error.message.toLowerCase().includes('bad auth'))) {
