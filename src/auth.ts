@@ -1,9 +1,10 @@
 
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from 'next-auth/providers/credentials';
-import dbConnect from '@/lib/dbConnect';
-import User from '@/models/User';
+// import dbConnect from '@/lib/dbConnect'; // Removed top-level import
+// import User from '@/models/User';         // Removed top-level import
 import bcrypt from 'bcryptjs';
+import type { IUser } from '@/models/User'; // Still need the type
 
 export const authOptions: NextAuthConfig = {
   providers: [
@@ -14,6 +15,10 @@ export const authOptions: NextAuthConfig = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        // Dynamically import dbConnect and User model here
+        const dbConnect = (await import('@/lib/dbConnect')).default;
+        const User = (await import('@/models/User')).default;
+
         if (!credentials?.email || typeof credentials.email !== 'string' || 
             !credentials.password || typeof credentials.password !== 'string') {
           return null;
@@ -31,6 +36,7 @@ export const authOptions: NextAuthConfig = {
           return null;
         }
         
+        // Ensure the returned object matches the expected User type for NextAuth
         return {
           id: user._id.toString(),
           email: user.email,
@@ -48,8 +54,11 @@ export const authOptions: NextAuthConfig = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role; // Cast user to any to access role if not in default User type
-        token.avatarUrl = (user as any).avatarUrl;
+        // The user object from authorize might not directly have role/avatarUrl if not explicitly returned
+        // Cast `user` to include properties like role and avatarUrl, assuming authorize returns them
+        const authorizedUser = user as IUser & { role: 'user' | 'admin', avatarUrl?: string };
+        token.role = authorizedUser.role; 
+        token.avatarUrl = authorizedUser.avatarUrl;
       }
       return token;
     },
@@ -72,3 +81,30 @@ export const authOptions: NextAuthConfig = {
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
+
+// Add type definition for session.user to include custom properties
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+      role: 'user' | 'admin';
+      avatarUrl?: string;
+    };
+  }
+  // If you also customize the User object passed to JWT/session callbacks
+  interface User {
+    role: 'user' | 'admin';
+    avatarUrl?: string;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role: 'user' | 'admin';
+    avatarUrl?: string;
+  }
+}
