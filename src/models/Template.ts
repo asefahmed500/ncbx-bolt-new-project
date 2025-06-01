@@ -1,3 +1,4 @@
+
 import mongoose, { Schema, model, models, type Document } from 'mongoose';
 import { PageComponentSchema, type IPageComponent } from './PageComponent';
 
