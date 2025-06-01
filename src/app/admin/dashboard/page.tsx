@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye, Settings2, SlidersHorizontal, Construction, AlertTriangle, LayoutGrid, Ticket, FileText, TrendingUp, UserMinus, Percent, DollarSignIcon, History, DatabaseBackup, Globe, CheckSquare, Server, Route, Sparkles, Hourglass, AlertCircle, GitBranch, ListChecks, Wrench } from "lucide-react";
+import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye, Settings2, SlidersHorizontal, Construction, AlertTriangle, LayoutGrid, Ticket, FileText, TrendingUp, UserMinus, Percent, DollarSignIcon, History, DatabaseBackup, Globe, CheckSquare, Server, Route, Sparkles, Hourglass, AlertCircle, GitBranch, ListChecks, Wrench, Webhook, Banknote } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminDashboardPage() {
@@ -194,10 +194,17 @@ export default function AdminDashboardPage() {
                         <p className="text-xs text-muted-foreground flex items-center"><CheckSquare className="mr-1.5 h-3.5 w-3.5" /> SSL certificates: All valid (Placeholder)</p>
                         <p className="text-xs text-muted-foreground flex items-center"><Route className="mr-1.5 h-3.5 w-3.5" /> Domain connections: X pending (Placeholder)</p>
                     </div>
+                     <div>
+                        <h4 className="font-medium text-sm mb-1">Payment & Stripe Integration:</h4>
+                        <p className="text-xs text-muted-foreground flex items-center"><Webhook className="mr-1.5 h-3.5 w-3.5" /> Stripe Webhook Health: OK (Placeholder)</p>
+                        <p className="text-xs text-muted-foreground flex items-center"><Banknote className="mr-1.5 h-3.5 w-3.5" /> Payment Gateway Status: Operational (Placeholder)</p>
+                        <p className="text-xs text-muted-foreground flex items-center"><AlertCircle className="mr-1.5 h-3.5 w-3.5 text-destructive" /> Failed Payments (24h): X (Placeholder)</p>
+                    </div>
                 </div>
               <div className="mt-4 space-y-2">
                 <Button variant="outline" className="w-full" disabled>View Server Logs</Button>
                 <Button variant="outline" className="w-full" disabled>CDN Status Page</Button>
+                 <Button variant="outline" className="w-full" disabled>Stripe Dashboard</Button>
               </div>
             </CardContent>
              <CardFooter>
