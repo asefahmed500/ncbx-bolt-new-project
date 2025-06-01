@@ -16,22 +16,19 @@ export const PageComponentSchema = new Schema<IPageComponent>(
       type: String,
       required: [true, 'Component type is required.'],
       enum: [
-        'text',          // For rich text content. Config: { htmlContent: "<p>Hello</p>", alignment: "left" }
-        'heading',       // For H1, H2, etc. Config: { level: "h1", text: "My Title", color: "#333" }
-        'image',         // For single images. Config: { src: "url", alt: "description", width: "100%", link: "optional_url", openInNewTab: true, galleryId: "group_for_lightbox" }
-                         // For image galleries/sliders, 'image' type could be used repeatedly within a 'section' with type 'gallery' or 'slider', or a dedicated 'gallery' component type.
-        'button',        // For CTAs. Config: { text: "Click Me", link: "url", style: "primary", size: "md", hoverEffect: "darken" }
-        'section',       // A container for other components. Config: { backgroundColor: "#f0f0f0", paddingTop: "20px", fullWidth: false, sticky: false }
-        'columns',       // For multi-column layouts. Config: { count: 2, gap: "10px", layout: ["50%", "50%"] } (each column then holds more PageComponents)
-        'divider',       // Visual separator. Config: { style: "solid", color: "#ccc", height: "1px", marginY: "10px" }
-        'customCode',    // For HTML/CSS/JS. Config: { html: "...", css: "...", js: "..." }
-        'video',         // For embedding videos. Config: { provider: "youtube" | "vimeo" | "self", url: "video_url_or_id", autoplay: false, controls: true }
-        'form',          // Container for form elements. Config: { submitUrl: "/api/contact", successMessage: "Thanks!" } (would contain 'input', 'textarea_field' components)
-        'input',       // For form input fields. Config: { label: "Name", type: "text" | "email" | "tel", placeholder: "Your Name", required: true, name: "userName" }
-        'textarea_field',// For form text areas. Config: { label: "Message", placeholder: "Your Message", required: false, rows: 4, name: "userMessage" }
-        'map_embed',       // For embedding maps. Config: { provider: "google", embedUrl: "google_maps_embed_url" } // or address + API key for dynamic map
-                        // Complex features like 'Mega Menus', 'Accordions', 'Tabs', 'Modal Popups', 'Event Calendars', 'Booking Systems' would likely be their own component types
-                        // or highly configurable 'section' components with specific internal structures.
+        'text',          // Config: { htmlContent: "<p>Hello</p>", alignment: "left", color: "#333", fontFamily: "Inter", fontSize: "16px" }
+        'heading',       // Config: { level: "h1" | "h2" | "h3" | "h4" | "h5" | "h6", text: "My Title", color: "#111", fontFamily: "Poppins", fontSize: "32px", alignment: "center" }
+        'image',         // Config: { src: "url", alt: "description", width: "100%", height: "auto", link: "optional_url", openInNewTab: true, caption: "Optional caption", cornerRadius: "8px", shadow: "md" }
+        'button',        // Config: { text: "Click Me", link: "url", style: "primary" | "secondary" | "outline", size: "md" | "sm" | "lg", backgroundColor: "#007bff", textColor: "#ffffff", hoverBackgroundColor: "#0056b3", cornerRadius: "4px", iconLeft: "lucide-icon-name", iconRight: "lucide-icon-name" }
+        'section',       // Config: { backgroundColor: "#f0f0f0", backgroundImage: "url", backgroundSize: "cover", paddingTop: "20px", paddingBottom: "20px", fullWidth: false, minHeight: "300px", verticalAlignment: "center" }
+        'columns',       // Config: { count: 2, gap: "16px", layout: ["1fr", "1fr"] or ["30%", "70%"], verticalAlignment: ["top", "center"] } (each column then holds more PageComponents)
+        'divider',       // Config: { style: "solid" | "dashed" | "dotted", color: "#ccc", height: "1px", marginY: "16px", width: "100%" }
+        'customCode',    // Config: { html: "...", css: "...", js: "..." }
+        'video',         // Config: { provider: "youtube" | "vimeo" | "self", url: "video_url_or_id", autoplay: false, controls: true, loop: false, aspectRatio: "16:9" }
+        'form',          // Config: { submitUrl: "/api/submit-form", successMessage: "Thanks for your submission!", errorMessage: "Submission failed.", buttonText: "Submit Now" } (would contain 'input', 'textarea_field' components as children)
+        'input',         // Config: { label: "Name", type: "text" | "email" | "tel" | "number" | "password" | "date", placeholder: "Your Name", required: true, name: "userName", defaultValue: "", helpText: "Enter your full name." }
+        'textarea_field',// Config: { label: "Message", placeholder: "Your Message", required: false, rows: 4, name: "userMessage", defaultValue: "", helpText: "Max 500 characters." }
+        'map_embed',     // Config: { provider: "google", embedUrl: "google_maps_embed_url", height: "400px", zoomLevel: 15 } // or address + API key for dynamic map
       ],
     },
     config: {
