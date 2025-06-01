@@ -15,7 +15,7 @@ const components = [
   { id: "section", label: "Section / Container", icon: Box, description: "Organize content into distinct sections or flexible containers." },
   { id: "columns", label: "Columns Layout", icon: Columns, description: "Arrange content side-by-side in responsive columns." },
   { id: "divider", label: "Divider", icon: Minus, description: "Add a visual horizontal separator line." },
-  { id: "customCode", label: "Custom Code", icon: Code2, description: "Embed custom HTML, CSS, or JavaScript (for advanced users)." },
+  { id: "customCode", label: "Custom Code", icon: Code2, description: "Embed custom HTML, CSS, or JavaScript snippets for advanced styling and functionality. Use with caution." },
 ];
 
 export function ComponentLibrarySidebar() {
