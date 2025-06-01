@@ -6,12 +6,14 @@ import { AppHeader, type DeviceType } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquare, Type, Image as ImageIcon, Square as ButtonIcon, BarChart2, UploadCloud, Crop, Sparkles } from 'lucide-react';
+import { Settings, MousePointerSquare, Type, Image as ImageIcon, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch'; // Added for toggles
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Added for select inputs
 
 // Define a type for the selected element, including potential properties
 interface SelectedElement {
@@ -26,6 +28,15 @@ interface SelectedElement {
   altText?: string; // For Image
   buttonText?: string; // For Button
   linkUrl?: string; // For Button
+  // Section specific
+  backgroundColor?: string;
+  paddingTop?: string;
+  paddingBottom?: string;
+  fullWidth?: boolean;
+  // Columns specific
+  columnCount?: number;
+  columnGap?: string;
+  responsiveLayoutMobile?: 'stack' | '2-col' | 'equal';
 }
 
 export default function EditorPage() {
@@ -41,40 +52,45 @@ export default function EditorPage() {
         return (
           <>
             <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Label htmlFor="textContent" className="text-xs">Text Content</Label>
               <Textarea id="textContent" defaultValue={selectedElement.textContent || ""} placeholder="Enter heading text" className="text-xs" />
             </div>
-            <div className="space-y-1 mt-2">
+            <div className="space-y-2 mt-2">
               <Label htmlFor="fontSize" className="text-xs">Font Size (e.g., 2rem, 24px)</Label>
               <Input type="text" id="fontSize" defaultValue={selectedElement.fontSize || ""} placeholder="e.g., 2rem" className="text-xs" />
             </div>
-            <div className="space-y-1 mt-2">
-              <Label htmlFor="color" className="text-xs">Text Color (e.g., #FF0000)</Label>
+            <div className="space-y-2 mt-2">
+              <Label htmlFor="color" className="text-xs">Text Color</Label>
               <Input type="color" id="color" defaultValue={selectedElement.color || "#333333"} className="text-xs h-8 w-full" />
             </div>
-             <div className="space-y-1 mt-2">
+             <div className="space-y-2 mt-2">
               <Label htmlFor="headingLevel" className="text-xs">Level (H1-H6)</Label>
-              <select id="headingLevel" defaultValue="h2" className="w-full text-xs p-2 border rounded-md bg-input">
-                <option value="h1">H1</option>
-                <option value="h2">H2</option>
-                <option value="h3">H3</option>
-                <option value="h4">H4</option>
-                <option value="h5">H5</option>
-                <option value="h6">H6</option>
-              </select>
+              <Select defaultValue="h2">
+                <SelectTrigger id="headingLevel" className="w-full text-xs bg-input">
+                    <SelectValue placeholder="Select level" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="h1">H1</SelectItem>
+                    <SelectItem value="h2">H2</SelectItem>
+                    <SelectItem value="h3">H3</SelectItem>
+                    <SelectItem value="h4">H4</SelectItem>
+                    <SelectItem value="h5">H5</SelectItem>
+                    <SelectItem value="h6">H6</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <p className="text-xs text-muted-foreground mt-3">Alignment, spacing, and advanced typography settings would appear here. Changes would reflect live on the canvas.</p>
           </>
         );
-      case 'Text': // Rich Text Block
+      case 'Text':
          return (
           <>
             <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
             <p className="text-xs text-muted-foreground mb-2">
               A WYSIWYG toolbar (Bold, Italic, Underline, Lists, Links, etc.) would appear here or above the text area.
             </p>
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Label htmlFor="richTextContent" className="text-xs">Content</Label>
               <Textarea 
                 id="richTextContent" 
@@ -95,7 +111,7 @@ export default function EditorPage() {
         return (
           <>
             <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Label htmlFor="imageUrl" className="text-xs">Image Source URL</Label>
               <Input type="url" id="imageUrl" defaultValue={selectedElement.imageUrl || ""} placeholder="https://placehold.co/600x400.png" className="text-xs" />
             </div>
@@ -106,15 +122,15 @@ export default function EditorPage() {
             
             <Separator className="my-3" />
 
-            <div className="space-y-1 mt-2">
+            <div className="space-y-2 mt-2">
               <Label htmlFor="altText" className="text-xs">Alt Text (Accessibility)</Label>
               <Input type="text" id="altText" defaultValue={selectedElement.altText || ""} placeholder="Descriptive text for image" className="text-xs" />
             </div>
-            <div className="space-y-1 mt-2">
+            <div className="space-y-2 mt-2">
               <Label htmlFor="imageWidth" className="text-xs">Width (e.g., 100%, 300px)</Label>
               <Input type="text" id="imageWidth" placeholder="e.g., 100%" className="text-xs" />
             </div>
-            <div className="space-y-1 mt-2">
+            <div className="space-y-2 mt-2">
               <Label htmlFor="imageLink" className="text-xs">Link URL (Optional)</Label>
               <Input type="url" id="imageLink" placeholder="https://example.com" className="text-xs" />
             </div>
@@ -142,23 +158,91 @@ export default function EditorPage() {
         return (
           <>
             <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Label htmlFor="buttonText" className="text-xs">Button Text</Label>
               <Input type="text" id="buttonText" defaultValue={selectedElement.buttonText || ""} placeholder="Click Me" className="text-xs" />
             </div>
-            <div className="space-y-1 mt-2">
+            <div className="space-y-2 mt-2">
               <Label htmlFor="linkUrl" className="text-xs">Link URL</Label>
               <Input type="url" id="linkUrl" defaultValue={selectedElement.linkUrl || ""} placeholder="/contact" className="text-xs" />
             </div>
-            <div className="space-y-1 mt-2">
+            <div className="space-y-2 mt-2">
               <Label htmlFor="buttonBgColor" className="text-xs">Background Color</Label>
               <Input type="color" id="buttonBgColor" defaultValue={selectedElement.color || "hsl(var(--primary))"} className="text-xs h-8 w-full" />
             </div>
-            <div className="space-y-1 mt-2">
+            <div className="space-y-2 mt-2">
               <Label htmlFor="buttonTextColor" className="text-xs">Text Color</Label>
               <Input type="color" id="buttonTextColor" defaultValue="#FFFFFF" className="text-xs h-8 w-full" />
             </div>
             <p className="text-xs text-muted-foreground mt-3">Options for style (solid, outline), size, hover effects, icons, and padding/margin would be available here.</p>
+          </>
+        );
+      case 'Section':
+        return (
+          <>
+            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
+            <div className="space-y-2">
+              <Label htmlFor="sectionBgColor" className="text-xs">Background Color</Label>
+              <Input type="color" id="sectionBgColor" defaultValue={selectedElement.backgroundColor || "#FFFFFF"} className="text-xs h-8 w-full" />
+            </div>
+            <div className="space-y-2 mt-2">
+              <Label htmlFor="sectionPaddingTop" className="text-xs">Padding Top (e.g., 20px, 2rem)</Label>
+              <Input type="text" id="sectionPaddingTop" defaultValue={selectedElement.paddingTop || "20px"} placeholder="e.g., 20px" className="text-xs" />
+            </div>
+            <div className="space-y-2 mt-2">
+              <Label htmlFor="sectionPaddingBottom" className="text-xs">Padding Bottom (e.g., 20px, 2rem)</Label>
+              <Input type="text" id="sectionPaddingBottom" defaultValue={selectedElement.paddingBottom || "20px"} placeholder="e.g., 20px" className="text-xs" />
+            </div>
+            <div className="flex items-center space-x-2 mt-3">
+              <Switch id="sectionFullWidth" defaultChecked={selectedElement.fullWidth} />
+              <Label htmlFor="sectionFullWidth" className="text-xs">Full Width Section</Label>
+            </div>
+             <div className="space-y-2 mt-2">
+              <Label htmlFor="sectionMinHeight" className="text-xs">Min Height (e.g., 300px, auto)</Label>
+              <Input type="text" id="sectionMinHeight" placeholder="e.g., 300px" className="text-xs" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">Options for background image, content alignment, width constraints, and advanced spacing would appear here.</p>
+          </>
+        );
+        case 'Columns':
+        return (
+          <>
+            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
+            <div className="space-y-2">
+              <Label htmlFor="columnCount" className="text-xs">Number of Columns</Label>
+              <Select defaultValue={selectedElement.columnCount?.toString() || "2"}>
+                <SelectTrigger id="columnCount" className="w-full text-xs bg-input">
+                    <SelectValue placeholder="Select columns" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="1">1 Column</SelectItem>
+                    <SelectItem value="2">2 Columns</SelectItem>
+                    <SelectItem value="3">3 Columns</SelectItem>
+                    <SelectItem value="4">4 Columns</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+             <div className="space-y-2 mt-2">
+              <Label htmlFor="columnGap" className="text-xs">Gap Between Columns (e.g., 16px, 1rem)</Label>
+              <Input type="text" id="columnGap" defaultValue={selectedElement.columnGap || "16px"} placeholder="e.g., 16px" className="text-xs" />
+            </div>
+            <div className="space-y-2 mt-2">
+              <Label htmlFor="responsiveLayoutMobile" className="text-xs">Mobile Layout</Label>
+               <Select defaultValue={selectedElement.responsiveLayoutMobile || "stack"}>
+                <SelectTrigger id="responsiveLayoutMobile" className="w-full text-xs bg-input">
+                    <SelectValue placeholder="Select mobile layout" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="stack">Stack Columns</SelectItem>
+                    <SelectItem value="2-col">Force 2 Columns</SelectItem>
+                    <SelectItem value="equal">Keep Equal Width</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Controls for individual column widths (e.g., 30%/70%), vertical alignment per column, and different responsive behaviors for tablet/desktop would be here.
+              Each column would act as a drop target for other components.
+            </p>
           </>
         );
       default:
@@ -176,7 +260,9 @@ export default function EditorPage() {
       case 'Heading': return <Type className="w-5 h-5 mr-2 text-primary" />;
       case 'Text': return <Type className="w-5 h-5 mr-2 text-primary" />;
       case 'Image': return <ImageIcon className="w-5 h-5 mr-2 text-primary" />;
-      case 'Button': return <ButtonIcon className="w-5 h-5 mr-2 text-primary" />;
+      case 'Button': return <ButtonIconElement className="w-5 h-5 mr-2 text-primary" />;
+      case 'Section': return <Box className="w-5 h-5 mr-2 text-primary" />;
+      case 'Columns': return <ColumnsIcon className="w-5 h-5 mr-2 text-primary" />;
       default: return <MousePointerSquare className="w-5 h-5 mr-2 text-primary" />;
     }
   };
@@ -217,19 +303,19 @@ export default function EditorPage() {
                   No element selected. Click an element on the canvas or select one from the Page Outline (conceptual) to edit its properties.
                 </p>
                 <div className="mt-4 space-y-3">
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                         <Label htmlFor="pageTitle" className="text-xs">Page Title (SEO)</Label>
                         <Input type="text" id="pageTitle" placeholder="Enter page title" className="text-xs" />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                         <Label htmlFor="pageSlug" className="text-xs">Page Slug (URL)</Label>
                         <Input type="text" id="pageSlug" placeholder="/my-awesome-page" className="text-xs" />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                         <Label htmlFor="pageDescription" className="text-xs">Page Description (SEO)</Label>
                         <Textarea id="pageDescription" placeholder="Enter meta description for SEO" className="text-xs" />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                         <Label htmlFor="pageBgColor" className="text-xs">Page Background Color</Label>
                         <Input type="color" id="pageBgColor" defaultValue="#FFFFFF" className="text-xs h-8 w-full" />
                     </div>
@@ -239,7 +325,7 @@ export default function EditorPage() {
                       <h4 className="text-sm font-medium mb-2 flex items-center">
                         <BarChart2 className="w-4 h-4 mr-2 text-muted-foreground" /> Analytics
                       </h4>
-                       <div className="space-y-1">
+                       <div className="space-y-2">
                         <Label htmlFor="analyticsTrackingId" className="text-xs">Tracking ID (e.g., Google Analytics G-XXXX)</Label>
                         <Input type="text" id="analyticsTrackingId" placeholder="Enter your tracking ID" className="text-xs" />
                          <p className="text-xs text-muted-foreground mt-1">This ID would be used by the publishing system to inject analytics scripts (e.g., gtag.js) into your site.</p>
@@ -267,8 +353,14 @@ export default function EditorPage() {
                         <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'btn-789', type: 'Button', name: 'CTA Button', buttonText: 'Learn More', linkUrl: '/about', color: 'hsl(var(--primary))'})}>
                             Select Sample Button
                         </Button>
-                         <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'text-012', type: 'Text', name: 'Intro Paragraph', textContent: 'This is a sample rich text block. You can add multiple paragraphs, lists, and other formatting.'})}>
+                         <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'text-012', type: 'Text', name: 'Intro Paragraph', textContent: 'This is a sample rich text block.'})}>
                             Select Sample Text Block
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'section-ABC', type: 'Section', name: 'Hero Section', backgroundColor: '#F0F8FF', paddingTop: '40px', paddingBottom: '40px', fullWidth: true})}>
+                            Select Sample Section
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'cols-DEF', type: 'Columns', name: 'Feature Columns', columnCount: 3, columnGap: '24px', responsiveLayoutMobile: 'stack'})}>
+                            Select Sample Columns
                         </Button>
                     </div>
                 )}
@@ -281,3 +373,4 @@ export default function EditorPage() {
     </div>
   );
 }
+
