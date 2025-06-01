@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye, Settings2, SlidersHorizontal, Construction, AlertTriangle } from "lucide-react";
+import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye, Settings2, SlidersHorizontal, Construction, AlertTriangle, LayoutGrid, Ticket, FileText } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminDashboardPage() {
@@ -52,7 +52,7 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <p className="text-green-500 font-semibold">Optimal</p> {/* Placeholder */}
-              <p className="text-xs text-muted-foreground">Last check: 2 mins ago (via external monitoring)</p>
+              <p className="text-xs text-muted-foreground">Last check: 2 mins ago</p>
             </CardContent>
           </Card>
         </div>
@@ -67,35 +67,84 @@ export default function AdminDashboardPage() {
               <CardTitle className="font-headline flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />User Management</CardTitle>
               <CardDescription>View, search, and manage user accounts.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex w-full max-w-sm items-center space-x-2">
-                <Input type="search" placeholder="Search users (email, name, ID)..." className="bg-input" />
-                <Button type="submit" variant="outline"><Search className="h-4 w-4" /></Button>
-              </div>
-              <p className="text-sm text-muted-foreground">Actions: View Details, Edit Role, Suspend, Delete, Bulk Operations.</p>
+            <CardContent className="space-y-2">
+               <Link href="/admin/users" legacyBehavior passHref>
+                <Button variant="outline" className="w-full"><Search className="mr-2 h-4 w-4"/>Search & Manage Users</Button>
+              </Link>
               <Button variant="secondary" className="w-full" disabled><MessageSquare className="mr-2 h-4 w-4"/>Communicate with Users</Button>
             </CardContent>
             <CardFooter>
-              <p className="text-xs text-muted-foreground">User activity logs and detailed profiles will be accessible.</p>
+              <p className="text-xs text-muted-foreground">Actions: Suspend, Delete, Edit Role, View Activity.</p>
+            </CardFooter>
+          </Card>
+
+           <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="font-headline flex items-center"><LayoutGrid className="mr-2 h-5 w-5 text-primary" />Template Management</CardTitle>
+              <CardDescription>Review, approve, and manage website templates.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Link href="/admin/templates" legacyBehavior passHref>
+                <Button variant="outline" className="w-full"><Eye className="mr-2 h-4 w-4"/>View & Manage Templates</Button>
+              </Link>
+              <Button variant="secondary" className="w-full" disabled>Approve Pending (0)</Button>
+            </CardContent>
+             <CardFooter>
+                <p className="text-xs text-muted-foreground">Export, edit, and set premium status for templates.</p>
             </CardFooter>
           </Card>
 
           <Card className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle className="font-headline flex items-center"><FileSpreadsheet className="mr-2 h-5 w-5 text-primary" />Financial Reporting</CardTitle>
+              <CardTitle className="font-headline flex items-center"><Ticket className="mr-2 h-5 w-5 text-primary" />Coupon Management</CardTitle>
+              <CardDescription>Create and manage promotional coupons.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Link href="/admin/coupons" legacyBehavior passHref>
+                <Button variant="outline" className="w-full"><Settings2 className="mr-2 h-4 w-4"/>Manage Coupons</Button>
+              </Link>
+              <Link href="/admin/coupons/create" legacyBehavior passHref>
+                <Button variant="default" className="w-full">Create New Coupon</Button>
+              </Link>
+            </CardContent>
+             <CardFooter>
+                <p className="text-xs text-muted-foreground">Set discount types, values, and usage limits.</p>
+            </CardFooter>
+          </Card>
+          
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="font-headline flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-primary" />Content Moderation</CardTitle>
+              <CardDescription>Review user content and manage reports.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Link href="/admin/moderation" legacyBehavior passHref>
+                <Button variant="outline" className="w-full"><Eye className="mr-2 h-4 w-4"/>View Moderation Queue (0)</Button>
+              </Link>
+              <Button variant="secondary" className="w-full" disabled>Moderation Settings</Button>
+              <Button variant="secondary" className="w-full" disabled>Community Guidelines</Button>
+            </CardContent>
+            <CardFooter>
+              <p className="text-xs text-muted-foreground">Approval workflows, automated scanning, and appeals.</p>
+            </CardFooter>
+          </Card>
+
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="font-headline flex items-center"><FileText className="mr-2 h-5 w-5 text-primary" />Financial Reporting</CardTitle>
               <CardDescription>View revenue, subscriptions, and financial metrics.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Detailed financial reports and dashboards for MRR, LTV, Churn, and Tax.</p>
+              <p className="text-muted-foreground">Detailed financial reports and dashboards.</p>
               <div className="mt-3 space-y-1 text-sm">
-                  <p>Monthly Recurring Revenue (MRR): $XXXX</p>
-                  <p>Customer Lifetime Value (LTV): $YYYY</p>
-                  <p>Churn Rate: X%</p>
-                  <p><Link href="/admin/reports/tax" className="text-primary hover:underline">View Tax Reports (Placeholder)</Link></p>
+                  <p>Monthly Recurring Revenue (MRR): $XXXX (Placeholder)</p>
+                  <p>Customer Lifetime Value (LTV): $YYYY (Placeholder)</p>
+                  <p>Churn Rate: X% (Placeholder)</p>
+                  <Button variant="link" className="p-0 h-auto" disabled>View Tax Reports</Button>
               </div>
             </CardContent>
           </Card>
-
+          
           <Card className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="font-headline flex items-center"><Settings2 className="mr-2 h-5 w-5 text-primary" />Application Configuration</CardTitle>
@@ -111,24 +160,6 @@ export default function AdminDashboardPage() {
               </div>
             </CardContent>
           </Card>
-          
-          <Card className="shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="font-headline flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-primary" />Content Moderation</CardTitle>
-              <CardDescription>Review user-generated content, manage reports, and define guidelines.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Approval workflows, automated scanning (AI), appeals, and community guideline management.</p>
-              <div className="mt-3 space-y-2">
-                <Button variant="outline" className="w-full" disabled><Eye className="mr-2 h-4 w-4"/>View Pending Queue (0)</Button>
-                <Button variant="outline" className="w-full" disabled>Moderation Settings</Button>
-                <Button variant="outline" className="w-full" disabled>Community Guidelines</Button>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <p className="text-xs text-muted-foreground">Content policies and appeal processes.</p>
-            </CardFooter>
-          </Card>
 
           <Card className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
@@ -136,7 +167,7 @@ export default function AdminDashboardPage() {
               <CardDescription>Monitor application health, performance, and errors.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Links to external monitoring tools and dashboards for server, database, and uptime.</p>
+              <p className="text-muted-foreground">Links to external monitoring tools and dashboards.</p>
               <div className="mt-3 space-y-2">
                 <Button variant="outline" className="w-full" disabled>Server Performance</Button>
                 <Button variant="outline" className="w-full" disabled>Database Queries</Button>
@@ -145,7 +176,7 @@ export default function AdminDashboardPage() {
               </div>
             </CardContent>
              <CardFooter>
-              <p className="text-xs text-muted-foreground">Health check endpoint: /api/health</p>
+              <p className="text-xs text-muted-foreground">Health check endpoint: /api/health (Conceptual)</p>
             </CardFooter>
           </Card>
 
@@ -155,7 +186,7 @@ export default function AdminDashboardPage() {
               <CardDescription>Track user behavior, feature usage, and conversion funnels.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Integrate with analytics platforms (e.g., Plausible, Google Analytics, Mixpanel) to view custom reports and dashboards.</p>
+              <p className="text-muted-foreground">Integrate with analytics platforms for custom reports.</p>
               <div className="mt-3 space-y-2">
                 <Button variant="outline" className="w-full" disabled>View Behavior Reports</Button>
                 <Button variant="outline" className="w-full" disabled>Analyze Conversion Funnels</Button>
@@ -175,7 +206,7 @@ export default function AdminDashboardPage() {
           <div>
             <h3 className="font-semibold text-blue-700">Admin Area Guide</h3>
             <p className="text-sm text-muted-foreground">
-              This dashboard provides an overview and tools for managing the application. Specific functionalities like detailed user lists, actions, and full reports will be built out progressively.
+              This dashboard provides an overview and tools for managing the application. Specific functionalities and data will be built out progressively.
             </p>
           </div>
         </div>
@@ -183,3 +214,5 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+
+    
