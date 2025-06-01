@@ -5,17 +5,52 @@ import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Lightbulb, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Lightbulb, Loader2, CreditCard } from "lucide-react";
+import { createStripeCheckoutSession } from '@/actions/stripe';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { toast } = useToast();
+  const [isSubscribing, setIsSubscribing] = React.useState(false);
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.role === 'admin') {
       router.replace('/admin/dashboard'); 
     }
   }, [session, status, router]);
+
+  const handleSubscribe = async () => {
+    setIsSubscribing(true);
+    // Replace 'YOUR_STRIPE_PRICE_ID' with an actual Price ID from your Stripe account
+    const priceId = 'price_YOUR_STRIPE_PRICE_ID'; // TODO: Replace with actual Price ID
+    if (priceId === 'price_YOUR_STRIPE_PRICE_ID') {
+        toast({
+            title: "Configuration Needed",
+            description: "Please replace 'price_YOUR_STRIPE_PRICE_ID' in src/app/dashboard/page.tsx with an actual Stripe Price ID.",
+            variant: "destructive",
+            duration: 7000,
+        });
+        setIsSubscribing(false);
+        return;
+    }
+
+    const result = await createStripeCheckoutSession(priceId);
+
+    if (result.error) {
+      toast({
+        title: "Subscription Error",
+        description: result.error,
+        variant: "destructive",
+      });
+    } else if (result.url) {
+      router.push(result.url); // Redirect to Stripe Checkout
+    }
+    setIsSubscribing(false);
+  };
+
 
   if (status === 'loading') {
     return (
@@ -35,7 +70,6 @@ export default function DashboardPage() {
     );
   }
   
-  // Original content for non-admin users
   return (
     <div className="flex-1 p-6 md:p-10">
       <div className="flex items-center justify-between mb-8">
@@ -53,11 +87,21 @@ export default function DashboardPage() {
         </Card>
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle className="font-headline">Recent Activity</CardTitle>
-            <CardDescription>See your latest actions and updates.</CardDescription>
+            <CardTitle className="font-headline">Subscription</CardTitle>
+            <CardDescription>Manage your subscription plan.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">No recent activity.</p>
+          <CardContent className="space-y-3">
+            <p className="text-muted-foreground">You are currently on the free plan.</p>
+            {/* TODO: Replace with actual Stripe Price ID from your dashboard */}
+            <Button 
+              onClick={handleSubscribe} 
+              disabled={isSubscribing}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {isSubscribing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" /> }
+              {isSubscribing ? "Processing..." : "Upgrade to Pro"}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">You will be redirected to Stripe to complete your purchase.</p>
           </CardContent>
         </Card>
         <Card className="shadow-sm hover:shadow-md transition-shadow">

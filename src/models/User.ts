@@ -4,9 +4,10 @@ import mongoose, { Schema, model, models, type Document } from 'mongoose';
 export interface IUser extends Document {
   name?: string;
   email: string;
-  password?: string; // Optional because it's not always returned, and not present for OAuth users (if added later)
+  password?: string; 
   avatarUrl?: string;
   role: 'user' | 'admin';
+  stripeCustomerId?: string; // Added for Stripe integration
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,14 +21,14 @@ const UserSchema = new Schema<IUser>(
     email: {
       type: String,
       required: [true, 'Email is required.'],
-      unique: true, // This implies an index and handles uniqueness at DB level
+      unique: true, 
       trim: true,
-      lowercase: true, // Ensures email is stored in lowercase
+      lowercase: true, 
       match: [/.+@.+\..+/, 'Please enter a valid email address.'],
     },
     password: {
       type: String,
-      select: false, // Prevent password from being returned by default in queries
+      select: false, 
     },
     avatarUrl: {
       type: String,
@@ -36,17 +37,22 @@ const UserSchema = new Schema<IUser>(
     role: {
       type: String,
       enum: ['user', 'admin'],
-      default: 'user', // Default role for new users
+      default: 'user', 
       required: true,
+    },
+    stripeCustomerId: { // For associating the user with a Stripe Customer object
+      type: String,
+      unique: true,
+      sparse: true, // Allows multiple null/undefined values but ensures uniqueness for actual values
     },
   },
   {
-    timestamps: true, // This adds createdAt and updatedAt fields
+    timestamps: true, 
   }
 );
 
 // The unique: true option on the email field automatically creates the necessary index.
-// No need for UserSchema.index({ email: 1 });
+// UserSchema.index({ email: 1 }); // This was removed as it's redundant
 
 const User = models.User || model<IUser>('User', UserSchema);
 
