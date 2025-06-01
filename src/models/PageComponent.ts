@@ -1,13 +1,15 @@
+
 import mongoose, { Schema, type Document } from 'mongoose';
 
 // This schema is intended to be EMBEDDED within the Page schema.
 // It does not need to be registered as a separate model unless used independently.
 
 export interface IPageComponent extends Document {
-  type: string; // e.g., 'text', 'image', 'button', 'section', 'columns', 'divider', 'heading'
+  type: string; // e.g., 'text', 'image', 'button', 'section', 'columns', 'divider', 'heading', 'customCode'
   config: mongoose.Schema.Types.Mixed; // Flexible object to store component-specific data and content
   // Example config for a 'text' component: { text: "Hello World", alignment: "left", fontSize: "16px" }
   // Example config for an 'image' component: { src: "https://placehold.co/600x400.png", alt: "Placeholder", dataAiHint: "abstract" }
+  // Example config for 'customCode': { html: "<div></div>", css: ".my-class { color: red; }", js: "console.log('hi')" }
   order: number; // For ordering components within a page or section
 }
 
@@ -16,7 +18,7 @@ export const PageComponentSchema = new Schema<IPageComponent>(
     type: {
       type: String,
       required: [true, 'Component type is required.'],
-      enum: ['text', 'heading', 'image', 'button', 'section', 'columns', 'divider'], // Add more as needed
+      enum: ['text', 'heading', 'image', 'button', 'section', 'columns', 'divider', 'customCode'], // Added 'customCode'
     },
     config: {
       type: Schema.Types.Mixed,
