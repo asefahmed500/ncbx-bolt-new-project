@@ -143,14 +143,14 @@ export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise
     }
 
     if (website.userId.toString() !== userId && session.user.role !== 'admin') {
-      return { error: "Unauthorized to modify this website." };
+      return { error: "Unauthorized to publish this website." };
     }
 
     if (!website.currentVersionId) {
       return { error: "No current version available to publish. Please save a version of your website first." };
     }
 
-    console.log(`[WebsiteAction_Publish] Conceptual: Starting deployment for website ${websiteId}, version ${website.currentVersionId}...`);
+    console.log(`[WebsiteAction_Publish] Attempting to publish website ${websiteId}, version ${website.currentVersionId}...`);
 
     website.status = 'published' as WebsiteStatus;
     website.lastPublishedAt = new Date();
@@ -158,11 +158,13 @@ export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise
     
     const updatedWebsite = await website.save();
 
-    console.log(`[WebsiteAction_Publish] Conceptual: Deployment for website ${websiteId}, version ${website.publishedVersionId} completed. Status set to published.`);
+    // Placeholder for actual deployment logic (e.g., triggering a build, updating CDN)
+    console.log(`[WebsiteAction_Publish] Website ${websiteId}, version ${website.publishedVersionId} marked as published. Conceptual deployment would occur now.`);
     return { success: "Website published successfully.", website: updatedWebsite.toObject() as IWebsite };
 
   } catch (error: any) {
     console.error(`[WebsiteAction_Publish] Error publishing website ${websiteId}:`, error);
+    // Attempt to revert status or mark as error
     try {
       await Website.findByIdAndUpdate(websiteId, { status: 'error_publishing' as WebsiteStatus });
     } catch (statusUpdateError) {
@@ -192,15 +194,19 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
     }
 
     if (website.userId.toString() !== userId && session.user.role !== 'admin') {
-      return { error: "Unauthorized to modify this website." };
+      return { error: "Unauthorized to unpublish this website." };
     }
 
-    console.log(`[WebsiteAction_Unpublish] Conceptual: Starting unpublish process for website ${websiteId}...`);
+    console.log(`[WebsiteAction_Unpublish] Attempting to unpublish website ${websiteId}...`);
     
     website.status = 'unpublished' as WebsiteStatus;
+    // Optionally clear publishedVersionId and lastPublishedAt
+    // website.publishedVersionId = undefined;
+    // website.lastPublishedAt = undefined;
     const updatedWebsite = await website.save();
 
-    console.log(`[WebsiteAction_Unpublish] Conceptual: Unpublish for website ${websiteId} completed.`);
+    // Placeholder for actual unpublishing logic (e.g., removing from CDN, updating DNS)
+    console.log(`[WebsiteAction_Unpublish] Website ${websiteId} marked as unpublished. Conceptual unpublishing tasks would occur now.`);
     return { success: "Website unpublished successfully.", website: updatedWebsite.toObject() as IWebsite };
 
   } catch (error: any) {
@@ -208,6 +214,49 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
     return { error: `Failed to unpublish website: ${error.message}` };
   }
 }
+
+// --- Delete Website ---
+export async function deleteWebsite({ websiteId }: WebsiteActionInput): Promise<Omit<WebsiteActionResult, 'website'>> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "User not authenticated." };
+  }
+  const userId = session.user.id;
+
+  if (!mongoose.Types.ObjectId.isValid(websiteId)) {
+    return { error: "Invalid Website ID format." };
+  }
+
+  try {
+    await dbConnect();
+    const website = await Website.findById(websiteId);
+
+    if (!website) {
+      return { error: "Website not found." };
+    }
+
+    if (website.userId.toString() !== userId && session.user.role !== 'admin') {
+      return { error: "Unauthorized to delete this website." };
+    }
+
+    console.log(`[WebsiteAction_Delete] Attempting to delete website ${websiteId} and its versions...`);
+
+    // Delete all associated WebsiteVersion documents
+    const deletionResult = await WebsiteVersion.deleteMany({ websiteId: website._id });
+    console.log(`[WebsiteAction_Delete] Deleted ${deletionResult.deletedCount} versions for website ${websiteId}.`);
+
+    // Delete the Website document itself
+    await Website.findByIdAndDelete(website._id);
+    
+    console.log(`[WebsiteAction_Delete] Website ${websiteId} deleted successfully.`);
+    return { success: "Website and all its versions deleted successfully." };
+
+  } catch (error: any) {
+    console.error(`[WebsiteAction_Delete] Error deleting website ${websiteId}:`, error);
+    return { error: `Failed to delete website: ${error.message}` };
+  }
+}
+
 
 // --- Get User Websites ---
 interface GetUserWebsitesResult {
@@ -358,15 +407,23 @@ interface GetWebsiteMetadataResult {
   error?: string;
 }
 export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteMetadataResult> {
-   const session = await auth();
+   const session = await auth(); // Allow unauthenticated access for metadata for public sites, or add role checks
   if (!mongoose.Types.ObjectId.isValid(websiteId)) {
     return { error: "Invalid Website ID format." };
   }
   try {
     await dbConnect();
-    const website = await Website.findById(websiteId).lean();
+    const website = await Website.findById(websiteId)
+      .select('name customDomain subdomain status lastPublishedAt createdAt currentVersionId publishedVersionId') // Select specific fields
+      .lean();
     if (!website) {
       return { error: "Website not found." };
+    }
+    // If the site is not published, and the user is not the owner/admin, don't return sensitive data or return error
+    if (website.status !== 'published') {
+        if (!session || (session.user.id.toString() !== website.userId.toString() && session.user.role !== 'admin')) {
+            return { error: "Website not found or not publicly available." };
+        }
     }
     return { website: website as IWebsite };
   } catch (error: any) {
@@ -374,5 +431,7 @@ export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteM
     return { error: "Failed to fetch website metadata." };
   }
 }
+
+    
 
     
