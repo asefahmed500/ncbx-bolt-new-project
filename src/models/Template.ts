@@ -28,6 +28,10 @@ export interface ITemplate extends Document {
   pages: ITemplatePage[]; // Array of predefined pages for the template
   isPremium: boolean;
   price?: number; // In cents, only if isPremium is true
+  liveDemoUrl?: string; // URL for a live interactive preview
+  tags?: string[]; // For categorization and filtering
+  viewCount: number; // How many times the template details have been viewed
+  usageCount: number; // How many times the template has been used/selected
   createdAt: Date;
   updatedAt: Date;
 }
@@ -71,6 +75,24 @@ const TemplateSchema = new Schema<ITemplate>(
         message: 'Price must be a non-negative number for premium templates.',
       },
     },
+    liveDemoUrl: {
+      type: String,
+      trim: true,
+    },
+    tags: [{
+      type: String,
+      trim: true,
+    }],
+    viewCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    usageCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    }
   },
   {
     timestamps: true,
@@ -80,6 +102,7 @@ const TemplateSchema = new Schema<ITemplate>(
 TemplateSchema.index({ name: 1 });
 TemplateSchema.index({ category: 1 });
 TemplateSchema.index({ isPremium: 1 });
+TemplateSchema.index({ tags: 1 });
 
 const Template = models.Template || model<ITemplate>('Template', TemplateSchema);
 

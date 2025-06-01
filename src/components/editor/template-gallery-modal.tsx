@@ -18,7 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { createOneTimePaymentIntent } from '@/actions/stripe';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShoppingCart, Search } from 'lucide-react';
+import { Loader2, ShoppingCart, Search, ExternalLink, Tags } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
@@ -29,19 +29,19 @@ interface TemplateGalleryModalProps {
 }
 
 // In a real app, this data would come from a database
-const templates = [
-  { id: "t1", name: "Modern Portfolio", category: "Portfolio", imgSrc: "https://placehold.co/300x200.png", hint:"portfolio website", isPremium: false },
-  { id: "t2", name: "E-commerce Storefront", category: "E-commerce", imgSrc: "https://placehold.co/300x200.png", hint: "online store", isPremium: true, price: 2000 }, // $20.00
-  { id: "t3", name: "Restaurant Landing", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "restaurant food", isPremium: false },
-  { id: "t4", name: "Startup Agency", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "business office", isPremium: true, price: 1500 }, // $15.00
-  { id: "t5", name: "Blog Minimal", category: "Blog", imgSrc: "https://placehold.co/300x200.png", hint: "writing blog", isPremium: false },
-  { id: "t6", name: "Photography Showcase", category: "Portfolio", imgSrc: "https://placehold.co/300x200.png", hint: "camera photography", isPremium: false },
-  { id: "t7", name: "SaaS Product Page", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "software interface", isPremium: true, price: 2500 }, // $25.00
-  { id: "t8", name: "Real Estate Listing", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "modern house", isPremium: false },
-  { id: "t9", name: "Fitness Trainer Site", category: "Portfolio", imgSrc: "https://placehold.co/300x200.png", hint: "gym workout", isPremium: false },
-  { id: "t10", name: "Event Invitation", category: "Other", imgSrc: "https://placehold.co/300x200.png", hint: "party invitation", isPremium: true, price: 500 }, // $5.00
-  { id: "t11", name: "Non-Profit Organization", category: "Other", imgSrc: "https://placehold.co/300x200.png", hint: "community help", isPremium: false },
-  { id: "t12", name: "Educational Course", category: "Other", imgSrc: "https://placehold.co/300x200.png", hint: "online learning", isPremium: false },
+const templatesData = [ // Renamed to avoid conflict with Mongoose model
+  { id: "t1", name: "Modern Portfolio", category: "Portfolio", imgSrc: "https://placehold.co/300x200.png", hint:"portfolio website", isPremium: false, liveDemoUrl: "https://example.com/demo/portfolio", tags: ["minimal", "creative"] },
+  { id: "t2", name: "E-commerce Storefront", category: "E-commerce", imgSrc: "https://placehold.co/300x200.png", hint: "online store", isPremium: true, price: 2000, liveDemoUrl: "https://example.com/demo/ecommerce", tags: ["shop", "conversion"] },
+  { id: "t3", name: "Restaurant Landing", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "restaurant food", isPremium: false, tags: ["food", "local"] },
+  { id: "t4", name: "Startup Agency", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "business office", isPremium: true, price: 1500, tags: ["corporate", "modern"] },
+  { id: "t5", name: "Blog Minimal", category: "Blog", imgSrc: "https://placehold.co/300x200.png", hint: "writing blog", isPremium: false, liveDemoUrl: "https://example.com/demo/blog", tags: ["writing", "clean"] },
+  { id: "t6", name: "Photography Showcase", category: "Portfolio", imgSrc: "https://placehold.co/300x200.png", hint: "camera photography", isPremium: false, tags: ["gallery", "visual"] },
+  { id: "t7", name: "SaaS Product Page", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "software interface", isPremium: true, price: 2500, tags: ["tech", "landing page"] },
+  { id: "t8", name: "Real Estate Listing", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "modern house", isPremium: false, liveDemoUrl: "https://example.com/demo/realestate", tags: ["property", "listing"] },
+  { id: "t9", name: "Fitness Trainer Site", category: "Portfolio", imgSrc: "https://placehold.co/300x200.png", hint: "gym workout", isPremium: false, tags: ["health", "personal"] },
+  { id: "t10", name: "Event Invitation", category: "Other", imgSrc: "https://placehold.co/300x200.png", hint: "party invitation", isPremium: true, price: 500, tags: ["party", "simple"] },
+  { id: "t11", name: "Non-Profit Organization", category: "Other", imgSrc: "https://placehold.co/300x200.png", hint: "community help", isPremium: false, tags: ["charity", "cause"] },
+  { id: "t12", name: "Educational Course", category: "Other", imgSrc: "https://placehold.co/300x200.png", hint: "online learning", isPremium: false, liveDemoUrl: "https://example.com/demo/course", tags: ["education", "lms"] },
 ];
 
 export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryModalProps) {
@@ -53,13 +53,13 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
   const [premiumFilter, setPremiumFilter] = useState<"all" | "free" | "premium">("all");
 
   const uniqueCategories = useMemo(() => {
-    const categories = new Set(templates.map(t => t.category).filter(Boolean));
+    const categories = new Set(templatesData.map(t => t.category).filter(Boolean));
     return ["all", ...Array.from(categories)];
   }, []);
 
   const filteredTemplates = useMemo(() => {
-    return templates.filter(template => {
-      const matchesSearchTerm = template.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return templatesData.filter(template => {
+      const matchesSearchTerm = template.name.toLowerCase().includes(searchTerm.toLowerCase()) || (template.tags && template.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())));
       const matchesCategory = selectedCategory === "all" || template.category === selectedCategory;
       const matchesPremiumFilter =
         premiumFilter === "all" ||
@@ -70,7 +70,7 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
     });
   }, [searchTerm, selectedCategory, premiumFilter]);
 
-  const handleTemplateAction = async (template: (typeof templates)[0]) => {
+  const handleTemplateAction = async (template: (typeof templatesData)[0]) => {
     if (!session?.user?.id) {
       toast({ title: "Not Authenticated", description: "Please log in to use or purchase templates.", variant: "destructive" });
       return;
@@ -78,9 +78,9 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
 
     const hasPurchased = session.user.purchasedTemplateIds?.includes(template.id);
 
-    if (template.isPremium && !hasPurchased) {
+    if (template.isPremium && !hasPurchased && template.price) {
       setProcessingPaymentFor(template.id);
-      const result = await createOneTimePaymentIntent(template.price!, 'usd', undefined, {
+      const result = await createOneTimePaymentIntent(template.price, 'usd', undefined, {
         userId: session.user.id,
         templateId: template.id,
         templateName: template.name,
@@ -101,6 +101,8 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
     } else {
       console.log(`Using template: ${template.name}`);
       toast({ title: "Template Selected", description: `You are now using the "${template.name}" template. (Conceptual)` });
+      // Here you would typically call a function to apply the template to the user's current project
+      // e.g., applyTemplate(template.id);
       onOpenChange(false);
     }
   };
@@ -113,19 +115,19 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
         <DialogHeader>
           <DialogTitle className="font-headline text-foreground">Template Gallery</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Choose a pre-made template to start building your website.
+            Choose a pre-made template to start building your website. Or explore live demos.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 px-1 py-2 border-b border-border">
           <div>
-            <Label htmlFor="template-search" className="text-sm font-medium text-muted-foreground">Search</Label>
+            <Label htmlFor="template-search" className="text-sm font-medium text-muted-foreground">Search by Name or Tag</Label>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 id="template-search"
                 type="search"
-                placeholder="Search by name..."
+                placeholder="e.g., Portfolio, modern..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8 bg-input"
@@ -179,8 +181,8 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
                 const hasPurchased = session?.user?.purchasedTemplateIds?.includes(template.id);
                 const isProcessingThis = processingPaymentFor === template.id;
                 let buttonText = "Use Template";
-                if (template.isPremium && !hasPurchased) {
-                  buttonText = `Buy for $${(template.price! / 100).toFixed(2)}`;
+                if (template.isPremium && !hasPurchased && template.price) {
+                  buttonText = `Buy for $${(template.price / 100).toFixed(2)}`;
                 }
 
                 return (
@@ -203,26 +205,48 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
                     </CardHeader>
                     <CardContent className="p-4 flex-grow">
                       <CardTitle className="text-md font-headline text-card-foreground">{template.name}</CardTitle>
-                      {template.isPremium && !hasPurchased && (
+                      {template.isPremium && !hasPurchased && template.price && (
                         <p className="text-sm font-semibold text-primary mt-1">
-                          Price: ${(template.price! / 100).toFixed(2)}
+                          Price: ${(template.price / 100).toFixed(2)}
                         </p>
                       )}
+                      {template.tags && template.tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1 items-center">
+                          <Tags className="w-3 h-3 text-muted-foreground mr-1" />
+                          {template.tags.slice(0, 3).map(tag => (
+                            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                          ))}
+                          {template.tags.length > 3 && <Badge variant="secondary" className="text-xs">...</Badge>}
+                        </div>
+                      )}
                     </CardContent>
-                    <CardFooter className="p-4 pt-0 mt-auto">
+                    <CardFooter className="p-4 pt-0 mt-auto flex flex-col sm:flex-row gap-2">
                       <Button 
                         size="sm" 
-                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                        className="w-full sm:flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
                         onClick={() => handleTemplateAction(template)}
                         disabled={isProcessingThis}
                       >
                         {isProcessingThis ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (template.isPremium && !hasPurchased) ? (
+                        ) : (template.isPremium && !hasPurchased && template.price) ? (
                           <ShoppingCart className="mr-2 h-4 w-4" />
                         ) : null}
                         {isProcessingThis ? "Processing..." : buttonText}
                       </Button>
+                      {template.liveDemoUrl && (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="w-full sm:flex-1"
+                        >
+                          <a href={template.liveDemoUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Live Demo
+                          </a>
+                        </Button>
+                      )}
                     </CardFooter>
                   </Card>
                 );
