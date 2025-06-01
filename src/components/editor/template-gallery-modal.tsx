@@ -26,6 +26,12 @@ const templates = [
   { id: "t4", name: "Startup Agency", imgSrc: "https://placehold.co/300x200.png", hint: "business office" },
   { id: "t5", name: "Blog Minimal", imgSrc: "https://placehold.co/300x200.png", hint: "writing blog" },
   { id: "t6", name: "Photography Showcase", imgSrc: "https://placehold.co/300x200.png", hint: "camera photography" },
+  { id: "t7", name: "SaaS Product Page", imgSrc: "https://placehold.co/300x200.png", hint: "software interface" },
+  { id: "t8", name: "Real Estate Listing", imgSrc: "https://placehold.co/300x200.png", hint: "modern house" },
+  { id: "t9", name: "Fitness Trainer Site", imgSrc: "https://placehold.co/300x200.png", hint: "gym workout" },
+  { id: "t10", name: "Event Invitation", imgSrc: "https://placehold.co/300x200.png", hint: "party invitation" },
+  { id: "t11", name: "Non-Profit Organization", imgSrc: "https://placehold.co/300x200.png", hint: "community help" },
+  { id: "t12", name: "Educational Course", imgSrc: "https://placehold.co/300x200.png", hint: "online learning" },
 ];
 
 export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryModalProps) {
