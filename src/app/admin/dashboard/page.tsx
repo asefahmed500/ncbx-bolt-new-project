@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye, Settings2, SlidersHorizontal, Construction, AlertTriangle, LayoutGrid, Ticket, FileText } from "lucide-react";
+import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye, Settings2, SlidersHorizontal, Construction, AlertTriangle, LayoutGrid, Ticket, FileText, TrendingUp, UserMinus, Percent, DollarSignIcon, History } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminDashboardPage() {
@@ -65,7 +65,7 @@ export default function AdminDashboardPage() {
           <Card className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="font-headline flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />User Management</CardTitle>
-              <CardDescription>View, search, and manage user accounts.</CardDescription>
+              <CardDescription>View, search, manage accounts, and handle billing issues via Stripe.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
                <Link href="/admin/users" legacyBehavior passHref>
@@ -74,7 +74,7 @@ export default function AdminDashboardPage() {
               <Button variant="secondary" className="w-full" disabled><MessageSquare className="mr-2 h-4 w-4"/>Communicate with Users</Button>
             </CardContent>
             <CardFooter>
-              <p className="text-xs text-muted-foreground">Actions: Suspend, Delete, Edit Role, View Activity.</p>
+              <p className="text-xs text-muted-foreground">Actions: Suspend, Reactivate, View in Stripe (Conceptual).</p>
             </CardFooter>
           </Card>
 
@@ -131,18 +131,28 @@ export default function AdminDashboardPage() {
 
           <Card className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle className="font-headline flex items-center"><FileText className="mr-2 h-5 w-5 text-primary" />Financial Reporting</CardTitle>
-              <CardDescription>View revenue, subscriptions, and financial metrics.</CardDescription>
+              <CardTitle className="font-headline flex items-center"><FileText className="mr-2 h-5 w-5 text-primary" />Financial Reporting & Analytics</CardTitle>
+              <CardDescription>View revenue, subscriptions, and key business metrics.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Detailed financial reports and dashboards.</p>
-              <div className="mt-3 space-y-1 text-sm">
-                  <p>Monthly Recurring Revenue (MRR): $XXXX (Placeholder)</p>
-                  <p>Customer Lifetime Value (LTV): $YYYY (Placeholder)</p>
-                  <p>Churn Rate: X% (Placeholder)</p>
-                  <Button variant="link" className="p-0 h-auto" disabled>View Tax Reports</Button>
+              <div className="space-y-2 text-sm">
+                  <p className="flex items-center"><TrendingUp className="mr-2 h-4 w-4 text-green-500" />Monthly Recurring Revenue (MRR): <span className="font-semibold ml-1">$XXXX</span> (Placeholder)</p>
+                  <p className="flex items-center"><BarChartBig className="mr-2 h-4 w-4 text-blue-500" />Revenue by Month: Chart (Placeholder)</p>
+                  <p className="flex items-center"><Users className="mr-2 h-4 w-4 text-purple-500" />Subscribers by Plan: (Placeholder)</p>
+                  <ul className="list-disc list-inside pl-4 text-xs text-muted-foreground">
+                    <li>Pro: XXX users ($YYYY/mo)</li>
+                    <li>Enterprise: XX users ($ZZZZ/mo)</li>
+                  </ul>
+                  <p className="flex items-center"><LineChart className="mr-2 h-4 w-4 text-yellow-500" />Growth Trends: +X% this month (Placeholder)</p>
+                  <p className="flex items-center"><UserMinus className="mr-2 h-4 w-4 text-red-500" />Churn Rate: Y% (Placeholder)</p>
+                  <p className="flex items-center"><DollarSignIcon className="mr-2 h-4 w-4 text-teal-500" />Customer Lifetime Value (LTV): $ZZZ (Placeholder)</p>
+                  <p className="flex items-center"><Percent className="mr-2 h-4 w-4 text-indigo-500" />Most Popular Plans: (Placeholder)</p>
+                   <p className="flex items-center"><History className="mr-2 h-4 w-4 text-gray-500" />Refund Processing: (via Stripe Dashboard)</p>
               </div>
             </CardContent>
+             <CardFooter>
+                <p className="text-xs text-muted-foreground">These are conceptual placeholders. Actual data requires backend integration with Stripe and analytics systems.</p>
+            </CardFooter>
           </Card>
           
           <Card className="shadow-sm hover:shadow-md transition-shadow">
@@ -214,5 +224,4 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
-
     
