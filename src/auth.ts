@@ -1,8 +1,6 @@
 
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from 'next-auth/providers/credentials';
-// import dbConnect from '@/lib/dbConnect'; // Dynamic import below
-// import User from '@/models/User';         // Dynamic import below
 import bcrypt from 'bcryptjs';
 import type { IUser } from '@/models/User'; // Still need the type
 
@@ -15,40 +13,49 @@ export const authOptions: NextAuthConfig = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        console.log("[Auth][Authorize] Attempting authorization for:", credentials?.email);
+        console.log("[Auth][Authorize] Attempting authorization for email:", credentials?.email);
         try {
+          console.log("[Auth][Authorize] Dynamically importing dbConnect and User model...");
           const dbConnect = (await import('@/lib/dbConnect')).default;
           const User = (await import('@/models/User')).default;
+          console.log("[Auth][Authorize] Imports successful.");
 
           if (!credentials?.email || typeof credentials.email !== 'string' || 
               !credentials.password || typeof credentials.password !== 'string') {
-            console.warn("[Auth][Authorize] Invalid credentials object received.");
+            console.warn("[Auth][Authorize] Invalid credentials object received:", JSON.stringify(credentials));
             return null;
           }
+          const email = credentials.email; // Use a local const for clarity
 
+          console.log(`[Auth][Authorize] Attempting dbConnect for: ${email}`);
           await dbConnect();
-          console.log("[Auth][Authorize] Database connection established for:", credentials.email);
+          console.log(`[Auth][Authorize] Database connection established for: ${email}`);
 
-          const user = await User.findOne({ email: credentials.email }).select('+password');
+          console.log(`[Auth][Authorize] Searching for user with email: ${email}`);
+          // Ensure email is queried in lowercase if your schema stores it as such (which it does)
+          const normalizedEmail = email.toLowerCase();
+          const user = await User.findOne({ email: normalizedEmail }).select('+password');
+          console.log(`[Auth][Authorize] User.findOne result for ${normalizedEmail}:`, user ? `User found (ID: ${user._id})` : "User not found");
 
           if (!user) {
-            console.log("[Auth][Authorize] User not found:", credentials.email);
+            console.log(`[Auth][Authorize] User not found in DB: ${normalizedEmail}`);
             return null;
           }
           if (!user.password) {
-            console.log("[Auth][Authorize] User found, but password is not set in DB (should not happen with bcrypt):", credentials.email);
-            return null; // Should not happen if password is required on creation
+            console.log(`[Auth][Authorize] User ${normalizedEmail} found, but password is not set in DB.`);
+            return null; 
           }
 
-          console.log("[Auth][Authorize] User found:", credentials.email, "ID:", user._id);
+          console.log(`[Auth][Authorize] Comparing password for user: ${normalizedEmail}`);
           const isPasswordMatch = await bcrypt.compare(credentials.password, user.password);
+          console.log(`[Auth][Authorize] Password comparison result for ${normalizedEmail}: ${isPasswordMatch}`);
 
           if (!isPasswordMatch) {
-            console.log("[Auth][Authorize] Password mismatch for user:", credentials.email);
+            console.log(`[Auth][Authorize] Password mismatch for user: ${normalizedEmail}`);
             return null;
           }
           
-          console.log("[Auth][Authorize] Password match successful for user:", credentials.email);
+          console.log(`[Auth][Authorize] Password match successful for user: ${normalizedEmail}. Returning user object.`);
           return {
             id: user._id.toString(),
             email: user.email,
@@ -56,9 +63,11 @@ export const authOptions: NextAuthConfig = {
             role: user.role,
             avatarUrl: user.avatarUrl,
           };
-        } catch (error) {
-          console.error("[Auth][Authorize] CRITICAL ERROR during authorization process for:", credentials?.email, error);
-          return null; // Important to return null on any error
+        } catch (error: any) { 
+          console.error(`[Auth][Authorize] CRITICAL ERROR during authorization for ${credentials?.email}. ErrorType: ${error?.constructor?.name}, Message: ${error?.message}`);
+          // console.error("[Auth][Authorize] Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error))); // Can be very verbose
+          console.error("[Auth][Authorize] Error stack:", error?.stack);
+          return null; // Important to return null on any error to trigger CredentialsSignin error type on client
         }
       },
     }),
@@ -89,7 +98,7 @@ export const authOptions: NextAuthConfig = {
     signIn: '/login',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  // trustHost: true, 
+  // trustHost: true, // Consider uncommenting if behind a trusted proxy and having cookie/redirect issues
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
