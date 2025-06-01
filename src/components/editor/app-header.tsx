@@ -21,7 +21,7 @@ import { AppLogo } from "@/components/icons/app-logo";
 import { AiCopyModal } from "./ai-copy-modal";
 import { TemplateGalleryModal } from "./template-gallery-modal";
 import { SaveTemplateModal } from "./save-template-modal";
-import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download } from "lucide-react";
+import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download, ZoomIn, ZoomOut } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
 // import { publishWebsite } from '@/actions/website'; // Conceptual: would be used by handlePublish
@@ -135,40 +135,79 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
 
         {showDeviceControls && (
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
-            <Button
-              variant={currentDevice === 'desktop' ? 'secondary' : 'ghost'}
-              size="icon"
-              onClick={() => onDeviceChange('desktop')}
-              aria-label="Desktop view"
-              title="Desktop View"
-            >
-              <Laptop className="h-5 w-5" />
-            </Button>
-            <Button
-              variant={currentDevice === 'tablet' ? 'secondary' : 'ghost'}
-              size="icon"
-              onClick={() => onDeviceChange('tablet')}
-              aria-label="Tablet view"
-              title="Tablet View"
-            >
-              <Tablet className="h-5 w-5" />
-            </Button>
-            <Button
-              variant={currentDevice === 'mobile' ? 'secondary' : 'ghost'}
-              size="icon"
-              onClick={() => onDeviceChange('mobile')}
-              aria-label="Mobile view"
-              title="Mobile View"
-            >
-              <Smartphone className="h-5 w-5" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={currentDevice === 'desktop' ? 'secondary' : 'ghost'}
+                    size="icon"
+                    onClick={() => onDeviceChange('desktop')}
+                    aria-label="Desktop view"
+                  >
+                    <Laptop className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Desktop View</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={currentDevice === 'tablet' ? 'secondary' : 'ghost'}
+                    size="icon"
+                    onClick={() => onDeviceChange('tablet')}
+                    aria-label="Tablet view"
+                  >
+                    <Tablet className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Tablet View</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={currentDevice === 'mobile' ? 'secondary' : 'ghost'}
+                    size="icon"
+                    onClick={() => onDeviceChange('mobile')}
+                    aria-label="Mobile view"
+                  >
+                    <Smartphone className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Mobile View</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {isEditorPage && (
+              <>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" disabled><ZoomOut className="h-5 w-5" /></Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Zoom Out (Conceptual)</p></TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" disabled><ZoomIn className="h-5 w-5" /></Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Zoom In (Conceptual)</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </>
+            )}
           </div>
         )}
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle Theme">
-            {currentTheme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
+                  {currentTheme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Toggle Theme (Conceptual)</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           {status === "authenticated" ? (
             <>
@@ -327,5 +366,3 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     </>
   );
 }
-
-    

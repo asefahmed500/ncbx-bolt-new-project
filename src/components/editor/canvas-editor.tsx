@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react'; // Added useState
+import { useState } from 'react';
 import type { DeviceType } from './app-header';
 import { useToast } from "@/hooks/use-toast";
 import { LayoutGrid } from 'lucide-react';
@@ -38,7 +38,6 @@ export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
 
   const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    // Check if the mouse is leaving the drop zone container itself, not just moving over a child element.
     if (!event.currentTarget.contains(event.relatedTarget as Node)) {
         setIsDraggingOver(false);
     }
@@ -48,7 +47,7 @@ export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
     event.preventDefault(); 
     if (event.dataTransfer.types.includes('application/json')) {
       event.dataTransfer.dropEffect = "move";
-      if (!isDraggingOver) setIsDraggingOver(true); // Ensure state is true if drag started outside but moved in
+      if (!isDraggingOver) setIsDraggingOver(true);
     } else {
       event.dataTransfer.dropEffect = "none";
     }
@@ -56,7 +55,7 @@ export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    setIsDraggingOver(false); // Reset visual feedback
+    setIsDraggingOver(false);
     const dataString = event.dataTransfer.getData('application/json');
     if (dataString) {
       try {
@@ -66,6 +65,7 @@ export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
           title: "Component Dropped",
           description: `"${componentData.label}" component was added to the canvas (conceptually).`,
         });
+        // Future: Add componentData to a state managing canvas elements
       } catch (error) {
         console.error("Failed to parse dropped data:", error);
         toast({
@@ -96,7 +96,9 @@ export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
             : '2px dashed hsl(var(--border) / 0.5)',
           padding: '20px', 
           boxSizing: 'border-box',
-          opacity: isDraggingOver ? 0.85 : 1, // Visual feedback for dragging over
+          opacity: isDraggingOver ? 0.85 : 1,
+          backgroundImage: 'radial-gradient(hsl(var(--border) / 0.2) 1px, transparent 1px)',
+          backgroundSize: '15px 15px',
         }}
         aria-label={`Website canvas preview for ${devicePreview}`}
       >
@@ -107,6 +109,7 @@ export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
           <p className="text-xs mt-2">(Current view: {devicePreview})</p>
            {isDraggingOver && <p className="text-xs mt-2 text-primary font-semibold">Release to drop component</p>}
         </div>
+        {/* Render dropped components here based on state */}
       </div>
     </div>
   );
