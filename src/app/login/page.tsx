@@ -22,6 +22,7 @@ export default function LoginPage() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setIsLoading(true);
+    console.log("[LoginPage] Attempting login for email:", email);
 
     try {
       const result = await signIn("credentials", {
@@ -30,15 +31,17 @@ export default function LoginPage() {
         password,
       });
 
-      console.log("[LoginPage] signIn result:", result); // Client-side log
+      console.log("[LoginPage] signIn result object:", result); // Log the entire result
 
       if (result?.error) {
+        console.error("[LoginPage] signIn returned an error:", result.error);
         toast({
           title: "Login Failed",
-          description: result.error === "CredentialsSignin" ? "Invalid email or password." : `An unexpected error occurred: ${result.error}`,
+          description: result.error === "CredentialsSignin" ? "Invalid email or password." : `Login error: ${result.error}`,
           variant: "destructive",
         });
-      } else if (result?.ok && !result?.error) { 
+      } else if (result?.ok) { 
+        console.log("[LoginPage] Login successful, redirecting...");
         toast({
           title: "Login Successful",
           description: "Welcome back!",
@@ -46,21 +49,27 @@ export default function LoginPage() {
         router.push("/"); 
         router.refresh(); 
       } else {
+         console.warn("[LoginPage] signIn result was not 'ok' and had no specific error, or result was undefined/null. Result:", result);
          toast({
           title: "Login Attempted",
-          description: "Could not determine login status. Please try again.",
+          description: "Could not determine login status. Please check server logs and try again.",
           variant: "destructive",
         });
       }
-    } catch (error: any) { // Catching potential errors from signIn itself
-      console.error("[LoginPage] CRITICAL: Error during signIn call:", error);
-      let errorMessage = "An unexpected error occurred during login.";
-      if (error.message) {
+    } catch (error: any) { 
+      console.error("[LoginPage] CRITICAL: Exception during signIn call or subsequent logic. Error object raw:", error);
+       if (error instanceof Error) {
+        console.error("[LoginPage] Exception name:", error.name);
+        console.error("[LoginPage] Exception message:", error.message);
+        console.error("[LoginPage] Exception stack:", error.stack);
+      }
+      let errorMessage = "An unexpected error occurred during login. Please try again.";
+      if (error.message && error.name !== 'TypeError') { // Don't show generic "TypeError: Failed to fetch" to user
         errorMessage = error.message;
+      } else if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+        errorMessage = "Failed to connect to the server. Please check your network and try again."
       }
-      if (error.type === 'CredentialsSignin') { // NextAuth can throw specific error types
-        errorMessage = "Invalid email or password.";
-      }
+      
       toast({
         title: "Login Failed",
         description: errorMessage,

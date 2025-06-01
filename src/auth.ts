@@ -3,6 +3,7 @@ import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import type { IUser } from '@/models/User'; // Still need the type
+import mongoose from 'mongoose'; // Import mongoose for ConnectionStates
 
 export const authOptions: NextAuthConfig = {
   providers: [
@@ -13,7 +14,8 @@ export const authOptions: NextAuthConfig = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        console.log("[Auth][Authorize] Attempting authorization for email:", credentials?.email);
+        console.log("[Auth][Authorize] Attempting authorization.");
+        console.log("[Auth][Authorize] Received credentials (JSON):", JSON.stringify(credentials));
         
         const mongoUri = process.env.MONGODB_URI || "MONGODB_URI NOT SET";
         const uriSnippet = mongoUri.length > 30 ? `${mongoUri.substring(0, 15)}...${mongoUri.substring(mongoUri.length - 15)}` : mongoUri;
@@ -21,6 +23,7 @@ export const authOptions: NextAuthConfig = {
         
         if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || process.env.MONGODB_URI.endsWith("/?retryWrites=true&w=majority&appName=Cluster0") ) {
           console.error("[Auth][Authorize] CRITICAL: MONGODB_URI is not set correctly, or is missing a database name, or still contains placeholder. Please check .env file. Example: mongodb+srv://user:pass@cluster.mongodb.net/YOUR_DB_NAME?retryWrites=true...");
+          console.log("[Auth][Authorize] FAIL: MONGODB_URI misconfiguration. Returning null.");
           return null;
         }
 
@@ -43,7 +46,14 @@ export const authOptions: NextAuthConfig = {
 
 
           console.log(`[Auth][Authorize] Attempting dbConnect for: ${normalizedEmail}`);
-          await dbConnect(); // This will throw an error if connection fails, caught by outer try/catch
+          await dbConnect(); 
+          const connectionState = mongoose.connection.readyState;
+          console.log(`[Auth][Authorize] Database connection state after connect: ${mongoose.ConnectionStates[connectionState]}`);
+          if (connectionState !== mongoose.ConnectionStates.connected) {
+              console.error("[Auth][Authorize] Database not connected after attempting connection!");
+              console.log("[Auth][Authorize] FAIL: DB not connected. Returning null.");
+              return null;
+          }
           console.log(`[Auth][Authorize] Database connection established (or re-used) for: ${normalizedEmail}`);
 
           console.log(`[Auth][Authorize] Searching for user with email: ${normalizedEmail}`);
@@ -51,7 +61,7 @@ export const authOptions: NextAuthConfig = {
           
           if (!user) {
             console.log(`[Auth][Authorize] User not found in DB for normalized email: ${normalizedEmail}.`);
-            console.log(`[Auth][Authorize] FAIL: User not found: ${normalizedEmail}. Returning null.`);
+            console.log(`[Auth][Authorize] FAIL: User not found. Returning null.`);
             return null;
           }
           console.log(`[Auth][Authorize] User found (ID: ${user._id}) for normalized email: ${normalizedEmail}. Checking password.`);
@@ -68,7 +78,7 @@ export const authOptions: NextAuthConfig = {
 
           if (!isPasswordMatch) {
             console.log(`[Auth][Authorize] Password mismatch for user: ${normalizedEmail}`);
-            console.log(`[Auth][Authorize] FAIL: Password mismatch for user: ${normalizedEmail}. Returning null.`);
+            console.log(`[Auth][Authorize] FAIL: Password mismatch. Returning null.`);
             return null;
           }
           
@@ -83,10 +93,17 @@ export const authOptions: NextAuthConfig = {
           return userToReturn;
 
         } catch (error: any) { 
-          console.error(`[Auth][Authorize] CRITICAL UNHANDLED ERROR during authorization for ${credentials?.email}. Returning null. ErrorType: ${error?.constructor?.name}, Message: ${error?.message}`);
-          console.error("[Auth][Authorize] Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-          console.error("[Auth][Authorize] Error stack:", error?.stack);
-          return null; // Important to return null on any error to trigger CredentialsSignin error type on client
+          console.error(`[Auth][Authorize] CRITICAL UNHANDLED ERROR in authorize function for ${credentials?.email}.`);
+          console.error("[Auth][Authorize] Error object raw:", error);
+          if (error instanceof Error) {
+            console.error("[Auth][Authorize] Error name:", error.name);
+            console.error("[Auth][Authorize] Error message:", error.message);
+            console.error("[Auth][Authorize] Error stack:", error.stack);
+          } else {
+             console.error("[Auth][Authorize] Error is not an instance of Error. Stringified:", JSON.stringify(error, Object.getOwnPropertyNames(error as object)));
+          }
+          console.log("[Auth][Authorize] FAIL: Exception in authorize. Returning null.");
+          return null; 
         }
       },
     }),
@@ -95,31 +112,67 @@ export const authOptions: NextAuthConfig = {
     strategy: 'jwt' as const,
   },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        // The user object here is what `authorize` returns or what comes from other providers
-        const authorizedUser = user as IUser & { role: 'user' | 'admin', avatarUrl?: string, id: string };
-        token.id = authorizedUser.id;
-        token.role = authorizedUser.role; 
-        token.avatarUrl = authorizedUser.avatarUrl;
+    async jwt({ token, user, account, trigger, session }) {
+      console.log("[Auth][JWT Callback] Triggered. Token:", JSON.stringify(token), "User:", JSON.stringify(user), "Account:", JSON.stringify(account), "Trigger:", trigger);
+      try {
+        if (trigger === "signIn" && user) { // Check trigger if needed
+          const authorizedUser = user as IUser & { role: 'user' | 'admin', avatarUrl?: string, id: string };
+          token.id = authorizedUser.id;
+          token.name = authorizedUser.name;
+          token.email = authorizedUser.email;
+          token.role = authorizedUser.role; 
+          token.avatarUrl = authorizedUser.avatarUrl;
+          console.log("[Auth][JWT Callback] User data added to token on signIn.");
+        }
+        // Add other triggers like "update" if you handle session updates
+        console.log("[Auth][JWT Callback] Returning token:", JSON.stringify(token));
+        return token;
+      } catch (error: any) {
+        console.error("[Auth][JWT Callback] Error in JWT callback. Error object raw:", error);
+        if (error instanceof Error) {
+            console.error("[Auth][JWT Callback] Error name:", error.name);
+            console.error("[Auth][JWT Callback] Error message:", error.message);
+            console.error("[Auth][JWT Callback] Error stack:", error.stack);
+        }
+        token.error = "JWTCallbackError"; // Add error to token if needed
+        return token;
       }
-      return token;
     },
     async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as 'user' | 'admin';
-        session.user.avatarUrl = token.avatarUrl as string | undefined;
+      console.log("[Auth][Session Callback] Triggered. Session:", JSON.stringify(session), "Token:", JSON.stringify(token));
+      try {
+        if (token && session.user) {
+          session.user.id = token.id as string;
+          session.user.name = token.name as string | undefined | null;
+          session.user.email = token.email as string | undefined | null;
+          session.user.role = token.role as 'user' | 'admin';
+          session.user.avatarUrl = token.avatarUrl as string | undefined;
+          console.log("[Auth][Session Callback] Session user hydrated from token.");
+        }
+         if (token.error) {
+          // Handle token error if necessary, e.g., by adding it to the session
+          // (session as any).error = token.error; 
+         }
+        console.log("[Auth][Session Callback] Returning session:", JSON.stringify(session));
+        return session;
+      } catch (error: any) {
+        console.error("[Auth][Session Callback] Error in session callback. Error object raw:", error);
+         if (error instanceof Error) {
+            console.error("[Auth][Session Callback] Error name:", error.name);
+            console.error("[Auth][Session Callback] Error message:", error.message);
+            console.error("[Auth][Session Callback] Error stack:", error.stack);
+        }
+        // (session as any).error = "SessionCallbackError"; // Add error to session if needed
+        return session;
       }
-      return session;
     },
   },
   pages: {
     signIn: '/login',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  trustHost: true, // Added for environments behind a proxy
-  // debug: process.env.NODE_ENV === 'development', // Enable NextAuth.js debug logs in development
+  trustHost: true, 
+  // debug: process.env.NODE_ENV === 'development', 
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
@@ -131,12 +184,12 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
-      role: 'user' | 'admin'; // Ensure role is typed
+      role: 'user' | 'admin'; 
       avatarUrl?: string;
     };
   }
-  interface User { // Ensure User interface aligns with what authorize returns and JWT expects
-    id: string; // Ensure id is part of the User type for NextAuth
+  interface User { 
+    id: string; 
     role: 'user' | 'admin';
     avatarUrl?: string;
   }
@@ -145,7 +198,10 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
-    role: 'user' | 'admin'; // Ensure role is typed
+    role: 'user' | 'admin'; 
     avatarUrl?: string;
+    name?: string | null; // Ensure JWT aligns with what session expects from token
+    email?: string | null; // Ensure JWT aligns with what session expects from token
+    error?: string; // For passing errors through token if needed
   }
 }
