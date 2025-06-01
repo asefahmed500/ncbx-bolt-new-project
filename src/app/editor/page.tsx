@@ -71,11 +71,24 @@ export default function EditorPage() {
          return (
           <>
             <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
+            <p className="text-xs text-muted-foreground mb-2">
+              A WYSIWYG toolbar (Bold, Italic, Underline, Lists, Links, etc.) would appear here or above the text area.
+            </p>
             <div className="space-y-1">
               <Label htmlFor="richTextContent" className="text-xs">Content</Label>
-              <Textarea id="richTextContent" defaultValue={selectedElement.textContent || ""} placeholder="Enter rich text content..." rows={6} className="text-xs" />
+              <Textarea 
+                id="richTextContent" 
+                defaultValue={selectedElement.textContent || ""} 
+                placeholder="Enter your rich text content here. You can add multiple paragraphs, format text, and create lists." 
+                rows={8} 
+                className="text-xs" 
+              />
             </div>
-            <p className="text-xs text-muted-foreground mt-3">A mini WYSIWYG toolbar for formatting (bold, italic, lists, links) would be embedded above or provided here. Form validation would ensure content meets any constraints.</p>
+            <p className="text-xs text-muted-foreground mt-3">
+              Font family, size, color, alignment, and line height controls would be available.
+              Image insertion within this text block is typically handled by a dedicated Image component or advanced editor plugins.
+              Form validation would ensure content meets any constraints (e.g., character limits).
+            </p>
           </>
         );
       case 'Image':
@@ -244,6 +257,3 @@ export default function EditorPage() {
     </div>
   );
 }
-
-
-    
