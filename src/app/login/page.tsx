@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { signIn } from "next-auth/react";
+import { signIn } from "@/auth"; // Updated import
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -23,27 +23,36 @@ export default function LoginPage() {
     event.preventDefault();
     setIsLoading(true);
 
-    const result = await signIn("credentials", {
-      redirect: false,
-      email,
-      password,
-    });
+    try {
+      const result = await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
+      });
 
-    setIsLoading(false);
-
-    if (result?.error) {
+      if (result?.error) {
+        toast({
+          title: "Login Failed",
+          description: result.error === "CredentialsSignin" ? "Invalid email or password." : "An unexpected error occurred.",
+          variant: "destructive",
+        });
+      } else { // result would be undefined or an object without error on success by default
+        toast({
+          title: "Login Successful",
+          description: "Welcome back!",
+        });
+        router.push("/"); 
+        router.refresh(); 
+      }
+    } catch (error) {
+      console.error("Login error:", error);
       toast({
         title: "Login Failed",
-        description: result.error === "CredentialsSignin" ? "Invalid email or password." : result.error,
+        description: "An unexpected error occurred during login.",
         variant: "destructive",
       });
-    } else if (result?.ok) {
-      toast({
-        title: "Login Successful",
-        description: "Welcome back!",
-      });
-      router.push("/"); // Redirect to homepage or dashboard
-      router.refresh(); // To update server-side rendered parts like AppHeader
+    } finally {
+      setIsLoading(false);
     }
   };
 

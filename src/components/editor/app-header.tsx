@@ -2,7 +2,8 @@
 "use client";
 
 import { useState } from 'react';
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react"; // useSession stays from next-auth/react
+import { signIn, signOut } from "@/auth"; // signIn and signOut from @/auth
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +41,10 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
       description: "Website export process has started (placeholder).",
     });
   };
+
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: '/login' });
+  }
 
   return (
     <>
@@ -124,7 +129,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                 {session.user?.role === 'admin' && <DropdownMenuItem>Admin Panel</DropdownMenuItem>}
                 <DropdownMenuItem>Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/login' })}>
+                <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out
                 </DropdownMenuItem>
