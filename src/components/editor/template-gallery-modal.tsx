@@ -33,11 +33,11 @@ interface TemplateGalleryModalProps {
 const initialTemplatesData: ITemplate[] = [ 
   // Note: This is placeholder data. In a real app, you'd fetch 'approved' templates.
   // Cast to any for now to satisfy ITemplate until all fields are added here.
-  { id: "t1", name: "Modern Portfolio", category: "Portfolio", imgSrc: "https://placehold.co/300x200.png", hint:"portfolio website", isPremium: false, liveDemoUrl: "https://example.com/demo/portfolio", tags: ["minimal", "creative"], status: 'approved', pages: [], viewCount:0, usageCount:0 } as any,
-  { id: "t2", name: "E-commerce Storefront", category: "E-commerce", imgSrc: "https://placehold.co/300x200.png", hint: "online store", isPremium: true, price: 2000, liveDemoUrl: "https://example.com/demo/ecommerce", tags: ["shop", "conversion"], status: 'approved', pages: [], viewCount:0, usageCount:0 } as any,
-  { id: "t3", name: "Restaurant Landing", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "restaurant food", isPremium: false, tags: ["food", "local"], status: 'approved', pages: [], viewCount:0, usageCount:0 } as any,
-  { id: "t4", name: "Startup Agency", category: "Business", imgSrc: "https://placehold.co/300x200.png", hint: "business office", isPremium: true, price: 1500, tags: ["corporate", "modern"], status: 'approved', pages: [], viewCount:0, usageCount:0 } as any,
-  { id: "t5", name: "Pending User Template", category: "User Submitted", imgSrc: "https://placehold.co/300x200.png", hint: "design draft", isPremium: false, tags: ["new", "pending"], status: 'pending_approval', pages: [], viewCount:0, usageCount:0 } as any, // Example of a pending template
+  { _id: "t1", name: "Modern Portfolio", category: "Portfolio", previewImageUrl: "https://placehold.co/300x200.png", dataAiHint:"portfolio website", isPremium: false, liveDemoUrl: "https://example.com/demo/portfolio", tags: ["minimal", "creative"], status: 'approved', pages: [], viewCount:100, usageCount:20, createdAt: new Date(), updatedAt: new Date() } as any,
+  { _id: "t2", name: "E-commerce Storefront", category: "E-commerce", previewImageUrl: "https://placehold.co/300x200.png", dataAiHint: "online store", isPremium: true, price: 2000, liveDemoUrl: "https://example.com/demo/ecommerce", tags: ["shop", "conversion"], status: 'approved', pages: [], viewCount:250, usageCount:50, createdAt: new Date(), updatedAt: new Date() } as any,
+  { _id: "t3", name: "Restaurant Landing", category: "Business", previewImageUrl: "https://placehold.co/300x200.png", dataAiHint: "restaurant food", isPremium: false, tags: ["food", "local"], status: 'approved', pages: [], viewCount:120, usageCount:15, createdAt: new Date(), updatedAt: new Date() } as any,
+  { _id: "t4", name: "Startup Agency", category: "Business", previewImageUrl: "https://placehold.co/300x200.png", dataAiHint: "business office", isPremium: true, price: 1500, tags: ["corporate", "modern"], status: 'approved', pages: [], viewCount:300, usageCount:30, createdAt: new Date(), updatedAt: new Date() } as any,
+  { _id: "t5", name: "Pending User Template", category: "User Submitted", previewImageUrl: "https://placehold.co/300x200.png", dataAiHint: "design draft", isPremium: false, tags: ["new", "pending"], status: 'pending_approval', pages: [], viewCount:0, usageCount:0, createdAt: new Date(), updatedAt: new Date() } as any, // Example of a pending template
 ];
 
 export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryModalProps) {
@@ -48,27 +48,15 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [premiumFilter, setPremiumFilter] = useState<"all" | "free" | "premium">("all");
   
-  // In a real app, you would fetch templates from the backend here.
-  // For now, we'll use the static data and filter it.
   const [templates, setTemplates] = useState<ITemplate[]>(initialTemplatesData); 
   
-  // Simulate fetching templates if needed, or filter based on status
   useEffect(() => {
-    // In a real app:
-    // const fetchTemplates = async () => {
-    //   const response = await fetch('/api/templates?status=approved'); // Example API endpoint
-    //   const data = await response.json();
-    //   setTemplates(data);
-    // };
-    // fetchTemplates();
-    
-    // For demo, filter initial data to show only 'approved' ones by default in gallery
     setTemplates(initialTemplatesData.filter(t => t.status === 'approved'));
   }, []);
 
 
   const uniqueCategories = useMemo(() => {
-    const categories = new Set(templates.map(t => t.category).filter(Boolean));
+    const categories = new Set(templates.map(t => t.category).filter(Boolean) as string[]);
     return ["all", ...Array.from(categories)];
   }, [templates]);
 
@@ -81,7 +69,6 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
         (premiumFilter === "free" && !template.isPremium) ||
         (premiumFilter === "premium" && template.isPremium);
       
-      // Ensure only approved templates are shown in the gallery
       return template.status === 'approved' && matchesSearchTerm && matchesCategory && matchesPremiumFilter;
     });
   }, [searchTerm, selectedCategory, premiumFilter, templates]);
@@ -91,14 +78,18 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
       toast({ title: "Not Authenticated", description: "Please log in to use or purchase templates.", variant: "destructive" });
       return;
     }
+    
+    // TODO: Increment template.viewCount here via a server action if this was a detailed view page.
+    // For now, this action signifies selection/intent to use or buy.
 
-    const hasPurchased = session.user.purchasedTemplateIds?.includes(template.id);
+    const templateIdString = (template._id as unknown as string).toString(); // Ensure template ID is a string
+    const hasPurchased = session.user.purchasedTemplateIds?.includes(templateIdString);
 
     if (template.isPremium && !hasPurchased && template.price) {
-      setProcessingPaymentFor(template.id);
+      setProcessingPaymentFor(templateIdString);
       const result = await createOneTimePaymentIntent(template.price, 'usd', undefined, {
         userId: session.user.id,
-        templateId: template.id.toString(), // Ensure ID is string
+        templateId: templateIdString,
         templateName: template.name,
         description: `Purchase of template: ${template.name}`,
       });
@@ -113,10 +104,12 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
           duration: 10000,
         });
         console.log("Stripe PaymentIntent Client Secret for template purchase:", result.clientSecret);
+        // TODO: After successful payment (via webhook typically), call a server action to increment template.usageCount
       }
     } else {
       console.log(`Using template: ${template.name}`);
       toast({ title: "Template Selected", description: `You are now using the "${template.name}" template. (Conceptual)` });
+      // TODO: Call a server action here to increment template.usageCount if it's a free template or already purchased.
       onOpenChange(false);
     }
   };
@@ -192,15 +185,16 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
               {filteredTemplates.map((template) => {
-                const hasPurchased = session?.user?.purchasedTemplateIds?.includes(template.id.toString());
-                const isProcessingThis = processingPaymentFor === template.id.toString();
+                const templateIdString = (template._id as unknown as string).toString();
+                const hasPurchased = session?.user?.purchasedTemplateIds?.includes(templateIdString);
+                const isProcessingThis = processingPaymentFor === templateIdString;
                 let buttonText = "Use Template";
                 if (template.isPremium && !hasPurchased && template.price) {
                   buttonText = `Buy for $${(template.price / 100).toFixed(2)}`;
                 }
 
                 return (
-                  <Card key={template.id.toString()} className="overflow-hidden bg-card border-border hover:shadow-lg transition-shadow flex flex-col">
+                  <Card key={templateIdString} className="overflow-hidden bg-card border-border hover:shadow-lg transition-shadow flex flex-col">
                     <CardHeader className="p-0 relative">
                       <Image
                         src={template.previewImageUrl || "https://placehold.co/300x200.png"}
@@ -208,7 +202,7 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
                         width={300}
                         height={200}
                         className="w-full h-auto object-cover aspect-[3/2]"
-                        data-ai-hint={template.tags?.join(" ") || template.name}
+                        data-ai-hint={(template as any).dataAiHint || template.tags?.join(" ") || template.name}
                       />
                       {template.isPremium && (
                         <Badge variant={hasPurchased ? "default" : "destructive"} className="absolute top-2 right-2">
@@ -254,6 +248,7 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
                           size="sm"
                           variant="outline"
                           className="w-full sm:flex-1"
+                          // TODO: Increment template.viewCount here via a server action when live demo is clicked
                         >
                           <a href={template.liveDemoUrl} target="_blank" rel="noopener noreferrer">
                             <ExternalLink className="mr-2 h-4 w-4" />
@@ -275,3 +270,4 @@ export function TemplateGalleryModal({ isOpen, onOpenChange }: TemplateGalleryMo
     </Dialog>
   );
 }
+

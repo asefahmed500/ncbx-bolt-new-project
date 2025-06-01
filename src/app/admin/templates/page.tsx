@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Download, ListFilter } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Download, ListFilter, Eye, BarChartHorizontalBig } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -200,8 +200,9 @@ export default function AdminTemplatesPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Category</TableHead>
-                <TableHead>Premium</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-center"><Eye className="inline-block h-4 w-4 mr-1" />Views</TableHead>
+                <TableHead className="text-center"><BarChartHorizontalBig className="inline-block h-4 w-4 mr-1" />Uses</TableHead>
                 <TableHead>Created By</TableHead>
                 <TableHead>Created At</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -213,12 +214,6 @@ export default function AdminTemplatesPage() {
                   <TableCell className="font-medium">{template.name}</TableCell>
                   <TableCell className="capitalize">{template.category || 'N/A'}</TableCell>
                   <TableCell>
-                    <Badge variant={template.isPremium ? 'destructive' : 'secondary'}>
-                      {template.isPremium ? 'Yes' : 'No'}
-                    </Badge>
-                    {template.isPremium && template.price && ` ($${(template.price / 100).toFixed(2)})`}
-                  </TableCell>
-                  <TableCell>
                     <Badge variant={
                       template.status === 'approved' ? 'default' :
                       template.status === 'pending_approval' ? 'outline' :
@@ -227,6 +222,8 @@ export default function AdminTemplatesPage() {
                       {template.status?.replace('_', ' ')}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-center">{template.viewCount ?? 0}</TableCell>
+                  <TableCell className="text-center">{template.usageCount ?? 0}</TableCell>
                   <TableCell>{(template.createdByUserId as any)?.name || 'System'}</TableCell>
                   <TableCell>{new Date(template.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right space-x-2">
@@ -268,5 +265,4 @@ export default function AdminTemplatesPage() {
     </div>
   );
 }
-
     
