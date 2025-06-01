@@ -3,8 +3,9 @@ import mongoose, { Schema, model, models, type Document } from 'mongoose';
 export interface IUser extends Document {
   name?: string;
   email: string;
-  password?: string; // Password should be hashed before saving
+  password?: string; 
   avatarUrl?: string;
+  role: 'user' | 'admin';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,10 +25,15 @@ const UserSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      // Select: false to prevent password from being returned by default
+      select: false, // Prevent password from being returned by default
     },
     avatarUrl: {
       type: String,
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
     },
   },
   {
