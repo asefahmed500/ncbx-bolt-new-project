@@ -2,11 +2,11 @@
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import type { IUser } from '@/models/User';
+import type { IUser } from '@/models/User'; // Keep type import
+import type { ISubscription } from "@/models/Subscription"; // Keep type import
 import mongoose from 'mongoose';
 import dbConnect from "@/lib/dbConnect";
-import Subscription, { type ISubscription } from "@/models/Subscription"; // Import Subscription model
-import { getPlanByStripePriceId, type AppPlan } from "@/config/plans"; // Import plan config
+import { getPlanByStripePriceId, type AppPlan, type PlanLimit } from "@/config/plans"; 
 
 export const authOptions: NextAuthConfig = {
   providers: [
@@ -18,6 +18,10 @@ export const authOptions: NextAuthConfig = {
       },
       async authorize(credentials) {
         console.log("[Auth][Authorize] Attempting authorization...");
+
+        // Dynamically import models only within this server-side function
+        const User = (await import('@/models/User')).default;
+        const Subscription = (await import('@/models/Subscription')).default;
 
         if (!credentials?.email || typeof credentials.email !== 'string' ||
             !credentials.password || typeof credentials.password !== 'string') {
@@ -38,7 +42,7 @@ export const authOptions: NextAuthConfig = {
         }
 
         try {
-          const User = (await import('@/models/User')).default;
+          // User and Subscription models are already imported above dynamically
           await dbConnect();
           const connectionState = mongoose.connection.readyState;
           if (connectionState !== mongoose.ConnectionStates.connected) {
@@ -69,17 +73,13 @@ export const authOptions: NextAuthConfig = {
             return null;
           }
 
-          // Fetch current subscription status for the user
           let currentSubscription: ISubscription | null = null;
           try {
             currentSubscription = await Subscription.findOne({
               userId: user._id,
-              // You might want to add more filters, e.g., only active or trialing statuses
-              // stripeSubscriptionStatus: { $in: ['active', 'trialing'] }
-            }).sort({ stripeCurrentPeriodEnd: -1 }).lean(); // Get the latest one if multiple (should ideally not happen for active)
+            }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
           } catch (subError) {
             console.error(`[Auth][Authorize] Error fetching subscription for user ${user._id}:`, subError);
-            // Continue without subscription info if it fails, or handle as critical
           }
 
           let planDetails: AppPlan | undefined;
@@ -96,9 +96,8 @@ export const authOptions: NextAuthConfig = {
             avatarUrl: user.avatarUrl,
             isActive: user.isActive,
             purchasedTemplateIds: user.purchasedTemplateIds?.map(id => id.toString()) || [],
-            // Add subscription details to the user object passed to JWT callback
             subscriptionStatus: currentSubscription?.stripeSubscriptionStatus || null,
-            subscriptionPlanId: planDetails?.id || 'free', // Default to 'free' if no active sub or plan not found
+            subscriptionPlanId: planDetails?.id || 'free',
             subscriptionLimits: planDetails?.limits || getPlanById('free')?.limits,
           };
           console.log(`[Auth][Authorize] SUCCESS: Authorizing user: ${normalizedEmail}. Returning user object:`, JSON.stringify(userToReturn));
@@ -119,7 +118,6 @@ export const authOptions: NextAuthConfig = {
       console.log("[Auth][JWT Callback] Triggered. Current Token:", JSON.stringify(token), "User obj:", JSON.stringify(user));
       try {
         if (user && (trigger === "signIn" || trigger === "signUp")) {
-          // User object from authorize callback now includes subscription details
           const authorizedUser = user as IUser & {
             id: string;
             purchasedTemplateIds?: string[];
@@ -145,9 +143,10 @@ export const authOptions: NextAuthConfig = {
         if (trigger === "update" && session) {
             if (session.name) token.name = session.name;
             if (session.avatarUrl) token.avatarUrl = session.avatarUrl;
-            // If session update needs to refresh subscription status, it must be handled here by re-fetching
-            // For instance, if a webhook updates the DB, the JWT is stale until next login or manual refresh.
-            // This example doesn't auto-refresh JWT on DB change without a session update trigger.
+            // If session update needs to refresh subscription status from DB:
+            // const Subscription = (await import('@/models/Subscription')).default;
+            // const dbSub = await Subscription.findOne({ userId: token.id, ... }).sort(...);
+            // if (dbSub) { /* update token.subscriptionStatus etc. */ }
             console.log("[Auth][JWT Callback] Token updated via 'update' trigger:", JSON.stringify(token));
         }
         return token;
@@ -168,7 +167,6 @@ export const authOptions: NextAuthConfig = {
           session.user.avatarUrl = token.avatarUrl as string | undefined;
           session.user.isActive = token.isActive as boolean;
           session.user.purchasedTemplateIds = token.purchasedTemplateIds as string[];
-          // Add subscription details to the session.user object
           session.user.subscriptionStatus = token.subscriptionStatus as string | null | undefined;
           session.user.subscriptionPlanId = token.subscriptionPlanId as 'free' | 'pro' | 'enterprise' | undefined;
           session.user.subscriptionLimits = token.subscriptionLimits as PlanLimit | undefined;
@@ -203,13 +201,13 @@ declare module "next-auth" {
       avatarUrl?: string;
       isActive: boolean;
       purchasedTemplateIds?: string[];
-      subscriptionStatus?: string | null; // e.g., 'active', 'canceled', 'past_due'
+      subscriptionStatus?: string | null; 
       subscriptionPlanId?: 'free' | 'pro' | 'enterprise';
       subscriptionLimits?: PlanLimit;
     };
   }
 
-  interface User { // Matches the object returned by authorize
+  interface User { 
     id: string;
     role: 'user' | 'admin';
     avatarUrl?: string;
