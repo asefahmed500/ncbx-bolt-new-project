@@ -4,8 +4,8 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AppHeader } from '@/components/editor/app-header';
-import { CheckCircle, Info, Briefcase, DollarSign, Users, BarChart3, MessageSquare, Zap, ToggleLeft, ToggleRight } from 'lucide-react';
-import { PricingSection } from '@/components/landing/pricing-section'; // Updated import
+import { CheckCircle, Info, Briefcase, DollarSign, Users, BarChart3, MessageSquare, Zap, HelpCircle } from 'lucide-react';
+import { PricingSection } from '@/components/landing/pricing-section'; 
 
 export default function LandingPage() {
   return (
@@ -127,7 +127,7 @@ export default function LandingPage() {
         </div>
       </section>
       
-      {/* Pricing Section - Updated */}
+      
       <PricingSection />
 
       {/* Testimonials Placeholder Section */}
@@ -160,7 +160,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 bg-card border-t border-border">
+      <footer id="support" className="py-8 bg-card border-t border-border">
         <div className="container mx-auto px-6 text-center text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} NCBX Website Canvas. All rights reserved.</p>
           <div className="mt-2 space-x-4">
@@ -169,6 +169,9 @@ export default function LandingPage() {
             <Link href="/#pricing" className="hover:text-primary">Pricing</Link>
             <Link href="/privacy" className="hover:text-primary">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-primary">Terms of Service</Link>
+            <Link href="/support" className="hover:text-primary flex items-center justify-center sm:inline-flex">
+              <HelpCircle className="w-4 h-4 mr-1 sm:hidden" /> Support
+            </Link>
           </div>
         </div>
       </footer>

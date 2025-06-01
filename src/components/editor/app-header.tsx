@@ -3,8 +3,8 @@
 
 import { useState } from 'react';
 import { useSession } from "next-auth/react";
-import { signOut } from "@/auth"; // Assuming this is your server-side signOut
-import { signIn } from "next-auth/react"; // For client-side sign-in initiation if needed, or remove if only using /login page
+import { signOut } from "@/auth"; 
+import { signIn } from "next-auth/react"; 
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,22 +19,22 @@ import {
 import { AppLogo } from "@/components/icons/app-logo";
 import { AiCopyModal } from "./ai-copy-modal";
 import { TemplateGalleryModal } from "./template-gallery-modal";
-import { Laptop, Smartphone, Tablet, Download, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus } from "lucide-react";
+import { Laptop, Smartphone, Tablet, Download, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
 
 export type DeviceType = 'desktop' | 'tablet' | 'mobile';
 
 interface AppHeaderProps {
-  currentDevice?: DeviceType; // Optional: For editor view
-  onDeviceChange?: (device: DeviceType) => void; // Optional: For editor view
+  currentDevice?: DeviceType; 
+  onDeviceChange?: (device: DeviceType) => void; 
 }
 
 export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   const { data: session, status } = useSession();
   const [isAiCopyModalOpen, setIsAiCopyModalOpen] = useState(false);
   const [isTemplateGalleryModalOpen, setIsTemplateGalleryModalOpen] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState('light'); // Placeholder
+  const [currentTheme, setCurrentTheme] = useState('light'); 
   const { toast } = useToast();
   const pathname = usePathname();
 
@@ -47,7 +47,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   };
 
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/' }); // Redirect to home after sign out
+    await signOut({ callbackUrl: '/' }); 
   }
 
   const toggleTheme = () => {
@@ -68,6 +68,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     { href: "/#about", label: "About", icon: Info },
     { href: "/#services", label: "Services", icon: Briefcase },
     { href: "/#pricing", label: "Pricing", icon: DollarSign },
+    { href: "/#support", label: "Support", icon: HelpCircle }, // Added Support Link
   ];
 
   return (
@@ -77,7 +78,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
           <Link href="/" aria-label="Go to homepage">
             <AppLogo className="h-7" />
           </Link>
-          {/* Public Navigation Links - More prominent when not in editor or dashboard */}
+          
           {!isEditorPage && status !== 'authenticated' && (
              <nav className="hidden md:flex items-center gap-3 ml-6">
               {publicNavLinks.map(link => (
@@ -89,7 +90,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
           )}
         </div>
 
-        {/* Device Controls - only shown if props are passed (i.e., in editor view) */}
+        
         {showDeviceControls && (
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
             <Button
@@ -176,7 +177,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {/* Public nav links for mobile/dropdown for authenticated users */}
+                  
                   <div className="md:hidden">
                     {publicNavLinks.map(link => (
                       <DropdownMenuItem key={link.label} asChild>
@@ -188,9 +189,10 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                     ))}
                     <DropdownMenuSeparator />
                   </div>
-                  <DropdownMenuItem>Profile</DropdownMenuItem>
-                  {session.user?.role === 'admin' && <DropdownMenuItem>Admin Panel</DropdownMenuItem>}
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/dashboard/profile"><User className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
+                  {session.user?.role === 'admin' && <DropdownMenuItem asChild><Link href="/admin/dashboard"><ShieldCheckIcon className="mr-2 h-4 w-4" />Admin Panel</Link></DropdownMenuItem>}
+                  <DropdownMenuItem asChild><Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/support"><HelpCircle className="mr-2 h-4 w-4" />Support</Link></DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />
@@ -203,7 +205,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
             <div className="h-8 w-20 rounded-md bg-muted animate-pulse" />
           ) : (
             <>
-              {/* Public Navigation Links for larger screens when unauthenticated - alternative placement if needed */}
+              
               <nav className="hidden lg:flex items-center gap-3 ml-4">
                 {publicNavLinks.map(link => (
                   <Link key={link.label} href={link.href} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
@@ -223,7 +225,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                   </Link>
                 </Button>
               </div>
-               {/* Hamburger for mobile unauthenticated */}
+               
               <div className="lg:hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -1,6 +1,6 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart } from "lucide-react";
 
 export default function AdminDashboardPage() {
   return (
@@ -14,7 +14,7 @@ export default function AdminDashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle className="font-headline">User Management</CardTitle>
+            <CardTitle className="font-headline flex items-center"><Users className="mr-2 h-5 w-5 text-primary" />User Management</CardTitle>
             <CardDescription>View and manage user accounts.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -24,7 +24,7 @@ export default function AdminDashboardPage() {
         </Card>
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle className="font-headline">Site Analytics</CardTitle>
+            <CardTitle className="font-headline flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" />Site Analytics</CardTitle>
             <CardDescription>Overview of website usage and statistics.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -34,12 +34,27 @@ export default function AdminDashboardPage() {
         </Card>
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle className="font-headline">System Settings</CardTitle>
-            <CardDescription>Configure application-wide settings.</CardDescription>
+            <CardTitle className="font-headline flex items-center"><FileSpreadsheet className="mr-2 h-5 w-5 text-primary" />Financial Reporting</CardTitle>
+            <CardDescription>View revenue, subscriptions, and financial metrics.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">System settings panel will be here.</p>
-            {/* Placeholder for settings controls */}
+            <p className="text-muted-foreground">Financial reports and dashboards will be here.</p>
+            {/* Placeholder for MRR, LTV, Churn charts, Tax report links etc. */}
+            <div className="mt-3 space-y-1 text-sm">
+                <p>Monthly Recurring Revenue (MRR): $XXXX</p>
+                <p>Active Subscriptions: XXXX</p>
+                <p>Churn Rate: X%</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader>
+            <CardTitle className="font-headline flex items-center"><LineChart className="mr-2 h-5 w-5 text-primary" />System Health</CardTitle>
+            <CardDescription>Monitor application performance and errors.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">System monitoring panel will be here.</p>
+            {/* Placeholder for system status */}
           </CardContent>
         </Card>
       </div>

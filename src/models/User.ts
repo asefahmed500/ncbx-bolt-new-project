@@ -7,7 +7,8 @@ export interface IUser extends Document {
   password?: string; 
   avatarUrl?: string;
   role: 'user' | 'admin';
-  stripeCustomerId?: string; // Added for Stripe integration
+  stripeCustomerId?: string; 
+  projectsUsed?: number; // Conceptual field for usage limits
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,19 +41,20 @@ const UserSchema = new Schema<IUser>(
       default: 'user', 
       required: true,
     },
-    stripeCustomerId: { // For associating the user with a Stripe Customer object
+    stripeCustomerId: { 
       type: String,
       unique: true,
-      sparse: true, // Allows multiple null/undefined values but ensures uniqueness for actual values
+      sparse: true, 
     },
+    projectsUsed: { // Conceptual field for usage limits
+        type: Number,
+        default: 0,
+    }
   },
   {
     timestamps: true, 
   }
 );
-
-// The unique: true option on the email field automatically creates the necessary index.
-// UserSchema.index({ email: 1 }); // This was removed as it's redundant
 
 const User = models.User || model<IUser>('User', UserSchema);
 

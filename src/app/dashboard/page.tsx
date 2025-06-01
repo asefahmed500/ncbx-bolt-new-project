@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2, Tag } from "lucide-react";
+import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2, Tag, ShieldAlert, ArrowUpCircle } from "lucide-react";
 import { createStripeCheckoutSession, createOneTimePaymentIntent } from '@/actions/stripe';
 import { useToast } from '@/hooks/use-toast';
 
@@ -23,7 +23,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("10.00");
-  const [couponCode, setCouponCode] = useState(""); // New state for coupon code
+  const [couponCode, setCouponCode] = useState(""); 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
 
@@ -113,6 +113,12 @@ export default function DashboardPage() {
     );
   }
 
+  // Placeholder for usage data, replace with actual data fetching
+  const usageData = {
+    websitesCreated: session?.user?.projectsUsed || 0, // Assuming projectsUsed is a field on user
+    planWebsiteLimit: 5, // Example limit for current plan
+  };
+
   return (
     <div className="flex-1 p-6 md:p-10">
       <div className="flex items-center justify-between mb-8">
@@ -179,6 +185,32 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">Usage data will be displayed here.</p>
+             {/* Placeholder for actual usage metrics display */}
+            <div className="mt-2 space-y-1 text-sm">
+              <p>Websites Created: {usageData.websitesCreated} / {usageData.planWebsiteLimit}</p>
+              {/* Add more metered features here */}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader>
+            <ShieldAlert className="mr-2 h-5 w-5 text-primary" />
+            <CardTitle className="font-headline">Usage Limits</CardTitle>
+            <CardDescription>Your current plan's usage limits.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>Websites: {usageData.websitesCreated} / {usageData.planWebsiteLimit}</p>
+              <p>AI Copy Generations: 5 / 50 per month</p>
+              <p>Storage: 100MB / 1GB</p>
+            </div>
+            {usageData.websitesCreated >= usageData.planWebsiteLimit && (
+              <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+                <ArrowUpCircle className="mr-2 h-4 w-4" />
+                Upgrade Plan to Increase Limits
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -198,7 +230,7 @@ export default function DashboardPage() {
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   placeholder="e.g., 10.00"
                   step="0.01"
-                  min="0.50" // Stripe minimum
+                  min="0.50" 
                   required
                   className="bg-input mt-1"
                 />
