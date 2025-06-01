@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from "next-auth/react";
-import { signOut } from "@/auth"; // Assuming this is your server action signOut
-import { signIn } from "next-auth/react"; // Client-side signIn
+// import { signOut } from "@/auth"; // Server action signOut
+import { signOut as clientSignOut } from "next-auth/react"; // Client-side signOut for client components
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,7 +30,6 @@ export type DeviceType = 'desktop' | 'tablet' | 'mobile';
 interface AppHeaderProps {
   currentDevice?: DeviceType;
   onDeviceChange?: (device: DeviceType) => void;
-  // currentWebsiteId?: string; // Conceptual
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -40,7 +39,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   const [isAiCopyModalOpen, setIsAiCopyModalOpen] = useState(false);
   const [isTemplateGalleryModalOpen, setIsTemplateGalleryModalOpen] = useState(false);
   const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState('light'); // Default theme
+  const [currentTheme, setCurrentTheme] = useState('light'); 
   const { toast } = useToast();
   const pathname = usePathname();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
@@ -48,7 +47,6 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   const isEditorPage = pathname === '/editor';
 
   useEffect(() => {
-    // Set initial theme based on system preference or stored preference
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     const storedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
     if (storedTheme) {
@@ -60,16 +58,18 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     }
   }, []);
 
-
   useEffect(() => {
     let saveInterval: NodeJS.Timeout | undefined;
     if (isEditorPage) {
+      setSaveStatus('saved'); // Initial status
       saveInterval = setInterval(() => {
         setSaveStatus('saving');
+        // console.log("Simulating auto-save...");
         setTimeout(() => {
-          setSaveStatus('saved'); // Simulate save completion
+          setSaveStatus('saved'); 
+          // console.log("Simulated save complete.");
         }, 1500);
-      }, 10000); // Simulate auto-save every 10 seconds
+      }, 30000); // Simulate auto-save every 30 seconds
     }
     return () => {
       if (saveInterval) clearInterval(saveInterval);
@@ -101,7 +101,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   };
 
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/' });
+    await clientSignOut({ callbackUrl: '/' });
   };
 
   const toggleTheme = () => {
@@ -109,10 +109,6 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     setCurrentTheme(newTheme);
     localStorage.setItem('theme', newTheme);
     document.documentElement.classList.toggle('dark', newTheme === 'dark');
-    // toast({ // Optional: toast notification for theme change
-    //   title: "Theme Changed",
-    //   description: `Theme is now ${newTheme}.`,
-    // });
   };
 
   const showDeviceControls = currentDevice && onDeviceChange;
@@ -139,7 +135,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
         return (
           <div className="flex items-center text-xs text-green-600 mr-2">
             <CheckCircle className="h-4 w-4 mr-1" />
-            All changes saved
+            Saved
           </div>
         );
       case 'error':
@@ -150,14 +146,13 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
           </div>
         );
       default:
-        return null;
+        return <div className="flex items-center text-xs text-muted-foreground mr-2">Idle</div>;
     }
   };
 
   return (
     <>
       <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between shadow-sm sticky top-0 z-50 min-h-[60px]">
-        {/* Logo and Desktop Public Nav (if unauthenticated) */}
         <div className="flex items-center gap-4">
           <Link href="/" aria-label="Go to homepage">
             <AppLogo className="h-7" />
@@ -173,7 +168,6 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
           )}
         </div>
 
-        {/* Device Controls (Editor Page Only) */}
         {showDeviceControls && (
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-1 sm:gap-2">
             <TooltipProvider>
@@ -190,7 +184,6 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
           </div>
         )}
 
-        {/* Right side: Theme toggle, Save Status, Auth Controls / User Menu */}
         <div className="flex items-center gap-2">
           <TooltipProvider>
             <Tooltip>
@@ -203,46 +196,35 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
             </Tooltip>
           </TooltipProvider>
           
-          {renderSaveStatus()}
+          {isEditorPage && renderSaveStatus()}
 
-          {status === "authenticated" ? (
+          {status === "authenticated" && session.user ? (
             <>
-              {/* Authenticated User Buttons - some with responsive text */}
-              <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
-                <Link href="/dashboard"><LayoutDashboard className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Dashboard</span></Link>
-              </Button>
-              <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
-                <Link href="/editor"><PencilRuler className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Editor</span></Link>
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setIsTemplateGalleryModalOpen(true)} className="hidden sm:flex">
-                <LayoutGrid className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Templates</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setIsAiCopyModalOpen(true)} className="hidden sm:flex">
-                <Wand2 className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">AI Copy</span>
-              </Button>
-
-              {isEditorPage && (
+              {/* General authenticated buttons for NON-EDITOR pages */}
+              {!isEditorPage && (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => setIsSaveTemplateModalOpen(true)} className="hidden xs:flex">
-                    <Save className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Save As Template</span>
+                  <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
+                    <Link href="/dashboard"><LayoutDashboard className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Dashboard</span></Link>
                   </Button>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={handlePreview} disabled className="hidden xs:flex">
-                          <Eye className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Preview</span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Conceptual: Shareable preview.</p></TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <Button variant="default" size="sm" onClick={handlePublish} className="bg-primary hover:bg-primary/90 text-primary-foreground hidden xs:flex">
-                    <ArrowUpCircle className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Publish</span>
+                  <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
+                    <Link href="/editor"><PencilRuler className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Editor</span></Link>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setIsTemplateGalleryModalOpen(true)} className="hidden sm:flex">
+                    <LayoutGrid className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Templates</span>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setIsAiCopyModalOpen(true)} className="hidden sm:flex">
+                    <Wand2 className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">AI Copy</span>
                   </Button>
                 </>
               )}
+
+              {/* Editor-specific prominent button */}
+              {isEditorPage && (
+                <Button variant="default" size="sm" onClick={handlePublish} className="bg-primary hover:bg-primary/90 text-primary-foreground hidden xs:flex">
+                  <ArrowUpCircle className="mr-1 md:mr-2 h-4 w-4" /><span className="hidden md:inline">Publish</span>
+                </Button>
+              )}
               
-              {/* User Avatar Dropdown Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
@@ -260,21 +242,32 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {/* Responsive items for small screens (visible in dropdown) */}
-                  <DropdownMenuItem asChild className="sm:hidden"><Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</Link></DropdownMenuItem>
-                  <DropdownMenuItem asChild className="sm:hidden"><Link href="/editor"><PencilRuler className="mr-2 h-4 w-4" />Editor</Link></DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setIsTemplateGalleryModalOpen(true)} className="sm:hidden"><LayoutGrid className="mr-2 h-4 w-4" />Templates</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)} className="sm:hidden"><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
-                  {isEditorPage && (
+                  
+                  <DropdownMenuItem asChild><Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</Link></DropdownMenuItem>
+                  
+                  {/* Items for small screens when NOT on editor page */}
+                  {!isEditorPage && (
                     <>
-                      <DropdownMenuItem onClick={() => setIsSaveTemplateModalOpen(true)} className="xs:hidden"><Save className="mr-2 h-4 w-4" />Save As Template</DropdownMenuItem>
-                      <DropdownMenuItem onClick={handlePreview} disabled className="xs:hidden"><Eye className="mr-2 h-4 w-4" />Preview</DropdownMenuItem>
-                      <DropdownMenuItem onClick={handlePublish} className="xs:hidden"><ArrowUpCircle className="mr-2 h-4 w-4" />Publish</DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleExportCode}><Download className="mr-2 h-4 w-4" />Export Code (Conceptual)</DropdownMenuItem>
-                      <DropdownMenuSeparator className="sm:hidden" />
+                      <DropdownMenuItem asChild className="sm:hidden"><Link href="/editor"><PencilRuler className="mr-2 h-4 w-4" />Editor</Link></DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setIsTemplateGalleryModalOpen(true)} className="sm:hidden"><LayoutGrid className="mr-2 h-4 w-4" />Templates</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)} className="sm:hidden"><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
                     </>
                   )}
                   
+                  {/* Specific actions for EDITOR page in dropdown */}
+                  {isEditorPage && (
+                    <>
+                      <DropdownMenuItem onClick={() => setIsTemplateGalleryModalOpen(true)}><LayoutGrid className="mr-2 h-4 w-4" />Templates</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)}><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setIsSaveTemplateModalOpen(true)}><Save className="mr-2 h-4 w-4" />Save As Template</DropdownMenuItem>
+                      <DropdownMenuItem onClick={handlePreview} disabled><Eye className="mr-2 h-4 w-4" />Preview Site</DropdownMenuItem>
+                      <DropdownMenuItem onClick={handlePublish} className="xs:hidden"><ArrowUpCircle className="mr-2 h-4 w-4" />Publish Site</DropdownMenuItem> 
+                      <DropdownMenuItem onClick={handleExportCode}><Download className="mr-2 h-4 w-4" />Export Code</DropdownMenuItem>
+                    </>
+                  )}
+                  
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem asChild><Link href="/dashboard/profile"><User className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
                   {session.user?.role === 'admin' && <DropdownMenuItem asChild><Link href="/admin/dashboard"><ShieldCheckIcon className="mr-2 h-4 w-4" />Admin Panel</Link></DropdownMenuItem>}
                   <DropdownMenuItem asChild><Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
@@ -291,12 +284,10 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
             </div>
           ) : (
             <>
-              {/* Unauthenticated User Buttons */}
               <div className="hidden md:flex items-center gap-2">
                 <Button asChild variant="ghost" size="sm"><Link href="/login"><LogIn className="mr-1 md:mr-2 h-4 w-4" /> Login</Link></Button>
                 <Button asChild size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground"><Link href="/register"><UserPlus className="mr-1 md:mr-2 h-4 w-4" /> Register</Link></Button>
               </div>
-              {/* Mobile Menu for Unauthenticated Users */}
               <div className="md:hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -318,7 +309,6 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
           )}
         </div>
       </header>
-      {/* Modals - only initialized if user is authenticated */}
       {status === "authenticated" && (
         <>
           <AiCopyModal isOpen={isAiCopyModalOpen} onOpenChange={setIsAiCopyModalOpen} />
@@ -329,6 +319,3 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     </>
   );
 }
-
-
-    
