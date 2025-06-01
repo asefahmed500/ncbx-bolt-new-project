@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye, Settings2, SlidersHorizontal, Construction, AlertTriangle, LayoutGrid, Ticket, FileText, TrendingUp, UserMinus, Percent, DollarSignIcon, History } from "lucide-react";
+import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye, Settings2, SlidersHorizontal, Construction, AlertTriangle, LayoutGrid, Ticket, FileText, TrendingUp, UserMinus, Percent, DollarSignIcon, History, DatabaseBackup } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminDashboardPage() {
@@ -207,6 +207,33 @@ export default function AdminDashboardPage() {
               <p className="text-xs text-muted-foreground">Generate insights for product improvement and growth.</p>
             </CardFooter>
           </Card>
+
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="font-headline flex items-center"><DatabaseBackup className="mr-2 h-5 w-5 text-primary" />System Health & Maintenance Notes</CardTitle>
+              <CardDescription>Key operational considerations for administrators.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+                    <li>
+                        <strong>Data Backups:</strong> User data and application database backups are critical. These are typically managed at the database infrastructure level (e.g., using automated backup features provided by MongoDB Atlas or your chosen managed database service). Ensure these are configured, regularly tested, and monitored.
+                    </li>
+                    <li>
+                        <strong>System Logs:</strong> Regularly review application and server logs for errors, unusual activity, or performance bottlenecks.
+                    </li>
+                    <li>
+                        <strong>Security Updates:</strong> Keep all server software, dependencies, and frameworks (Next.js, Node.js, etc.) up-to-date with the latest security patches.
+                    </li>
+                    <li>
+                        <strong>Performance Monitoring:</strong> Utilize tools to monitor application performance, server load, and database query efficiency to ensure a smooth user experience.
+                    </li>
+                </ul>
+            </CardContent>
+            <CardFooter>
+              <p className="text-xs text-muted-foreground">This section is for informational purposes. Specific actions depend on your infrastructure setup.</p>
+            </CardFooter>
+          </Card>
+
         </div>
       </section>
 
