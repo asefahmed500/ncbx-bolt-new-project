@@ -14,7 +14,7 @@ export async function createStripeCheckoutSession(priceId: string) {
   }
 
   const userId = session.user.id;
-  const appUrl = process.env.APP_URL || headers().get("origin") || "http://localhost:9002";
+  const appUrl = process.env.APP_URL || headers().get("origin") || "http://localhost:9003";
 
   if (!priceId) {
     return { error: "Price ID is required." };
@@ -31,7 +31,6 @@ export async function createStripeCheckoutSession(priceId: string) {
     let stripeCustomerId = user.stripeCustomerId;
 
     if (!stripeCustomerId) {
-      // Create a new Stripe customer
       const customer = await stripe.customers.create({
         email: user.email,
         name: user.name,
@@ -44,7 +43,6 @@ export async function createStripeCheckoutSession(priceId: string) {
       await user.save();
     }
 
-    // Create a Stripe Checkout session
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       payment_method_types: ["card"],
@@ -55,10 +53,10 @@ export async function createStripeCheckoutSession(priceId: string) {
         },
       ],
       mode: "subscription",
-      success_url: `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`, // Or a dedicated success page
-      cancel_url: `${appUrl}/dashboard`, // Or a dedicated cancel page
+      success_url: `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/dashboard`,
       metadata: {
-        userId: user._id.toString(), // Pass userId to identify user in webhook
+        userId: user._id.toString(),
       },
     });
 
@@ -70,6 +68,70 @@ export async function createStripeCheckoutSession(priceId: string) {
 
   } catch (error: any) {
     console.error("[CreateCheckoutSession Action] Error:", error);
+    return { error: `An unexpected error occurred: ${error.message}` };
+  }
+}
+
+export async function createOneTimePaymentIntent(amountInCents: number, currency: string = 'usd') {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "User not authenticated." };
+  }
+  const userId = session.user.id;
+
+  if (!amountInCents || amountInCents <= 0) {
+    return { error: "Invalid amount." };
+  }
+  if (!currency) {
+    return { error: "Currency is required."}
+  }
+
+  try {
+    await dbConnect();
+    let user = await User.findById(userId);
+
+    if (!user) {
+      return { error: "User not found." };
+    }
+
+    let stripeCustomerId = user.stripeCustomerId;
+
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: user.name,
+        metadata: {
+          userId: user._id.toString(),
+        },
+      });
+      stripeCustomerId = customer.id;
+      user.stripeCustomerId = stripeCustomerId;
+      await user.save();
+    }
+
+    // Create a PaymentIntent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: currency,
+      customer: stripeCustomerId,
+      automatic_payment_methods: {
+        enabled: true, // Allows Stripe to manage payment methods like cards, wallets, etc.
+      },
+      metadata: {
+        userId: user._id.toString(),
+        description: "One-time payment", // Customize as needed
+      },
+    });
+
+    if (!paymentIntent.client_secret) {
+      return { error: "Could not create PaymentIntent." };
+    }
+
+    console.log(`[CreatePaymentIntent Action] Created PaymentIntent ${paymentIntent.id} for user ${userId}`);
+    return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
+
+  } catch (error: any) {
+    console.error("[CreatePaymentIntent Action] Error:", error);
     return { error: `An unexpected error occurred: ${error.message}` };
   }
 }

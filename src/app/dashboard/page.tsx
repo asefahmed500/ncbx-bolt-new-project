@@ -1,20 +1,30 @@
 
 "use client";
 
-import { useEffect } from 'react';
+import React, { useEffect, useState, FormEvent } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Lightbulb, Loader2, CreditCard } from "lucide-react";
-import { createStripeCheckoutSession } from '@/actions/stripe';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Lightbulb, Loader2, CreditCard, ShoppingCart } from "lucide-react";
+import { createStripeCheckoutSession, createOneTimePaymentIntent } from '@/actions/stripe';
 import { useToast } from '@/hooks/use-toast';
+
+// TODO: In a real app, you would load Stripe.js and use Elements for secure payment.
+// For example:
+// import { loadStripe } from '@stripe/stripe-js';
+// const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { toast } = useToast();
-  const [isSubscribing, setIsSubscribing] = React.useState(false);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("10.00"); // Default to $10.00
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.role === 'admin') {
@@ -24,8 +34,7 @@ export default function DashboardPage() {
 
   const handleSubscribe = async () => {
     setIsSubscribing(true);
-    // Replace 'YOUR_STRIPE_PRICE_ID' with an actual Price ID from your Stripe account
-    const priceId = 'price_YOUR_STRIPE_PRICE_ID'; // TODO: Replace with actual Price ID
+    const priceId = 'price_YOUR_STRIPE_PRICE_ID'; // TODO: Replace with actual Stripe Price ID
     if (priceId === 'price_YOUR_STRIPE_PRICE_ID') {
         toast({
             title: "Configuration Needed",
@@ -46,9 +55,36 @@ export default function DashboardPage() {
         variant: "destructive",
       });
     } else if (result.url) {
-      router.push(result.url); // Redirect to Stripe Checkout
+      router.push(result.url); 
     }
     setIsSubscribing(false);
+  };
+
+  const handleOneTimePayment = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsProcessingPayment(true);
+
+    const amountInCents = Math.round(parseFloat(paymentAmount) * 100);
+    if (isNaN(amountInCents) || amountInCents <= 0) {
+      toast({ title: "Invalid Amount", description: "Please enter a valid payment amount.", variant: "destructive" });
+      setIsProcessingPayment(false);
+      return;
+    }
+
+    const result = await createOneTimePaymentIntent(amountInCents, 'usd');
+
+    if (result.error) {
+      toast({ title: "Payment Error", description: result.error, variant: "destructive" });
+    } else if (result.clientSecret && result.paymentIntentId) {
+      toast({
+        title: "Payment Intent Created",
+        description: `Client Secret ready. PI ID: ${result.paymentIntentId}. Integrate Stripe Elements to complete payment.`,
+      });
+      console.log("PaymentIntent Client Secret:", result.clientSecret);
+      // TODO: Implement Stripe Elements and stripe.confirmCardPayment(result.clientSecret, { payment_method: ... })
+      // For now, we just log it.
+    }
+    setIsProcessingPayment(false);
   };
 
 
@@ -85,6 +121,7 @@ export default function DashboardPage() {
             <p className="text-muted-foreground">You haven't created any websites yet.</p>
           </CardContent>
         </Card>
+        
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle className="font-headline">Subscription</CardTitle>
@@ -92,7 +129,6 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-muted-foreground">You are currently on the free plan.</p>
-            {/* TODO: Replace with actual Stripe Price ID from your dashboard */}
             <Button 
               onClick={handleSubscribe} 
               disabled={isSubscribing}
@@ -101,18 +137,50 @@ export default function DashboardPage() {
               {isSubscribing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" /> }
               {isSubscribing ? "Processing..." : "Upgrade to Pro"}
             </Button>
-            <p className="text-xs text-muted-foreground text-center">You will be redirected to Stripe to complete your purchase.</p>
+            <p className="text-xs text-muted-foreground text-center">You will be redirected to Stripe Checkout.</p>
           </CardContent>
         </Card>
+
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle className="font-headline">Usage Statistics</CardTitle>
-            <CardDescription>Overview of your account usage.</CardDescription>
+            <CardTitle className="font-headline">One-Time Payment</CardTitle>
+            <CardDescription>Make a single payment.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">Statistics are not yet available.</p>
+            <form onSubmit={handleOneTimePayment} className="space-y-4">
+              <div>
+                <Label htmlFor="paymentAmount" className="text-sm">Amount (USD)</Label>
+                <Input
+                  id="paymentAmount"
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  placeholder="e.g., 10.00"
+                  step="0.01"
+                  min="0.50" // Stripe minimums may apply
+                  required
+                  className="bg-input mt-1"
+                />
+              </div>
+              {/* Placeholder for Stripe Elements Card Element */}
+              <div className="p-3 border border-dashed rounded-md bg-muted/50 text-center text-muted-foreground">
+                Stripe Card Element would be here.
+              </div>
+              <Button 
+                type="submit" 
+                disabled={isProcessingPayment} 
+                className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
+              >
+                {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
+                {isProcessingPayment ? "Processing..." : `Pay $${paymentAmount}`}
+              </Button>
+            </form>
           </CardContent>
+           <CardFooter>
+            <p className="text-xs text-muted-foreground">This is a demo. Full card input with Stripe Elements is needed for actual payments.</p>
+          </CardFooter>
         </Card>
+        
       </div>
       <div className="mt-10 p-6 bg-accent/10 rounded-lg border border-accent/30">
         <div className="flex items-start gap-3">
