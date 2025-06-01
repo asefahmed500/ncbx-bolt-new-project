@@ -31,7 +31,7 @@ export default function LoginPage() {
         password,
       });
 
-      console.log("[LoginPage] signIn result object:", result); // Log the entire result
+      console.log("[LoginPage] signIn result object:", result);
 
       if (result?.error) {
         console.error("[LoginPage] signIn returned an error:", result.error);
@@ -40,14 +40,14 @@ export default function LoginPage() {
           description: result.error === "CredentialsSignin" ? "Invalid email or password." : `Login error: ${result.error}`,
           variant: "destructive",
         });
-      } else if (result?.ok) { 
+      } else if (result?.ok) {
         console.log("[LoginPage] Login successful, redirecting...");
         toast({
           title: "Login Successful",
           description: "Welcome back!",
         });
-        router.push("/"); 
-        router.refresh(); 
+        router.push("/");
+        router.refresh();
       } else {
          console.warn("[LoginPage] signIn result was not 'ok' and had no specific error, or result was undefined/null. Result:", result);
          toast({
@@ -56,7 +56,7 @@ export default function LoginPage() {
           variant: "destructive",
         });
       }
-    } catch (error: any) { 
+    } catch (error: any) {
       console.error("[LoginPage] CRITICAL: Exception during signIn call or subsequent logic. Error object raw:", error);
        if (error instanceof Error) {
         console.error("[LoginPage] Exception name:", error.name);
@@ -64,10 +64,10 @@ export default function LoginPage() {
         console.error("[LoginPage] Exception stack:", error.stack);
       }
       let errorMessage = "An unexpected error occurred during login. Please try again.";
-      if (error.message && error.name !== 'TypeError') { // Don't show generic "TypeError: Failed to fetch" to user
+      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+        errorMessage = "Failed to connect to the server. Please check server logs for more details and ensure the server is running correctly."
+      } else if (error.message && error.name !== 'TypeError') {
         errorMessage = error.message;
-      } else if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-        errorMessage = "Failed to connect to the server. Please check your network and try again."
       }
       
       toast({
