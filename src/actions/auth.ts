@@ -22,10 +22,12 @@ export async function registerUser(formData: FormData) {
     }
 
     const { name, email, password } = parsed.data;
+    const normalizedEmail = email.toLowerCase(); // Normalize email to lowercase
 
     await dbConnect();
 
-    const existingUser = await User.findOne({ email });
+    // Check for existing user with the normalized email
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return { error: "User with this email already exists." };
     }
@@ -34,7 +36,7 @@ export async function registerUser(formData: FormData) {
 
     const newUser = new User({
       name,
-      email,
+      email: normalizedEmail, // Save the normalized email
       password: hashedPassword,
       role: "user", // Default role
     });
@@ -44,6 +46,10 @@ export async function registerUser(formData: FormData) {
     return { success: "User registered successfully." };
   } catch (error) {
     console.error("Registration error:", error);
+    // Check for MongoDB unique constraint error (E11000)
+    if ((error as any).code === 11000 && (error as any).keyPattern?.email) {
+        return { error: "User with this email already exists." };
+    }
     return { error: "An unexpected error occurred. Please try again." };
   }
 }
