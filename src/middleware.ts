@@ -13,7 +13,13 @@ export const config = {
      * - favicon.ico (favicon file)
      * - login (login page)
      * - register (register page)
+     * - / (the root landing page should be public)
+     *
+     * This means /editor and /dashboard will be protected by default if not listed above.
+     * A more explicit way for v5 is to list protected routes:
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|login|register).*)",
+    '/editor/:path*',
+    '/dashboard/:path*',
   ],
 };
+

@@ -2,8 +2,8 @@
 "use client";
 
 import { useState } from 'react';
-import { useSession } from "next-auth/react"; // useSession stays from next-auth/react
-import { signIn, signOut } from "@/auth"; // signIn and signOut from @/auth
+import { useSession } from "next-auth/react";
+import { signIn, signOut } from "@/auth";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,20 +18,22 @@ import {
 import { AppLogo } from "@/components/icons/app-logo";
 import { AiCopyModal } from "./ai-copy-modal";
 import { TemplateGalleryModal } from "./template-gallery-modal";
-import { Laptop, Smartphone, Tablet, Download, Wand2, LayoutGrid, User, LogOut, LogIn } from "lucide-react";
+import { Laptop, Smartphone, Tablet, Download, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 
 export type DeviceType = 'desktop' | 'tablet' | 'mobile';
 
 interface AppHeaderProps {
-  currentDevice: DeviceType;
-  onDeviceChange: (device: DeviceType) => void;
+  currentDevice?: DeviceType; // Optional: For editor view
+  onDeviceChange?: (device: DeviceType) => void; // Optional: For editor view
 }
 
 export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   const { data: session, status } = useSession();
   const [isAiCopyModalOpen, setIsAiCopyModalOpen] = useState(false);
   const [isTemplateGalleryModalOpen, setIsTemplateGalleryModalOpen] = useState(false);
+  // Placeholder for theme state
+  const [currentTheme, setCurrentTheme] = useState('light'); // Replace with actual theme logic
   const { toast } = useToast();
 
   const handleExport = () => {
@@ -46,6 +48,17 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     await signOut({ callbackUrl: '/login' });
   }
 
+  const toggleTheme = () => {
+    // Placeholder: Implement actual theme toggling logic here (e.g., using next-themes)
+    setCurrentTheme(prev => prev === 'light' ? 'dark' : 'light');
+    toast({
+      title: "Theme Changed (Placeholder)",
+      description: `Theme is now ${currentTheme === 'light' ? 'dark' : 'light'}. Actual implementation needed.`,
+    });
+  };
+
+  const showDeviceControls = currentDevice && onDeviceChange;
+
   return (
     <>
       <header className="bg-card border-b border-border px-4 py-2 flex items-center justify-between shadow-sm sticky top-0 z-50">
@@ -55,39 +68,61 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
           </Link>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant={currentDevice === 'desktop' ? 'secondary' : 'ghost'}
-            size="icon"
-            onClick={() => onDeviceChange('desktop')}
-            aria-label="Desktop view"
-            title="Desktop View"
-          >
-            <Laptop className="h-5 w-5" />
-          </Button>
-          <Button
-            variant={currentDevice === 'tablet' ? 'secondary' : 'ghost'}
-            size="icon"
-            onClick={() => onDeviceChange('tablet')}
-            aria-label="Tablet view"
-            title="Tablet View"
-          >
-            <Tablet className="h-5 w-5" />
-          </Button>
-          <Button
-            variant={currentDevice === 'mobile' ? 'secondary' : 'ghost'}
-            size="icon"
-            onClick={() => onDeviceChange('mobile')}
-            aria-label="Mobile view"
-            title="Mobile View"
-          >
-            <Smartphone className="h-5 w-5" />
-          </Button>
-        </div>
+        {/* Device Controls - only shown if props are passed (i.e., in editor view) */}
+        {showDeviceControls && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant={currentDevice === 'desktop' ? 'secondary' : 'ghost'}
+              size="icon"
+              onClick={() => onDeviceChange('desktop')}
+              aria-label="Desktop view"
+              title="Desktop View"
+            >
+              <Laptop className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={currentDevice === 'tablet' ? 'secondary' : 'ghost'}
+              size="icon"
+              onClick={() => onDeviceChange('tablet')}
+              aria-label="Tablet view"
+              title="Tablet View"
+            >
+              <Tablet className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={currentDevice === 'mobile' ? 'secondary' : 'ghost'}
+              size="icon"
+              onClick={() => onDeviceChange('mobile')}
+              aria-label="Mobile view"
+              title="Mobile View"
+            >
+              <Smartphone className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+
+        {/* Central navigation items or empty space if no device controls */}
+        {!showDeviceControls && <div className="flex-1"></div>}
+
 
         <div className="flex items-center gap-3">
           {status === "authenticated" && (
             <>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/dashboard">
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Link>
+              </Button>
+              {/* Show Editor link if not on editor page, or if device controls are not shown (meaning we might be on dashboard) */}
+              {(showDeviceControls || (currentDevice === undefined) ) && (
+                 <Button variant="ghost" size="sm" asChild>
+                  <Link href="/editor">
+                    <PencilRuler className="mr-2 h-4 w-4" />
+                    Editor
+                  </Link>
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => setIsTemplateGalleryModalOpen(true)}>
                 <LayoutGrid className="mr-2 h-4 w-4" />
                 Templates
@@ -102,6 +137,10 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
               </Button>
             </>
           )}
+
+          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle Theme">
+            {currentTheme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+          </Button>
 
           {status === "authenticated" ? (
             <DropdownMenu>
