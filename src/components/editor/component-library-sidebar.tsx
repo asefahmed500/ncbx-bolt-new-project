@@ -3,32 +3,22 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DraggableComponentItem } from "./draggable-component-item";
-import { Type, Image as ImageIcon, Square, Box, Columns, Heading1, Minus, Layers, Code2, Video, Edit3, MapPin, ListChecks, Search as SearchIcon } from "lucide-react";
+import { getRegisteredComponents, type ComponentConfig } from "./componentRegistry"; // Import from registry
+import { Layers, Search as SearchIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input"; // Added for search placeholder
-
-// TODO: In the future, components could be grouped by category
-// e.g., const componentCategories = { Basic: [], Layout: [], Media: [], Forms: [] };
-const components = [
-  { id: "heading", label: "Heading", icon: Heading1, description: "For titles and subheadings (H1-H6)." },
-  { id: "text", label: "Rich Text Block", icon: Type, description: "Paragraphs, lists, and formatted text." },
-  { id: "image", label: "Image", icon: ImageIcon, description: "Embed single images or create galleries." },
-  { id: "button", label: "Button", icon: Square, description: "Interactive call-to-action links." },
-  { id: "video", label: "Video", icon: Video, description: "Embed videos from various sources." },
-  { id: "section", label: "Section / Container", icon: Box, description: "Group content into distinct sections." },
-  { id: "columns", label: "Columns Layout", icon: Columns, description: "Arrange content in responsive columns." },
-  { id: "divider", label: "Divider", icon: Minus, description: "Add a visual horizontal separator." },
-  { id: "form", label: "Form Container", icon: ListChecks, description: "Group form input fields for submissions." },
-  { id: "input", label: "Form Input Field", icon: Edit3, description: "For text, email, number, etc. inputs." },
-  { id: "textarea_field", label: "Form Textarea", icon: Edit3, description: "For multi-line text input areas." },
-  { id: "map_embed", label: "Map Embed", icon: MapPin, description: "Embed maps (e.g., Google Maps)." },
-  { id: "customCode", label: "Custom Code", icon: Code2, description: "Embed HTML, CSS, or JS snippets." },
-];
+// import { Input } from "@/components/ui/input"; // For future search functionality
 
 export function ComponentLibrarySidebar() {
   // const [searchTerm, setSearchTerm] = useState(""); // State for search functionality
-  // const filteredComponents = components.filter(c => c.label.toLowerCase().includes(searchTerm.toLowerCase()));
+  
+  // Get components from the registry
+  const availableComponents: ComponentConfig[] = getRegisteredComponents();
+
+  // const filteredComponents = availableComponents.filter(c => 
+  //   c.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //   c.description.toLowerCase().includes(searchTerm.toLowerCase())
+  // );
 
   return (
     <aside className="w-72 bg-card border-r border-border p-4 flex flex-col shadow-sm">
@@ -50,13 +40,13 @@ export function ComponentLibrarySidebar() {
       </div>
 
       <ScrollArea className="flex-1 pr-2">
-        {/* TODO: Implement categorization rendering here if componentCategories is used */}
+        {/* TODO: Implement categorization rendering here if componentCategories is used in registry */}
         <div className="space-y-2">
-          {/* Replace 'components' with 'filteredComponents' when search is implemented */}
-          {components.map((component) => (
+          {/* Use 'availableComponents' or 'filteredComponents' when search is implemented */}
+          {availableComponents.map((component) => (
             <DraggableComponentItem
               key={component.id}
-              id={component.id}
+              id={component.id} // Pass the component id (type)
               icon={component.icon}
               label={component.label}
               description={component.description}
