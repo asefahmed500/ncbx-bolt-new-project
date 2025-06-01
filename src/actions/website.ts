@@ -43,10 +43,68 @@ export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise
       return { error: "Unauthorized to modify this website." };
     }
 
-    // Conceptual: Here you would trigger the actual build & deployment process.
-    // This could involve generating static files, uploading to hosting, etc.
-    // For now, we just update the status.
     console.log(`[WebsiteAction_Publish] Conceptual: Starting deployment for website ${websiteId}...`);
+
+    // --- Static Site Generation (SSG) & Deployment Process ---
+    // The following outlines a conceptual process for generating and deploying a static version
+    // of the user's website. Actual implementation requires a build pipeline and hosting integration.
+
+    // 1. Fetch Website Data:
+    //    - Retrieve the full website structure (pages, components, global settings) from MongoDB.
+    //    - This includes all IPage documents and their IPageComponent arrays associated with the website.
+
+    // 2. Static HTML File Generation:
+    //    - For each page in the website:
+    //      - Map IPageComponent data (type and config) to corresponding React components.
+    //        (e.g., a 'text' type maps to a <TextDisplayComponent config={component.config} />).
+    //      - Render these React components to static HTML strings. If this generation happens
+    //        in a separate build process, Next.js's `renderToStaticMarkup` or similar could be used.
+    //      - Save each page as an .html file (e.g., about-us.html, index.html for the root page).
+    //      - Ensure correct directory structure for nested pages if applicable.
+
+    // 3. Asset Handling:
+    //    - Collect all static assets referenced by the website components (e.g., images from image components,
+    //      global fonts, custom CSS snippets).
+    //    - Place them in appropriate folders within the build output (e.g., /assets/images, /css).
+    //    - Update HTML files to correctly reference these assets with relative or absolute paths
+    //      depending on the deployment strategy.
+
+    // 4. Optimization ("Optimize for speed"):
+    //    - Minify HTML, CSS, and JavaScript files.
+    //    - Compress images (e.g., using tools like ImageOptim or squoosh).
+    //    - Implement lazy loading for images and other off-screen content (often done client-side via JS).
+    //    - Consider generating critical CSS to improve perceived load time.
+
+    // 5. Incremental Updates (e.g., for Next.js ISR if hosting on a Next.js compatible platform):
+    //    - If using a platform supporting ISR (like Vercel or a custom Next.js server for user sites):
+    //      - The "publishing" step might involve triggering revalidation for specific paths using Next.js's
+    //        on-demand revalidation API (e.g., `res.revalidate('/user-site-path')`).
+    //      - Alternatively, pages could be configured with a default `revalidate` interval during their generation.
+    //    - For a purely static export to basic hosting (e.g., S3), "incremental updates" would mean
+    //      regenerating only the pages that have changed since the last publish and re-uploading them.
+
+    // 6. Handling Dynamic Content:
+    //    - For truly static sites, "dynamic content" (e.g., from external APIs, user comments, live data feeds)
+    //      is typically fetched client-side using JavaScript (e.g., in a useEffect hook) after the static page loads.
+    //    - If the hosting platform supports edge functions or serverless functions, these could
+    //      be used to inject dynamic content or handle API requests from the static site.
+    //    - For forms (contact forms, surveys): The static HTML form would submit its data to a
+    //      serverless function or a dedicated backend API endpoint for processing.
+
+    // 7. Deployment:
+    //    - Upload the generated static files (HTML, CSS, JS, assets) to a hosting provider
+    //      (e.g., Firebase Hosting, AWS S3 + CloudFront, Netlify, Vercel for static sites).
+    //    - If using custom domains, ensure DNS records are configured to point to the hosting provider.
+    //    - SSL certificates are typically managed by the hosting provider.
+
+    // 8. Error Handling & Monitoring ("Handle deployment errors", "Monitor publishing success"):
+    //    - Implement comprehensive logging throughout the generation and deployment process.
+    //    - If errors occur (e.g., build failure, upload failure), update the website's status to 'error_publishing'
+    //      and store error details.
+    //    - Notify the admin and/or user of deployment success or failure.
+    //    - Set up monitoring for the deployed sites (uptime, performance).
+
+    // --- End of Conceptual SSG Process ---
 
     website.status = 'published' as WebsiteStatus;
     website.lastPublishedAt = new Date();
@@ -92,6 +150,7 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
     }
 
     // Conceptual: Here you would trigger logic to take the site offline or remove it from public access.
+    // This might involve removing files from hosting or updating CDN rules.
     console.log(`[WebsiteAction_Unpublish] Conceptual: Starting unpublish process for website ${websiteId}...`);
     
     website.status = 'unpublished' as WebsiteStatus;
@@ -183,9 +242,9 @@ export async function setCustomDomain(input: { websiteId: string, domainName: st
     // Conceptual: Your actual DNS instructions will depend on your hosting provider.
     // e.g., CNAME to your app's domain, or A records to specific IPs.
     const instructions = `To connect "${normalizedDomainName}", update your DNS settings. ` +
-                         `This typically involves adding a CNAME record pointing to your app's hosting target, or A records. ` +
+                         `This typically involves adding a CNAME record pointing to your app's hosting target (e.g., your-app-default.apphosting.firebaseapp.com), or A records to specific IP addresses if required by your hosting solution. ` +
                          `Consult your hosting provider's documentation for specific record values. ` +
-                         `Verification may take up to 48 hours.`;
+                         `Verification may take up to 48 hours after DNS changes propagate.`;
 
     website.customDomain = normalizedDomainName;
     website.domainStatus = 'pending_verification' as DomainConnectionStatus;
@@ -242,3 +301,4 @@ export async function getWebsiteById(websiteId: string): Promise<GetWebsiteByIdR
     return { error: "Failed to fetch website details." };
   }
 }
+
