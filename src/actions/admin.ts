@@ -1,11 +1,11 @@
-
 "use server";
 
 import dbConnect from "@/lib/dbConnect";
 import User, { type IUser } from "@/models/User";
 import Coupon, { type ICoupon } from "@/models/Coupon";
 import ModerationQueueItem, { type IModerationQueueItem } from "@/models/ModerationQueueItem";
-import Template, { type ITemplate } from "@/models/Template"; // Import Template model
+import Template, { type ITemplate, type TemplateStatus } from "@/models/Template"; // Import Template model
+import TemplateReview from "@/models/TemplateReview"; // Needed for moderation actions
 import { z } from "zod";
 import { auth } from "@/auth";
 import mongoose from "mongoose";
@@ -210,6 +210,84 @@ export async function getCouponsForAdmin(
   }
 }
 
+const UpdateCouponInputSchema = z.object({
+  couponId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
+    message: "Invalid Coupon ID",
+  }),
+  description: z.string().optional(),
+  discountType: z.enum(["percentage", "fixed_amount"]).optional(),
+  discountValue: z.number().min(0).optional(),
+  isActive: z.boolean().optional(),
+  usageLimit: z.number().min(0).optional(),
+  userUsageLimit: z.number().min(0).optional(),
+  expiresAt: z.string().nullable().optional().refine(val => val === null || !val || !isNaN(Date.parse(val)), {
+    message: "Invalid date format for expiration date",
+  }),
+  minPurchaseAmount: z.number().min(0).optional(),
+});
+export type UpdateCouponInput = z.infer<typeof UpdateCouponInputSchema>;
+interface UpdateCouponResult {
+  success?: string;
+  error?: string;
+  coupon?: ICoupon;
+}
+
+export async function updateCouponByAdmin(input: UpdateCouponInput): Promise<UpdateCouponResult> {
+  const session = await auth();
+  if (session?.user?.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const parsedInput = UpdateCouponInputSchema.safeParse(input);
+    if (!parsedInput.success) {
+      const errorMessages = parsedInput.error.flatten().fieldErrors;
+      return { error: `Invalid input: ${JSON.stringify(errorMessages)}` };
+    }
+
+    const { couponId, ...updateData } = parsedInput.data;
+
+    await dbConnect();
+    const coupon = await Coupon.findById(couponId);
+    if (!coupon) {
+      return { error: "Coupon not found." };
+    }
+
+    // Validate discountValue based on discountType if both are present
+    const finalDiscountType = updateData.discountType || coupon.discountType;
+    const finalDiscountValue = updateData.discountValue !== undefined ? updateData.discountValue : coupon.discountValue;
+
+    if (finalDiscountType === 'percentage' && (finalDiscountValue < 0 || finalDiscountValue > 100)) {
+      return { error: "Percentage discount value must be between 0 and 100." };
+    }
+    if (finalDiscountType === 'fixed_amount' && finalDiscountValue < 0) {
+      return { error: "Fixed amount discount value must be non-negative." };
+    }
+
+    // Apply updates
+    Object.assign(coupon, updateData);
+    if (updateData.expiresAt === null) { // Explicitly set to null to remove expiration
+        coupon.expiresAt = undefined;
+    } else if (updateData.expiresAt) {
+        coupon.expiresAt = new Date(updateData.expiresAt);
+    }
+
+
+    const updatedCoupon = await coupon.save();
+
+    console.log(`[AdminAction_UpdateCoupon] Coupon "${updatedCoupon.code}" (ID: ${couponId}) updated by admin ${session.user.id}.`);
+    return { success: "Coupon updated successfully.", coupon: updatedCoupon.toObject() };
+
+  } catch (error: any) {
+    console.error("[AdminAction_UpdateCoupon] Error updating coupon:", error);
+    if (error instanceof z.ZodError) {
+        return { error: `Validation error: ${error.errors.map(e => e.message).join(', ')}` };
+    }
+    return { error: `An unexpected error occurred: ${error.message || "Could not update coupon."}` };
+  }
+}
+
+
 // --- Moderation Queue ---
 interface GetModerationQueueItemsResult {
   items?: IModerationQueueItem[];
@@ -232,7 +310,13 @@ export async function getModerationQueueItems(
     const query: mongoose.FilterQuery<IModerationQueueItem> = {};
     if (statusFilter && ['pending', 'approved', 'rejected', 'escalated'].includes(statusFilter)) {
       query.status = statusFilter;
+    } else if (statusFilter && statusFilter.toLowerCase() === 'all') {
+      // No status filter needed
+    } else if (statusFilter) {
+      // Default to pending if an invalid filter is passed but a filter is intended
+      query.status = 'pending';
     }
+
 
     const skip = (page - 1) * limit;
     const items = await ModerationQueueItem.find(query)
@@ -250,6 +334,82 @@ export async function getModerationQueueItems(
     return { error: "Failed to fetch moderation items: " + error.message };
   }
 }
+
+const ProcessModerationItemInputSchema = z.object({
+  itemId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
+    message: "Invalid Item ID",
+  }),
+  action: z.enum(['approve', 'reject', 'escalate']),
+  moderatorNotes: z.string().optional(),
+});
+export type ProcessModerationItemInput = z.infer<typeof ProcessModerationItemInputSchema>;
+
+interface ProcessModerationItemResult {
+  success?: string;
+  error?: string;
+  item?: IModerationQueueItem;
+}
+
+export async function processModerationItemByAdmin(input: ProcessModerationItemInput): Promise<ProcessModerationItemResult> {
+  const session = await auth();
+  if (session?.user?.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const parsedInput = ProcessModerationItemInputSchema.safeParse(input);
+    if (!parsedInput.success) {
+      const errorMessages = parsedInput.error.flatten().fieldErrors;
+      return { error: `Invalid input: ${JSON.stringify(errorMessages)}` };
+    }
+
+    const { itemId, action, moderatorNotes } = parsedInput.data;
+    const adminUserId = session.user.id;
+
+    await dbConnect();
+    const item = await ModerationQueueItem.findById(itemId);
+
+    if (!item) {
+      return { error: "Moderation item not found." };
+    }
+
+    item.status = action; // 'approve' -> 'approved', 'reject' -> 'rejected', 'escalate' -> 'escalated'
+    item.moderatedBy = new mongoose.Types.ObjectId(adminUserId);
+    item.moderatedAt = new Date();
+    if (moderatorNotes) {
+      item.moderatorNotes = moderatorNotes;
+    }
+
+    // Conceptual: Update related content based on item.contentType and item.contentId
+    if (item.contentType === 'template_review' && item.contentRefModel === 'TemplateReview') {
+      const review = await TemplateReview.findById(item.contentId);
+      if (review) {
+        review.isApproved = action === 'approve'; // Set approval status on the review itself
+        await review.save();
+        console.log(`[AdminAction_ProcessModeration] TemplateReview ${review._id} status updated to isApproved: ${review.isApproved}.`);
+      }
+    } else if (item.contentType === 'template_submission' && item.contentRefModel === 'Template') {
+       const template = await Template.findById(item.contentId);
+       if(template) {
+           if(action === 'approve') template.status = 'approved' as TemplateStatus;
+           else if (action === 'reject') template.status = 'rejected' as TemplateStatus;
+           // 'escalated' doesn't change template status directly, it remains in moderation.
+           await template.save();
+           console.log(`[AdminAction_ProcessModeration] Template ${template._id} status updated to: ${template.status}.`);
+       }
+    }
+    // Add more else if blocks for other content types (e.g., website_content, user_report)
+
+    const updatedItem = await item.save();
+    console.log(`[AdminAction_ProcessModeration] Item ${itemId} processed by admin ${adminUserId}. Action: ${action}.`);
+    return { success: `Moderation item ${action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'escalated'}.`, item: updatedItem.toObject() };
+
+  } catch (error: any) {
+    console.error("[AdminAction_ProcessModeration] Error processing item:", error);
+    return { error: `Failed to process item: ${error.message}` };
+  }
+}
+
 
 // --- Template Management (Admin) ---
 interface GetTemplatesResult {
@@ -274,7 +434,13 @@ export async function getTemplatesForAdmin(
     const query: mongoose.FilterQuery<ITemplate> = {};
     if (statusFilter && ['draft', 'pending_approval', 'approved', 'rejected'].includes(statusFilter)) {
       query.status = statusFilter;
+    } else if (statusFilter && statusFilter.toLowerCase() === 'all') {
+        // No status filter means all are included
+    } else if (statusFilter) {
+        // Default to all if invalid status filter is passed but filter is intended.
     }
+
+
     if (categoryFilter && categoryFilter.toLowerCase() !== 'all') {
       query.category = categoryFilter;
     }
@@ -296,6 +462,56 @@ export async function getTemplatesForAdmin(
   }
 }
 
+
+const UpdateTemplateStatusInputSchema = z.object({
+  templateId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
+    message: "Invalid Template ID",
+  }),
+  status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']),
+  // adminNotes can be added later if needed for rejection reasons etc.
+});
+export type UpdateTemplateStatusInput = z.infer<typeof UpdateTemplateStatusInputSchema>;
+
+interface UpdateTemplateStatusResult {
+  success?: string;
+  error?: string;
+  template?: ITemplate;
+}
+
+export async function updateTemplateStatusByAdmin(input: UpdateTemplateStatusInput): Promise<UpdateTemplateStatusResult> {
+  const session = await auth();
+  if (session?.user?.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const parsedInput = UpdateTemplateStatusInputSchema.safeParse(input);
+    if (!parsedInput.success) {
+      const errorMessages = parsedInput.error.flatten().fieldErrors;
+      return { error: `Invalid input: ${JSON.stringify(errorMessages)}` };
+    }
+
+    const { templateId, status } = parsedInput.data;
+
+    await dbConnect();
+    const template = await Template.findById(templateId);
+    if (!template) {
+      return { error: "Template not found." };
+    }
+
+    template.status = status;
+    const updatedTemplate = await template.save();
+
+    console.log(`[AdminAction_UpdateTemplateStatus] Template ${templateId} status updated to "${status}" by admin ${session.user.id}.`);
+    return { success: `Template status updated to "${status}".`, template: updatedTemplate.toObject() };
+
+  } catch (error: any) {
+    console.error("[AdminAction_UpdateTemplateStatus] Error updating template status:", error);
+    return { error: `Failed to update template status: ${error.message}` };
+  }
+}
+
+
 interface GetTemplateDataResult {
   template?: ITemplate;
   error?: string;
@@ -303,7 +519,7 @@ interface GetTemplateDataResult {
 
 export async function getTemplateDataForExport(templateId: string): Promise<GetTemplateDataResult> {
   const session = await auth();
-  if (session?.user?.role !== "admin") {
+  if (session?.user?.role !== "admin") { // Or consider allowing creator to export their own?
     return { error: "Unauthorized" };
   }
 
@@ -318,6 +534,8 @@ export async function getTemplateDataForExport(templateId: string): Promise<GetT
     if (!template) {
       return { error: "Template not found." };
     }
+    // For admin export, we might want to include more data, or filter certain fields.
+    // For now, returning the full template object.
     return { template: template as ITemplate };
   } catch (error: any) {
     console.error(`[AdminAction_GetTemplateDataForExport] Error fetching template ${templateId}:`, error);
@@ -333,12 +551,11 @@ interface DistinctCategoriesResult {
 export async function getDistinctTemplateCategories(): Promise<DistinctCategoriesResult> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
-    return { error: "Unauthorized" };
+    return { error: "Unauthorized" }; // Or allow any authenticated user to see categories
   }
   try {
     await dbConnect();
-    const categories = await Template.distinct('category').exec();
-    // Filter out null, undefined, or empty string categories if they exist
+    const categories = await Template.distinct('category').where({ status: 'approved' }).exec(); // Only show categories of approved templates
     return { categories: categories.filter(cat => cat && typeof cat === 'string' && cat.trim() !== '') as string[] };
   } catch (error: any) {
     console.error("[AdminAction_GetDistinctCategories] Error fetching categories:", error);
