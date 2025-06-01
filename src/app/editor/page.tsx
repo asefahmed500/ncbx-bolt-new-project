@@ -6,7 +6,7 @@ import { AppHeader, type DeviceType } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquare, Type, Image as ImageIcon, Square as ButtonIcon, BarChart2 } from 'lucide-react';
+import { Settings, MousePointerSquare, Type, Image as ImageIcon, Square as ButtonIcon, BarChart2, UploadCloud, Crop, Sparkles } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -79,7 +79,7 @@ export default function EditorPage() {
               <Textarea 
                 id="richTextContent" 
                 defaultValue={selectedElement.textContent || ""} 
-                placeholder="Enter your rich text content here. You can add multiple paragraphs, format text, and create lists." 
+                placeholder="Enter your rich text content here. You can add multiple paragraphs, format text, and create lists. A full toolbar with formatting options (bold, italic, lists, links etc.) would appear here." 
                 rows={8} 
                 className="text-xs" 
               />
@@ -96,9 +96,16 @@ export default function EditorPage() {
           <>
             <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
             <div className="space-y-1">
-              <Label htmlFor="imageUrl" className="text-xs">Image URL</Label>
+              <Label htmlFor="imageUrl" className="text-xs">Image Source URL</Label>
               <Input type="url" id="imageUrl" defaultValue={selectedElement.imageUrl || ""} placeholder="https://placehold.co/600x400.png" className="text-xs" />
             </div>
+            <Button variant="outline" size="sm" className="w-full mt-2 text-xs" disabled>
+              <UploadCloud className="mr-2 h-3.5 w-3.5" /> Upload Image (Conceptual)
+            </Button>
+            <p className="text-xs text-muted-foreground mt-1 text-center">Or drag & drop an image here.</p>
+            
+            <Separator className="my-3" />
+
             <div className="space-y-1 mt-2">
               <Label htmlFor="altText" className="text-xs">Alt Text (Accessibility)</Label>
               <Input type="text" id="altText" defaultValue={selectedElement.altText || ""} placeholder="Descriptive text for image" className="text-xs" />
@@ -111,7 +118,24 @@ export default function EditorPage() {
               <Label htmlFor="imageLink" className="text-xs">Link URL (Optional)</Label>
               <Input type="url" id="imageLink" placeholder="https://example.com" className="text-xs" />
             </div>
-            <p className="text-xs text-muted-foreground mt-3">Controls for height, alignment, border-radius, shadow, and lightbox options would be here. Image upload/selection would integrate here.</p>
+
+            <Separator className="my-3" />
+             <div>
+              <h4 className="text-xs font-medium mb-1 text-muted-foreground flex items-center"><Crop className="mr-1.5 h-3.5 w-3.5" /> Basic Editing (Conceptual)</h4>
+              <div className="flex gap-2 mt-1">
+                <Button variant="outline" size="sm" className="text-xs flex-1" disabled>Crop</Button>
+                <Button variant="outline" size="sm" className="text-xs flex-1" disabled>Resize</Button>
+                <Button variant="outline" size="sm" className="text-xs flex-1" disabled>Filters</Button>
+              </div>
+               <p className="text-xs text-muted-foreground mt-2">Advanced image editing tools might open in a modal or separate view.</p>
+            </div>
+
+            <Separator className="my-3" />
+            <div className="flex items-center text-xs text-muted-foreground">
+              <Sparkles className="mr-1.5 h-3.5 w-3.5 text-green-500" />
+              <span>Images are automatically optimized for performance. Supports JPG, PNG, WebP, GIF.</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">Controls for height, alignment, border-radius, shadow, and lightbox options would also be here.</p>
           </>
         );
       case 'Button':
@@ -165,7 +189,7 @@ export default function EditorPage() {
         <main className="flex-1 flex flex-col p-1 md:p-4 overflow-hidden bg-muted/30">
           <CanvasEditor devicePreview={currentDevice} />
         </main>
-        <aside className="w-80 bg-card border-l border-border p-4 shadow-sm flex flex-col overflow-y-auto"> {/* Increased width and added overflow-y-auto */}
+        <aside className="w-80 bg-card border-l border-border p-4 shadow-sm flex flex-col overflow-y-auto">
           <Card className="flex-1">
             <CardHeader>
               <CardTitle className="font-headline text-lg flex items-center">
@@ -184,7 +208,7 @@ export default function EditorPage() {
             </CardHeader>
             <CardContent>
               {selectedElement ? (
-                <div className="space-y-4"> {/* Increased spacing */}
+                <div className="space-y-4"> 
                   {renderPropertyFields()}
                 </div>
               ) : (
@@ -210,7 +234,7 @@ export default function EditorPage() {
                         <Input type="color" id="pageBgColor" defaultValue="#FFFFFF" className="text-xs h-8 w-full" />
                     </div>
 
-                    <Separator className="my-4" /> {/* Changed my-3 to my-4 */}
+                    <Separator className="my-4" />
                     <div>
                       <h4 className="text-sm font-medium mb-2 flex items-center">
                         <BarChart2 className="w-4 h-4 mr-2 text-muted-foreground" /> Analytics
