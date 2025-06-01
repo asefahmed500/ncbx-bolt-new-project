@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye } from "lucide-react";
+import { ShieldCheck, Users, BarChartBig, FileSpreadsheet, LineChart, Search, Activity, Settings, MessageSquare, ShieldAlert, ServerCog, Eye, Settings2, SlidersHorizontal, Construction, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminDashboardPage() {
@@ -72,7 +72,7 @@ export default function AdminDashboardPage() {
                 <Input type="search" placeholder="Search users (email, name, ID)..." className="bg-input" />
                 <Button type="submit" variant="outline"><Search className="h-4 w-4" /></Button>
               </div>
-              <p className="text-sm text-muted-foreground">Actions: View Details, Edit Role, Suspend, Delete.</p>
+              <p className="text-sm text-muted-foreground">Actions: View Details, Edit Role, Suspend, Delete, Bulk Operations.</p>
               <Button variant="secondary" className="w-full" disabled><MessageSquare className="mr-2 h-4 w-4"/>Communicate with Users</Button>
             </CardContent>
             <CardFooter>
@@ -86,7 +86,7 @@ export default function AdminDashboardPage() {
               <CardDescription>View revenue, subscriptions, and financial metrics.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Detailed financial reports and dashboards for MRR, LTV, Churn.</p>
+              <p className="text-muted-foreground">Detailed financial reports and dashboards for MRR, LTV, Churn, and Tax.</p>
               <div className="mt-3 space-y-1 text-sm">
                   <p>Monthly Recurring Revenue (MRR): $XXXX</p>
                   <p>Customer Lifetime Value (LTV): $YYYY</p>
@@ -98,14 +98,16 @@ export default function AdminDashboardPage() {
 
           <Card className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle className="font-headline flex items-center"><Settings className="mr-2 h-5 w-5 text-primary" />Application Settings</CardTitle>
-              <CardDescription>Configure global settings for the application.</CardDescription>
+              <CardTitle className="font-headline flex items-center"><Settings2 className="mr-2 h-5 w-5 text-primary" />Application Configuration</CardTitle>
+              <CardDescription>Manage global settings, feature flags, and system parameters.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Site-wide configurations, integrations, and feature flags.</p>
+              <p className="text-muted-foreground">Site-wide configurations, integrations, rate limits, security settings, and maintenance mode.</p>
               <div className="mt-3 space-y-2">
-                <Button variant="outline" className="w-full" disabled>Manage Feature Flags</Button>
-                <Button variant="outline" className="w-full" disabled>Configure Integrations</Button>
+                <Button variant="outline" className="w-full" disabled><SlidersHorizontal className="mr-2 h-4 w-4" />Manage Feature Flags</Button>
+                <Button variant="outline" className="w-full" disabled><Settings className="mr-2 h-4 w-4" />Configure Integrations</Button>
+                <Button variant="outline" className="w-full" disabled><AlertTriangle className="mr-2 h-4 w-4" />Rate Limits & Security</Button>
+                <Button variant="outline" className="w-full" disabled><Construction className="mr-2 h-4 w-4" />Maintenance Mode</Button>
               </div>
             </CardContent>
           </Card>
@@ -113,32 +115,33 @@ export default function AdminDashboardPage() {
           <Card className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="font-headline flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-primary" />Content Moderation</CardTitle>
-              <CardDescription>Review and manage user-generated content.</CardDescription>
+              <CardDescription>Review user-generated content, manage reports, and define guidelines.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Approval workflows, automated scanning (AI), and appeals.</p>
+              <p className="text-muted-foreground">Approval workflows, automated scanning (AI), appeals, and community guideline management.</p>
               <div className="mt-3 space-y-2">
                 <Button variant="outline" className="w-full" disabled><Eye className="mr-2 h-4 w-4"/>View Pending Queue (0)</Button>
                 <Button variant="outline" className="w-full" disabled>Moderation Settings</Button>
+                <Button variant="outline" className="w-full" disabled>Community Guidelines</Button>
               </div>
             </CardContent>
             <CardFooter>
-              <p className="text-xs text-muted-foreground">Community guidelines and content policies.</p>
+              <p className="text-xs text-muted-foreground">Content policies and appeal processes.</p>
             </CardFooter>
           </Card>
 
           <Card className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="font-headline flex items-center"><ServerCog className="mr-2 h-5 w-5 text-primary" />System Monitoring</CardTitle>
-              <CardDescription>Monitor application health and performance.</CardDescription>
+              <CardDescription>Monitor application health, performance, and errors.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Links to external monitoring tools and dashboards.</p>
+              <p className="text-muted-foreground">Links to external monitoring tools and dashboards for server, database, and uptime.</p>
               <div className="mt-3 space-y-2">
                 <Button variant="outline" className="w-full" disabled>Server Performance</Button>
                 <Button variant="outline" className="w-full" disabled>Database Queries</Button>
-                <Button variant="outline" className="w-full" disabled>Error Tracking (Sentry)</Button>
-                <Button variant="outline" className="w-full" disabled>Uptime Monitoring (External)</Button>
+                <Button variant="outline" className="w-full" disabled>Error Tracking (e.g., Sentry)</Button>
+                <Button variant="outline" className="w-full" disabled>Uptime Monitoring</Button>
               </div>
             </CardContent>
              <CardFooter>
@@ -148,12 +151,20 @@ export default function AdminDashboardPage() {
 
           <Card className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle className="font-headline flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" />Site Analytics</CardTitle>
-              <CardDescription>Overview of website usage and statistics.</CardDescription>
+              <CardTitle className="font-headline flex items-center"><BarChartBig className="mr-2 h-5 w-5 text-primary" />Site & App Analytics</CardTitle>
+              <CardDescription>Track user behavior, feature usage, and conversion funnels.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Integrate with Plausible, Google Analytics, etc.</p>
+              <p className="text-muted-foreground">Integrate with analytics platforms (e.g., Plausible, Google Analytics, Mixpanel) to view custom reports and dashboards.</p>
+              <div className="mt-3 space-y-2">
+                <Button variant="outline" className="w-full" disabled>View Behavior Reports</Button>
+                <Button variant="outline" className="w-full" disabled>Analyze Conversion Funnels</Button>
+                 <Button variant="outline" className="w-full" disabled>Custom Analytics Dashboard</Button>
+              </div>
             </CardContent>
+            <CardFooter>
+              <p className="text-xs text-muted-foreground">Generate insights for product improvement and growth.</p>
+            </CardFooter>
           </Card>
         </div>
       </section>
