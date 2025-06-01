@@ -9,7 +9,7 @@ import type { IUser } from '@/models/User'; // Keep type import
 import type { ISubscription } from "@/models/Subscription"; // Keep type import
 import mongoose from 'mongoose';
 import dbConnect from "@/lib/dbConnect";
-import { getPlanByStripePriceId, type AppPlan, type PlanLimit } from "@/config/plans"; 
+import { getPlanByStripePriceId, getPlanById, type AppPlan, type PlanLimit } from "@/config/plans"; 
 
 export const authOptions: NextAuthConfig = {
   providers: [

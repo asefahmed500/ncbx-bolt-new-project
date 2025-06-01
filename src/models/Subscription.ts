@@ -49,7 +49,7 @@ const SubscriptionSchema = new Schema<ISubscription>(
 // Indexes
 SubscriptionSchema.index({ userId: 1 });
 SubscriptionSchema.index({ stripeCustomerId: 1 });
-SubscriptionSchema.index({ stripeSubscriptionId: 1 });
+// Index for stripeSubscriptionId is automatically created due to `unique: true`.
 
 const Subscription = models.Subscription || model<ISubscription>('Subscription', SubscriptionSchema);
 

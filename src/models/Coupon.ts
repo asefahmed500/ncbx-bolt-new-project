@@ -86,7 +86,7 @@ const CouponSchema = new Schema<ICoupon>(
   }
 );
 
-CouponSchema.index({ code: 1 });
+// Index is automatically created for `code` due to `unique: true`.
 CouponSchema.index({ isActive: 1, expiresAt: 1 });
 
 // Pre-save hook to ensure timesUsed does not exceed usageLimit (if usageLimit is not 0)
