@@ -9,18 +9,16 @@ export interface IWebsite extends Document {
   name: string;
   customDomain?: string;
   domainStatus?: DomainConnectionStatus;
-  dnsInstructions?: string; // General instructions or specific records as a string
-  subdomain: string; // For *.yourapp.com, ensure it's unique
-  pageIds: mongoose.Schema.Types.ObjectId[]; // References to Page documents
-  templateId?: mongoose.Schema.Types.ObjectId; // Optional: if website was created from a template
-  globalSettings?: {
-    faviconUrl?: string;
-    primaryColor?: string; // Example: can store theme overrides
-    secondaryColor?: string;
-    fontFamily?: string;
-  };
-  status: WebsiteStatus; // Changed from isPublished
+  dnsInstructions?: string;
+  subdomain: string;
+  templateId?: mongoose.Schema.Types.ObjectId;
+  status: WebsiteStatus;
   lastPublishedAt?: Date;
+
+  // Version control fields
+  currentVersionId?: mongoose.Schema.Types.ObjectId; // Points to the WebsiteVersion being edited
+  publishedVersionId?: mongoose.Schema.Types.ObjectId; // Points to the live WebsiteVersion
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,8 +38,6 @@ const WebsiteSchema = new Schema<IWebsite>(
     customDomain: {
       type: String,
       trim: true,
-      // sparse: true allows null/undefined values without violating uniqueness if set to unique
-      // A unique index is set below.
     },
     domainStatus: {
       type: String,
@@ -58,22 +54,11 @@ const WebsiteSchema = new Schema<IWebsite>(
       unique: true,
       trim: true,
       lowercase: true,
-      // Add validation for subdomain format (e.g., alphanumeric, no spaces)
     },
-    pageIds: [{
-      type: Schema.Types.ObjectId,
-      ref: 'Page',
-    }],
     templateId: {
       type: Schema.Types.ObjectId,
       ref: 'Template',
       required: false,
-    },
-    globalSettings: {
-      faviconUrl: String,
-      primaryColor: String,
-      secondaryColor: String,
-      fontFamily: String,
     },
     status: {
       type: String,
@@ -84,6 +69,16 @@ const WebsiteSchema = new Schema<IWebsite>(
     lastPublishedAt: {
       type: Date,
     },
+    currentVersionId: {
+      type: Schema.Types.ObjectId,
+      ref: 'WebsiteVersion',
+      required: false,
+    },
+    publishedVersionId: {
+      type: Schema.Types.ObjectId,
+      ref: 'WebsiteVersion',
+      required: false,
+    },
   },
   {
     timestamps: true,
@@ -93,8 +88,9 @@ const WebsiteSchema = new Schema<IWebsite>(
 // Indexes
 WebsiteSchema.index({ userId: 1 });
 WebsiteSchema.index({ subdomain: 1 }, { unique: true });
-// Ensure customDomain is globally unique when set (sparse allows multiple null/undefined values)
-WebsiteSchema.index({ customDomain: 1 }, { unique: true, sparse: true }); 
+WebsiteSchema.index({ customDomain: 1 }, { unique: true, sparse: true });
+WebsiteSchema.index({ currentVersionId: 1 });
+WebsiteSchema.index({ publishedVersionId: 1 });
 
 const Website = models.Website || model<IWebsite>('Website', WebsiteSchema);
 

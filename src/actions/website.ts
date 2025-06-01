@@ -3,6 +3,7 @@
 
 import dbConnect from "@/lib/dbConnect";
 import Website, { type IWebsite, type WebsiteStatus, type DomainConnectionStatus } from "@/models/Website";
+import WebsiteVersion, { type IWebsiteVersion } from "@/models/WebsiteVersion"; // Import WebsiteVersion
 import User from "@/models/User";
 import { auth } from "@/auth";
 import mongoose from "mongoose";
@@ -15,10 +16,25 @@ interface WebsiteActionInput {
 interface WebsiteActionResult {
   success?: string;
   error?: string;
-  website?: IWebsite;
+  website?: IWebsite; // This might need to include version data
 }
 
 // --- Publish/Unpublish Actions ---
+
+// IMPORTANT NOTE ON VERSIONING AND PUBLISHING:
+// A full version control system would require the editor to:
+// 1. Allow the user to explicitly "Save a Version". This action would take the editor's current state
+//    (all pages, components, global settings), create a new `WebsiteVersion` document,
+//    and update `Website.currentVersionId` to point to this new version.
+// 2. The `publishWebsite` action below would then take the `Website.currentVersionId`,
+//    mark that specific version's content for deployment, and update `Website.publishedVersionId`.
+//
+// Since the editor currently doesn't have this explicit "Save Version" or state serialization capability
+// to pass to an action, this `publishWebsite` function is simplified.
+// It assumes that `Website.currentVersionId` (if it exists) points to the version intended for publishing.
+// A more robust `publishWebsite` would likely receive the full website content from the editor,
+// create a new WebsiteVersion from it, update currentVersionId, and then proceed to publish.
+
 export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise<WebsiteActionResult> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -38,84 +54,31 @@ export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise
       return { error: "Website not found." };
     }
 
-    // Ownership check
     if (website.userId.toString() !== userId && session.user.role !== 'admin') {
       return { error: "Unauthorized to modify this website." };
     }
 
-    console.log(`[WebsiteAction_Publish] Conceptual: Starting deployment for website ${websiteId}...`);
+    if (!website.currentVersionId) {
+      return { error: "No current version available to publish. Please save a version of your website first." };
+    }
 
-    // --- Static Site Generation (SSG) & Deployment Process ---
-    // The following outlines a conceptual process for generating and deploying a static version
-    // of the user's website. Actual implementation requires a build pipeline and hosting integration.
-
-    // 1. Fetch Website Data:
-    //    - Retrieve the full website structure (pages, components, global settings) from MongoDB.
-    //    - This includes all IPage documents and their IPageComponent arrays associated with the website.
-
-    // 2. Static HTML File Generation:
-    //    - For each page in the website:
-    //      - Map IPageComponent data (type and config) to corresponding React components.
-    //        (e.g., a 'text' type maps to a <TextDisplayComponent config={component.config} />).
-    //      - Render these React components to static HTML strings. If this generation happens
-    //        in a separate build process, Next.js's `renderToStaticMarkup` or similar could be used.
-    //      - Save each page as an .html file (e.g., about-us.html, index.html for the root page).
-    //      - Ensure correct directory structure for nested pages if applicable.
-
-    // 3. Asset Handling:
-    //    - Collect all static assets referenced by the website components (e.g., images from image components,
-    //      global fonts, custom CSS snippets).
-    //    - Place them in appropriate folders within the build output (e.g., /assets/images, /css).
-    //    - Update HTML files to correctly reference these assets with relative or absolute paths
-    //      depending on the deployment strategy.
-
-    // 4. Optimization ("Optimize for speed"):
-    //    - Minify HTML, CSS, and JavaScript files.
-    //    - Compress images (e.g., using tools like ImageOptim or squoosh).
-    //    - Implement lazy loading for images and other off-screen content (often done client-side via JS).
-    //    - Consider generating critical CSS to improve perceived load time.
-
-    // 5. Incremental Updates (e.g., for Next.js ISR if hosting on a Next.js compatible platform):
-    //    - If using a platform supporting ISR (like Vercel or a custom Next.js server for user sites):
-    //      - The "publishing" step might involve triggering revalidation for specific paths using Next.js's
-    //        on-demand revalidation API (e.g., `res.revalidate('/user-site-path')`).
-    //      - Alternatively, pages could be configured with a default `revalidate` interval during their generation.
-    //    - For a purely static export to basic hosting (e.g., S3), "incremental updates" would mean
-    //      regenerating only the pages that have changed since the last publish and re-uploading them.
-
-    // 6. Handling Dynamic Content:
-    //    - For truly static sites, "dynamic content" (e.g., from external APIs, user comments, live data feeds)
-    //      is typically fetched client-side using JavaScript (e.g., in a useEffect hook) after the static page loads.
-    //    - If the hosting platform supports edge functions or serverless functions, these could
-    //      be used to inject dynamic content or handle API requests from the static site.
-    //    - For forms (contact forms, surveys): The static HTML form would submit its data to a
-    //      serverless function or a dedicated backend API endpoint for processing.
-
-    // 7. Deployment:
-    //    - Upload the generated static files (HTML, CSS, JS, assets) to a hosting provider
-    //      (e.g., Firebase Hosting, AWS S3 + CloudFront, Netlify, Vercel for static sites).
-    //    - If using custom domains, ensure DNS records are configured to point to the hosting provider.
-    //    - SSL certificates are typically managed by the hosting provider.
-
-    // 8. Error Handling & Monitoring ("Handle deployment errors", "Monitor publishing success"):
-    //    - Implement comprehensive logging throughout the generation and deployment process.
-    //    - If errors occur (e.g., build failure, upload failure), update the website's status to 'error_publishing'
-    //      and store error details.
-    //    - Notify the admin and/or user of deployment success or failure.
-    //    - Set up monitoring for the deployed sites (uptime, performance).
-
-    // --- End of Conceptual SSG Process ---
+    // In a real scenario, here you would trigger the deployment process for the content
+    // stored in the WebsiteVersion document pointed to by `website.currentVersionId`.
+    // This involves fetching that WebsiteVersion's `pages` and `globalSettings`.
+    console.log(`[WebsiteAction_Publish] Conceptual: Starting deployment for website ${websiteId}, version ${website.currentVersionId}...`);
+    // ... (Actual deployment logic for the content of website.currentVersionId)
 
     website.status = 'published' as WebsiteStatus;
     website.lastPublishedAt = new Date();
+    website.publishedVersionId = website.currentVersionId; // Mark the current version as published
+    
     const updatedWebsite = await website.save();
 
-    console.log(`[WebsiteAction_Publish] Conceptual: Deployment for website ${websiteId} completed. Status set to published.`);
+    console.log(`[WebsiteAction_Publish] Conceptual: Deployment for website ${websiteId}, version ${website.publishedVersionId} completed. Status set to published.`);
     return { success: "Website published successfully.", website: updatedWebsite.toObject() as IWebsite };
 
   } catch (error: any) {
     console.error(`[WebsiteAction_Publish] Error publishing website ${websiteId}:`, error);
-    // Attempt to set status to 'error_publishing' if possible
     try {
       await Website.findByIdAndUpdate(websiteId, { status: 'error_publishing' as WebsiteStatus });
     } catch (statusUpdateError) {
@@ -144,16 +107,15 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
       return { error: "Website not found." };
     }
 
-    // Ownership check
     if (website.userId.toString() !== userId && session.user.role !== 'admin') {
       return { error: "Unauthorized to modify this website." };
     }
 
-    // Conceptual: Here you would trigger logic to take the site offline or remove it from public access.
-    // This might involve removing files from hosting or updating CDN rules.
     console.log(`[WebsiteAction_Unpublish] Conceptual: Starting unpublish process for website ${websiteId}...`);
     
     website.status = 'unpublished' as WebsiteStatus;
+    // Note: We typically don't clear publishedVersionId upon unpublishing,
+    // as it represents the last version that *was* live.
     const updatedWebsite = await website.save();
 
     console.log(`[WebsiteAction_Unpublish] Conceptual: Unpublish for website ${websiteId} completed.`);
@@ -167,7 +129,7 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
 
 // --- Get User Websites ---
 interface GetUserWebsitesResult {
-  websites?: IWebsite[];
+  websites?: IWebsite[]; // This returns metadata, not full version content
   error?: string;
 }
 export async function getUserWebsites(): Promise<GetUserWebsitesResult> {
@@ -229,22 +191,16 @@ export async function setCustomDomain(input: { websiteId: string, domainName: st
       return { error: "Unauthorized to modify this website." };
     }
 
-    // Check if this domain is already in use by ANOTHER website
     const existingDomainWebsite = await Website.findOne({ 
       customDomain: normalizedDomainName, 
-      _id: { $ne: websiteId } // Exclude the current website from the check
+      _id: { $ne: websiteId } 
     });
 
     if (existingDomainWebsite) {
       return { error: `Domain "${normalizedDomainName}" is already in use by another website.` };
     }
     
-    // Conceptual: Your actual DNS instructions will depend on your hosting provider.
-    // e.g., CNAME to your app's domain, or A records to specific IPs.
-    const instructions = `To connect "${normalizedDomainName}", update your DNS settings. ` +
-                         `This typically involves adding a CNAME record pointing to your app's hosting target (e.g., your-app-default.apphosting.firebaseapp.com), or A records to specific IP addresses if required by your hosting solution. ` +
-                         `Consult your hosting provider's documentation for specific record values. ` +
-                         `Verification may take up to 48 hours after DNS changes propagate.`;
+    const instructions = `To connect "${normalizedDomainName}", update your DNS settings. This typically involves adding a CNAME record pointing to your app's hosting target or A records. Consult your hosting provider's documentation for specific record values. Verification may take up to 48 hours.`;
 
     website.customDomain = normalizedDomainName;
     website.domainStatus = 'pending_verification' as DomainConnectionStatus;
@@ -259,32 +215,85 @@ export async function setCustomDomain(input: { websiteId: string, domainName: st
       dnsInstructions: instructions,
     };
 
-  } catch (error: any)
- {
+  } catch (error: any) {
     console.error(`[WebsiteAction_SetCustomDomain] Error setting custom domain for website ${websiteId}:`, error);
-    if (error.code === 11000) { // Likely duplicate key error if index on customDomain is strict
+    if (error.code === 11000) { 
       return { error: `Domain "${normalizedDomainName}" might already be in use (database constraint).` };
     }
     return { error: `Failed to set custom domain: ${error.message}` };
   }
 }
 
-// --- Get Website by ID ---
-interface GetWebsiteByIdResult {
-  website?: IWebsite;
+// --- Get Website by ID (for editor or detailed view) ---
+interface GetWebsiteEditorDataResult {
+  website?: IWebsite; // Core website metadata
+  currentVersion?: IWebsiteVersion; // Content of the current working version
   error?: string;
 }
-export async function getWebsiteById(websiteId: string): Promise<GetWebsiteByIdResult> {
-  const session = await auth(); // Optional: Add auth check if only owners/admins can fetch
+export async function getWebsiteEditorData(websiteId: string): Promise<GetWebsiteEditorDataResult> {
+  const session = await auth();
   if (!session?.user?.id) {
-    // Allow public fetching for now, or add role/ownership check
-    // return { error: "User not authenticated." };
+    return { error: "User not authenticated." };
   }
+  const userId = session.user.id;
 
   if (!mongoose.Types.ObjectId.isValid(websiteId)) {
     return { error: "Invalid Website ID format." };
   }
 
+  try {
+    await dbConnect();
+    const website = await Website.findById(websiteId).lean();
+    if (!website) {
+      return { error: "Website not found." };
+    }
+
+    // Ownership check
+    if (website.userId.toString() !== userId && session.user.role !== 'admin') {
+      return { error: "Unauthorized to view this website." };
+    }
+
+    let currentVersion: IWebsiteVersion | null = null;
+    if (website.currentVersionId) {
+      currentVersion = await WebsiteVersion.findById(website.currentVersionId).lean();
+    }
+
+    // If there's no current version (e.g., new site) or it wasn't found (should not happen if ID is set),
+    // the editor would typically start with a blank slate or a default template.
+    // For now, we just return null if not found.
+    if (website.currentVersionId && !currentVersion) {
+      console.warn(`[getWebsiteEditorData] Website ${websiteId} has currentVersionId ${website.currentVersionId} but version document not found.`);
+      // Optionally, you might want to clear website.currentVersionId here or handle it.
+    }
+    
+    return { 
+      website: website as IWebsite, 
+      currentVersion: currentVersion ? currentVersion as IWebsiteVersion : undefined 
+    };
+  } catch (error: any) {
+    console.error(`[WebsiteAction_GetWebsiteById] Error fetching website editor data for ${websiteId}:`, error);
+    return { error: "Failed to fetch website editor data." };
+  }
+}
+
+
+// Renamed original getWebsiteById to avoid conflict, as its purpose was less clear
+// This version fetches only the core website metadata.
+interface GetWebsiteMetadataResult {
+  website?: IWebsite;
+  error?: string;
+}
+export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteMetadataResult> {
+   const session = await auth();
+   // Adjust auth check as needed: is this for public viewing or owner/admin only?
+   // For this example, assuming it might be for general info, so public access is allowed if no session.
+   // if (!session?.user?.id) {
+   //   return { error: "User not authenticated." };
+   // }
+
+  if (!mongoose.Types.ObjectId.isValid(websiteId)) {
+    return { error: "Invalid Website ID format." };
+  }
   try {
     await dbConnect();
     const website = await Website.findById(websiteId).lean();
@@ -297,8 +306,7 @@ export async function getWebsiteById(websiteId: string): Promise<GetWebsiteByIdR
     // }
     return { website: website as IWebsite };
   } catch (error: any) {
-    console.error(`[WebsiteAction_GetWebsiteById] Error fetching website ${websiteId}:`, error);
-    return { error: "Failed to fetch website details." };
+    console.error(`[WebsiteAction_GetWebsiteMetadata] Error fetching website metadata ${websiteId}:`, error);
+    return { error: "Failed to fetch website metadata." };
   }
 }
-
