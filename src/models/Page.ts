@@ -1,3 +1,4 @@
+
 import mongoose, { Schema, model, models, type Document } from 'mongoose';
 import { PageComponentSchema, type IPageComponent } from './PageComponent';
 
@@ -47,8 +48,7 @@ const PageSchema = new Schema<IPage>(
 
 // Compound index to ensure slug is unique per website
 PageSchema.index({ websiteId: 1, slug: 1 }, { unique: true });
-PageSchema.index({ websiteId: 1 });
-
+PageSchema.index({ websiteId: 1 }); // Index for querying pages by websiteId
 
 const Page = models.Page || model<IPage>('Page', PageSchema);
 

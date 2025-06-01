@@ -1,3 +1,4 @@
+
 import mongoose, { Schema, model, models, type Document } from 'mongoose';
 
 export interface IWebsite extends Document {
@@ -5,8 +6,7 @@ export interface IWebsite extends Document {
   name: string;
   customDomain?: string;
   subdomain: string; // For *.yourapp.com, ensure it's unique
-  // pages will reference the Page model
-  pageIds: mongoose.Schema.Types.ObjectId[];
+  pageIds: mongoose.Schema.Types.ObjectId[]; // References to Page documents
   templateId?: mongoose.Schema.Types.ObjectId; // Optional: if website was created from a template
   globalSettings?: {
     faviconUrl?: string;
@@ -34,8 +34,8 @@ const WebsiteSchema = new Schema<IWebsite>(
     customDomain: {
       type: String,
       trim: true,
-      sparse: true, // Allows null/undefined values without violating uniqueness if set to unique
-      // Add custom validation for domain format if needed
+      // sparse: true allows null/undefined values without violating uniqueness if set to unique
+      // A unique index is set below.
     },
     subdomain: {
       type: String,
@@ -73,7 +73,7 @@ const WebsiteSchema = new Schema<IWebsite>(
 // Indexes
 WebsiteSchema.index({ userId: 1 });
 WebsiteSchema.index({ subdomain: 1 }, { unique: true });
-WebsiteSchema.index({ customDomain: 1 }, { unique: true, sparse: true }); // sparse allows multiple nulls if not unique
+WebsiteSchema.index({ customDomain: 1 }, { unique: true, sparse: true }); // sparse allows multiple nulls
 
 const Website = models.Website || model<IWebsite>('Website', WebsiteSchema);
 
