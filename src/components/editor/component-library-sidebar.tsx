@@ -3,19 +3,24 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DraggableComponentItem } from "./draggable-component-item";
-import { Type, Image as ImageIcon, Square, Box, Columns, Heading1, Minus, Layers, Code2 } from "lucide-react";
+import { Type, Image as ImageIcon, Square, Box, Columns, Heading1, Minus, Layers, Code2, Video, Edit3, MapPin, ListChecks } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
 
 const components = [
-  { id: "heading", label: "Heading", icon: Heading1, description: "Add titles and subheadings." },
-  { id: "text", label: "Rich Text Block", icon: Type, description: "Add and format rich text, paragraphs, lists, and embed media." },
-  { id: "image", label: "Image", icon: ImageIcon, description: "Embed images and graphics." },
+  { id: "heading", label: "Heading", icon: Heading1, description: "Add titles and subheadings (H1-H6)." },
+  { id: "text", label: "Rich Text Block", icon: Type, description: "Add and format rich text, paragraphs, lists." },
+  { id: "image", label: "Image", icon: ImageIcon, description: "Embed images. Configurable for galleries or lightbox." },
   { id: "button", label: "Button", icon: Square, description: "Create interactive call-to-action buttons." },
+  { id: "video", label: "Video", icon: Video, description: "Embed videos from YouTube, Vimeo, or self-hosted." },
   { id: "section", label: "Section / Container", icon: Box, description: "Organize content into distinct sections or flexible containers." },
   { id: "columns", label: "Columns Layout", icon: Columns, description: "Arrange content side-by-side in responsive columns." },
   { id: "divider", label: "Divider", icon: Minus, description: "Add a visual horizontal separator line." },
-  { id: "customCode", label: "Custom Code", icon: Code2, description: "Embed custom HTML, CSS, or JavaScript snippets for advanced styling and functionality. Use with caution." },
+  { id: "form", label: "Form Container", icon: ListChecks, description: "A container to group form input fields." },
+  { id: "input", label: "Form Input Field", icon: Edit3, description: "Add text, email, number, etc. input fields." },
+  { id: "textarea_field", label: "Form Textarea", icon: Edit3, description: "Add a multi-line text input area." },
+  { id: "map_embed", label: "Map Embed", icon: MapPin, description: "Embed maps (e.g., Google Maps)." },
+  { id: "customCode", label: "Custom Code", icon: Code2, description: "Embed custom HTML, CSS, or JavaScript snippets. Use with caution." },
 ];
 
 export function ComponentLibrarySidebar() {
