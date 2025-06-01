@@ -3,8 +3,8 @@
 
 import { useState } from 'react';
 import { useSession } from "next-auth/react";
-import { signOut } from "@/auth"; 
-import { signIn } from "next-auth/react"; 
+import { signOut } from "@/auth";
+import { signIn } from "next-auth/react";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,40 +16,80 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AppLogo } from "@/components/icons/app-logo";
 import { AiCopyModal } from "./ai-copy-modal";
 import { TemplateGalleryModal } from "./template-gallery-modal";
-import { SaveTemplateModal } from "./save-template-modal"; // Import SaveTemplateModal
-import { Laptop, Smartphone, Tablet, Download, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save } from "lucide-react";
+import { SaveTemplateModal } from "./save-template-modal";
+import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
+// import { publishWebsite } from '@/actions/website'; // Conceptual: would be used by handlePublish
 
 export type DeviceType = 'desktop' | 'tablet' | 'mobile';
 
 interface AppHeaderProps {
-  currentDevice?: DeviceType; 
-  onDeviceChange?: (device: DeviceType) => void; 
+  currentDevice?: DeviceType;
+  onDeviceChange?: (device: DeviceType) => void;
+  // Conceptually, the ID of the website being edited would be available here
+  // currentWebsiteId?: string;
 }
 
 export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   const { data: session, status } = useSession();
   const [isAiCopyModalOpen, setIsAiCopyModalOpen] = useState(false);
   const [isTemplateGalleryModalOpen, setIsTemplateGalleryModalOpen] = useState(false);
-  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false); // State for SaveTemplateModal
-  const [currentTheme, setCurrentTheme] = useState('light'); 
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState('light');
   const { toast } = useToast();
   const pathname = usePathname();
 
-  const handleExport = () => {
-    console.log("Exporting website...");
+  const handlePublish = async () => {
+    // In a real app, you'd get the websiteId from the current editor context/props
+    // const websiteId = props.currentWebsiteId;
+    // if (!websiteId) {
+    //   toast({ title: "Error", description: "No website is currently being edited.", variant: "destructive" });
+    //   return;
+    // }
+    // const result = await publishWebsite({ websiteId });
+    // if (result.success) {
+    //   toast({
+    //     title: "Website Published!",
+    //     description: `Status: ${result.website?.status}. Your site will be live shortly.`,
+    //   });
+    // } else {
+    //   toast({
+    //     title: "Publish Failed",
+    //     description: result.error,
+    //     variant: "destructive",
+    //   });
+    // }
+    console.log("Publishing website (conceptual)...");
     toast({
-      title: "Export Initiated",
-      description: "Website export process has started (placeholder).",
+      title: "Publish Initiated (Conceptual)",
+      description: "The website publishing process would start now.",
     });
   };
 
+  const handleExportCode = () => {
+    console.log("Exporting website code (conceptual)...");
+    toast({
+      title: "Export Code Initiated (Conceptual)",
+      description: "Website code download would begin here.",
+    });
+  };
+
+  const handlePreview = () => {
+    console.log("Generating website preview (conceptual)...");
+    toast({
+      title: "Preview Requested (Conceptual)",
+      description: "A shareable preview link would be generated.",
+    });
+  };
+
+
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/' }); 
+    await signOut({ callbackUrl: '/' });
   }
 
   const toggleTheme = () => {
@@ -70,7 +110,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     { href: "/#about", label: "About", icon: Info },
     { href: "/#services", label: "Services", icon: Briefcase },
     { href: "/#pricing", label: "Pricing", icon: DollarSign },
-    { href: "/#support", label: "Support", icon: HelpCircle }, 
+    { href: "/#support", label: "Support", icon: HelpCircle },
   ];
 
   return (
@@ -80,7 +120,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
           <Link href="/" aria-label="Go to homepage">
             <AppLogo className="h-7" />
           </Link>
-          
+
           {!isEditorPage && status !== 'authenticated' && (
              <nav className="hidden md:flex items-center gap-3 ml-6">
               {publicNavLinks.map(link => (
@@ -92,7 +132,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
           )}
         </div>
 
-        
+
         {showDeviceControls && (
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
             <Button
@@ -156,11 +196,24 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                 <>
                   <Button variant="outline" size="sm" onClick={() => setIsSaveTemplateModalOpen(true)}>
                     <Save className="mr-1 md:mr-2 h-4 w-4" />
-                    <span className="hidden md:inline">Save as Template</span>
+                    <span className="hidden md:inline">Save Template</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleExport} className="border-accent text-accent-foreground hover:bg-accent/10 hover:text-accent-foreground">
-                    <Download className="mr-1 md:mr-2 h-4 w-4" />
-                     <span className="hidden md:inline">Export</span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="sm" onClick={handlePreview} disabled>
+                          <Eye className="mr-1 md:mr-2 h-4 w-4" />
+                          <span className="hidden md:inline">Preview</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Conceptual: Generates a shareable preview deployment.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <Button variant="default" size="sm" onClick={handlePublish} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    <ArrowUpCircle className="mr-1 md:mr-2 h-4 w-4" />
+                     <span className="hidden md:inline">Publish</span>
                   </Button>
                 </>
               )}
@@ -168,7 +221,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={session.user?.avatarUrl || "https://placehold.co/100x100.png"} alt={session.user?.name || "User Avatar"} data-ai-hint="person avatar" />
+                      <AvatarImage src={session.user?.avatarUrl || "https://placehold.co/100x100.png"} alt={session.user?.name || "User Avatar"} data-ai-hint="person avatar"/>
                       <AvatarFallback>
                         {session.user?.name ? session.user.name.charAt(0).toUpperCase() : <User className="h-4 w-4" />}
                       </AvatarFallback>
@@ -185,7 +238,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  
+
                   <div className="md:hidden">
                     {publicNavLinks.map(link => (
                       <DropdownMenuItem key={link.label} asChild>
@@ -197,6 +250,15 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                     ))}
                     <DropdownMenuSeparator />
                   </div>
+                  {isEditorPage && (
+                    <>
+                    <DropdownMenuItem onClick={handleExportCode}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Export Code (Conceptual)
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    </>
+                  )}
                   <DropdownMenuItem asChild><Link href="/dashboard/profile"><User className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
                   {session.user?.role === 'admin' && <DropdownMenuItem asChild><Link href="/admin/dashboard"><ShieldCheckIcon className="mr-2 h-4 w-4" />Admin Panel</Link></DropdownMenuItem>}
                   <DropdownMenuItem asChild><Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
@@ -213,7 +275,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
             <div className="h-8 w-20 rounded-md bg-muted animate-pulse" />
           ) : (
             <>
-              
+
               <nav className="hidden lg:flex items-center gap-3 ml-4">
                 {publicNavLinks.map(link => (
                   <Link key={link.label} href={link.href} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
@@ -233,7 +295,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                   </Link>
                 </Button>
               </div>
-               
+
               <div className="lg:hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -259,9 +321,11 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
         <>
           <AiCopyModal isOpen={isAiCopyModalOpen} onOpenChange={setIsAiCopyModalOpen} />
           <TemplateGalleryModal isOpen={isTemplateGalleryModalOpen} onOpenChange={setIsTemplateGalleryModalOpen} />
-          {isEditorPage && <SaveTemplateModal isOpen={isSaveTemplateModalOpen} onOpenChange={setIsSaveTemplateModalOpen} />} 
+          {isEditorPage && <SaveTemplateModal isOpen={isSaveTemplateModalOpen} onOpenChange={setIsSaveTemplateModalOpen} />}
         </>
       )}
     </>
   );
 }
+
+    
