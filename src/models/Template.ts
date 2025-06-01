@@ -20,6 +20,8 @@ const TemplatePageSchema = new Schema<ITemplatePage>({
   seoDescription: { type: String, trim: true },
 }, { _id: false }); // _id: false because these are subdocuments
 
+export type TemplateStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected';
+
 export interface ITemplate extends Document {
   name: string;
   description?: string;
@@ -32,6 +34,8 @@ export interface ITemplate extends Document {
   tags?: string[]; // For categorization and filtering
   viewCount: number; // How many times the template details have been viewed
   usageCount: number; // How many times the template has been used/selected
+  status: TemplateStatus;
+  createdByUserId?: mongoose.Schema.Types.ObjectId; // User who created this template
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,8 +45,8 @@ const TemplateSchema = new Schema<ITemplate>(
     name: {
       type: String,
       required: [true, 'Template name is required.'],
-      unique: true,
       trim: true,
+      // Not necessarily unique if users can submit with same name initially, admin might rename
     },
     description: {
       type: String,
@@ -66,11 +70,10 @@ const TemplateSchema = new Schema<ITemplate>(
       min: 0,
       validate: {
         validator: function(this: ITemplate, value: number | undefined) {
-          // Price is only required if isPremium is true
           if (this.isPremium) {
             return typeof value === 'number' && value >= 0;
           }
-          return true; // Not premium, price can be anything (or undefined)
+          return true;
         },
         message: 'Price must be a non-negative number for premium templates.',
       },
@@ -92,6 +95,17 @@ const TemplateSchema = new Schema<ITemplate>(
       type: Number,
       default: 0,
       min: 0,
+    },
+    status: {
+      type: String,
+      enum: ['draft', 'pending_approval', 'approved', 'rejected'],
+      default: 'pending_approval', // Default for user submissions
+      required: true,
+    },
+    createdByUserId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: false, // System templates might not have this
     }
   },
   {
@@ -103,6 +117,9 @@ TemplateSchema.index({ name: 1 });
 TemplateSchema.index({ category: 1 });
 TemplateSchema.index({ isPremium: 1 });
 TemplateSchema.index({ tags: 1 });
+TemplateSchema.index({ status: 1 });
+TemplateSchema.index({ createdByUserId: 1 });
+
 
 const Template = models.Template || model<ITemplate>('Template', TemplateSchema);
 

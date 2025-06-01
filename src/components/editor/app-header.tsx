@@ -19,7 +19,8 @@ import {
 import { AppLogo } from "@/components/icons/app-logo";
 import { AiCopyModal } from "./ai-copy-modal";
 import { TemplateGalleryModal } from "./template-gallery-modal";
-import { Laptop, Smartphone, Tablet, Download, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon } from "lucide-react";
+import { SaveTemplateModal } from "./save-template-modal"; // Import SaveTemplateModal
+import { Laptop, Smartphone, Tablet, Download, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
 
@@ -34,6 +35,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   const { data: session, status } = useSession();
   const [isAiCopyModalOpen, setIsAiCopyModalOpen] = useState(false);
   const [isTemplateGalleryModalOpen, setIsTemplateGalleryModalOpen] = useState(false);
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false); // State for SaveTemplateModal
   const [currentTheme, setCurrentTheme] = useState('light'); 
   const { toast } = useToast();
   const pathname = usePathname();
@@ -68,7 +70,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     { href: "/#about", label: "About", icon: Info },
     { href: "/#services", label: "Services", icon: Briefcase },
     { href: "/#pricing", label: "Pricing", icon: DollarSign },
-    { href: "/#support", label: "Support", icon: HelpCircle }, // Added Support Link
+    { href: "/#support", label: "Support", icon: HelpCircle }, 
   ];
 
   return (
@@ -151,10 +153,16 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
                 <span className="hidden md:inline">AI Copy</span>
               </Button>
                {isEditorPage && (
-                <Button variant="outline" size="sm" onClick={handleExport} className="border-accent text-accent-foreground hover:bg-accent/10 hover:text-accent-foreground">
-                  <Download className="mr-1 md:mr-2 h-4 w-4" />
-                   <span className="hidden md:inline">Export</span>
-                </Button>
+                <>
+                  <Button variant="outline" size="sm" onClick={() => setIsSaveTemplateModalOpen(true)}>
+                    <Save className="mr-1 md:mr-2 h-4 w-4" />
+                    <span className="hidden md:inline">Save as Template</span>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleExport} className="border-accent text-accent-foreground hover:bg-accent/10 hover:text-accent-foreground">
+                    <Download className="mr-1 md:mr-2 h-4 w-4" />
+                     <span className="hidden md:inline">Export</span>
+                  </Button>
+                </>
               )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -251,6 +259,7 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
         <>
           <AiCopyModal isOpen={isAiCopyModalOpen} onOpenChange={setIsAiCopyModalOpen} />
           <TemplateGalleryModal isOpen={isTemplateGalleryModalOpen} onOpenChange={setIsTemplateGalleryModalOpen} />
+          {isEditorPage && <SaveTemplateModal isOpen={isSaveTemplateModalOpen} onOpenChange={setIsSaveTemplateModalOpen} />} 
         </>
       )}
     </>
