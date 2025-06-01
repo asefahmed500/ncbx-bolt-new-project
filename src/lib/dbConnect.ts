@@ -4,20 +4,15 @@ import mongoose, { type ConnectionStates } from 'mongoose';
 const MONGODB_URI_FROM_ENV = process.env.MONGODB_URI;
 
 // These initial checks should only happen on the server.
-// If process.env.MONGODB_URI is accessed on the client, it will be undefined
-// (unless explicitly exposed via NEXT_PUBLIC_).
-// This guard prevents the error from being thrown if dbConnect.ts is mistakenly bundled for the client.
 if (typeof window === 'undefined') {
   if (!MONGODB_URI_FROM_ENV) {
-    console.error('[dbConnect] CRITICAL: MONGODB_URI is not defined in .env. Please ensure it is set.');
-    // This throw should only happen on the server
-    throw new Error(
-      'Please define the MONGODB_URI environment variable inside .env'
-    );
+    console.error('[dbConnect] CRITICAL: MONGODB_URI is not defined in .env. Please ensure it is set. The application will likely fail to connect to the database.');
+    // REMOVED: throw new Error('Please define the MONGODB_URI environment variable inside .env');
+    // Instead of throwing here, we'll let the connection attempt fail later,
+    // which should be caught by the calling function (e.g., in auth.ts or server actions).
   }
 
-  // Check if the MONGODB_URI contains the placeholder or is missing a database name.
-  if (MONGODB_URI_FROM_ENV.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || MONGODB_URI_FROM_ENV.endsWith("/?retryWrites=true&w=majority") || MONGODB_URI_FROM_ENV.endsWith("/?retryWrites=true&w=majority&appName=Cluster0")) {
+  if (MONGODB_URI_FROM_ENV && (MONGODB_URI_FROM_ENV.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || MONGODB_URI_FROM_ENV.endsWith("/?retryWrites=true&w=majority") || MONGODB_URI_FROM_ENV.endsWith("/?retryWrites=true&w=majority&appName=Cluster0"))) {
     console.warn(`[dbConnect] WARNING: Your MONGODB_URI ("${MONGODB_URI_FROM_ENV.substring(0,30)}...") might be missing a specific database name or using a placeholder. It should typically look like 'mongodb+srv://user:pass@cluster.mongodb.net/YOUR_DB_NAME?retryWrites=true...'. Without a specific database name, Mongoose might use a default 'test' database or fail.`);
   }
 }
@@ -44,21 +39,16 @@ if (!cached) {
 }
 
 async function dbConnect(): Promise<typeof mongoose> {
-  // Use the already captured MONGODB_URI_FROM_ENV to ensure consistency within this module's scope for dbConnect calls
   const MONGODB_URI_FOR_CONNECT = MONGODB_URI_FROM_ENV; 
 
   if (typeof window !== 'undefined') {
-    // This function should absolutely not be called on the client.
-    // If it is, log an error and prevent mongoose.connect from attempting with an undefined URI.
     console.error("[dbConnect] CRITICAL: dbConnect() was called on the client-side. This should not happen.");
     throw new Error("dbConnect cannot be called from the client-side.");
   }
 
   if (!MONGODB_URI_FOR_CONNECT) {
-    // This check is now redundant if the top-level server-side check passed,
-    // but good for safety if dbConnect is called in an unexpected server context where env vars might change.
-    console.error('[dbConnect] CRITICAL: MONGODB_URI is somehow undefined at connect time within dbConnect().');
-    throw new Error('MONGODB_URI is not available for connection.');
+    console.error('[dbConnect] CRITICAL: MONGODB_URI is not available for connection at connect time (it was not defined in .env).');
+    throw new Error('MONGODB_URI is not available for connection (was not defined in .env).');
   }
   
   if (cached.conn) {
@@ -134,11 +124,15 @@ export async function getMongoConnectionState(): Promise<ConnectionStates> {
     }
     try {
       if (mongoose.connection.readyState !== mongoose.ConnectionStates.connected) {
-        await dbConnect().catch(() => { /* ignore error here, just want state */ });
+        // Attempt to connect if not already connected, but don't let its error propagate here.
+        // The primary purpose is to get the current or resulting state.
+        await dbConnect().catch((connectError) => { 
+            console.warn("[getMongoConnectionState] dbConnect() failed during state check, this might be expected if URI is bad. Error:", connectError.message);
+        });
       }
       return mongoose.connection.readyState;
-    } catch (error) {
-      console.warn("[getMongoConnectionState] Error during state check, returning current readyState. Error:", error);
+    } catch (error: any) {
+      console.warn("[getMongoConnectionState] Error during state check, returning current readyState. Error:", error.message);
       return mongoose.connection.readyState; 
     }
 }
