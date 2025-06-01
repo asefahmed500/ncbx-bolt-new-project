@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getTemplatesForAdmin, getTemplateDataForExport } from '@/actions/admin';
+import { getTemplatesForAdmin, getTemplateDataForExport, getDistinctTemplateCategories } from '@/actions/admin';
 import type { ITemplate } from '@/models/Template';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,9 +16,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Download, ListFilter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -34,6 +35,8 @@ export default function AdminTemplatesPage() {
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
   const [totalPages, setTotalPages] = useState(0);
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '');
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -41,15 +44,31 @@ export default function AdminTemplatesPage() {
     } else if (status === 'authenticated' && session?.user?.role !== 'admin') {
       router.replace('/dashboard');
     } else if (status === 'authenticated') {
-      fetchTemplates(currentPage, statusFilter);
+      fetchDistinctCategories();
     }
-  }, [session, status, router, currentPage, statusFilter]);
+  }, [session, status, router]);
 
-  const fetchTemplates = async (page: number, currentStatusFilter: string) => {
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.role === 'admin') {
+      fetchTemplates(currentPage, statusFilter, categoryFilter);
+    }
+  }, [currentPage, statusFilter, categoryFilter, status, session]);
+
+
+  const fetchDistinctCategories = async () => {
+    const result = await getDistinctTemplateCategories();
+    if (result.error) {
+      toast({ title: "Error", description: "Could not fetch template categories.", variant: "destructive" });
+    } else if (result.categories) {
+      setAvailableCategories(result.categories);
+    }
+  };
+
+  const fetchTemplates = async (page: number, currentStatus: string, currentCategory: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await getTemplatesForAdmin(page, ITEMS_PER_PAGE, currentStatusFilter || undefined);
+      const result = await getTemplatesForAdmin(page, ITEMS_PER_PAGE, currentStatus || undefined, currentCategory || undefined);
       if (result.error) {
         setError(result.error);
         setTemplates([]);
@@ -91,14 +110,26 @@ export default function AdminTemplatesPage() {
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    router.push(`/admin/templates?page=${newPage}${statusFilter ? `&status=${statusFilter}` : ''}`);
+    updateUrlParams(newPage, statusFilter, categoryFilter);
   };
 
-  const handleFilterChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newStatus = event.target.value;
-    setStatusFilter(newStatus);
+  const handleFilterChange = (filterType: 'status' | 'category', value: string) => {
     setCurrentPage(1); // Reset to first page on filter change
-    router.push(`/admin/templates?page=1${newStatus ? `&status=${newStatus}` : ''}`);
+    if (filterType === 'status') {
+      setStatusFilter(value);
+      updateUrlParams(1, value, categoryFilter);
+    } else {
+      setCategoryFilter(value);
+      updateUrlParams(1, statusFilter, value);
+    }
+  };
+
+  const updateUrlParams = (page: number, status: string, category: string) => {
+    const params = new URLSearchParams();
+    params.set('page', page.toString());
+    if (status) params.set('status', status);
+    if (category) params.set('category', category);
+    router.push(`/admin/templates?${params.toString()}`);
   };
 
 
@@ -111,27 +142,43 @@ export default function AdminTemplatesPage() {
   }
 
   if (!session || session.user.role !== 'admin') {
-    return null; // Or a message, but middleware should handle redirection
+    return null; 
   }
 
   return (
     <div className="container mx-auto p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
         <h1 className="text-2xl font-headline font-semibold">Manage Templates</h1>
-        <div className="flex items-center gap-2">
-          <label htmlFor="statusFilter" className="text-sm font-medium">Status:</label>
-          <select
-            id="statusFilter"
-            value={statusFilter}
-            onChange={handleFilterChange}
-            className="p-2 border rounded-md bg-input text-sm"
-          >
-            <option value="">All</option>
-            <option value="draft">Draft</option>
-            <option value="pending_approval">Pending Approval</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <Label htmlFor="statusFilter" className="text-sm font-medium">Status:</Label>
+            <Select value={statusFilter} onValueChange={(value) => handleFilterChange('status', value)}>
+              <SelectTrigger id="statusFilter" className="w-full sm:w-[180px] bg-input text-sm capitalize">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="categoryFilter" className="text-sm font-medium">Category:</Label>
+            <Select value={categoryFilter} onValueChange={(value) => handleFilterChange('category', value)}>
+              <SelectTrigger id="categoryFilter" className="w-full sm:w-[180px] bg-input text-sm capitalize">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {availableCategories.map(cat => (
+                  <SelectItem key={cat} value={cat} className="capitalize">{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -143,7 +190,7 @@ export default function AdminTemplatesPage() {
       )}
 
       {templates.length === 0 && !isLoading && !error && (
-        <p className="text-muted-foreground">No templates found for the current filter.</p>
+        <p className="text-muted-foreground text-center py-8">No templates found for the current filters. Try adjusting your filters or check back later.</p>
       )}
 
       {templates.length > 0 && (
@@ -164,7 +211,7 @@ export default function AdminTemplatesPage() {
               {templates.map((template) => (
                 <TableRow key={template._id as string}>
                   <TableCell className="font-medium">{template.name}</TableCell>
-                  <TableCell>{template.category || 'N/A'}</TableCell>
+                  <TableCell className="capitalize">{template.category || 'N/A'}</TableCell>
                   <TableCell>
                     <Badge variant={template.isPremium ? 'destructive' : 'secondary'}>
                       {template.isPremium ? 'Yes' : 'No'}
@@ -186,7 +233,6 @@ export default function AdminTemplatesPage() {
                     <Button variant="outline" size="sm" onClick={() => handleExportTemplate(template._id as string, template.name)}>
                         <Download className="mr-1 h-3.5 w-3.5" /> Export
                     </Button>
-                    {/* Placeholder for Edit/Approve/Reject actions */}
                     <Button variant="ghost" size="sm" disabled>Edit</Button> 
                   </TableCell>
                 </TableRow>

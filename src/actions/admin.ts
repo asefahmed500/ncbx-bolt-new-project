@@ -261,7 +261,8 @@ interface GetTemplatesResult {
 export async function getTemplatesForAdmin(
   page: number = 1,
   limit: number = 10,
-  statusFilter?: string
+  statusFilter?: string,
+  categoryFilter?: string
 ): Promise<GetTemplatesResult> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
@@ -274,6 +275,10 @@ export async function getTemplatesForAdmin(
     if (statusFilter && ['draft', 'pending_approval', 'approved', 'rejected'].includes(statusFilter)) {
       query.status = statusFilter;
     }
+    if (categoryFilter && categoryFilter.toLowerCase() !== 'all') {
+      query.category = categoryFilter;
+    }
+
 
     const skip = (page - 1) * limit;
     const templates = await Template.find(query)
@@ -313,9 +318,6 @@ export async function getTemplateDataForExport(templateId: string): Promise<GetT
     if (!template) {
       return { error: "Template not found." };
     }
-    // Ensure the template object is plain JS for safe serialization
-    // .lean() already does this, but an explicit conversion can be added if issues arise.
-    // const plainTemplate = JSON.parse(JSON.stringify(template)); 
     return { template: template as ITemplate };
   } catch (error: any) {
     console.error(`[AdminAction_GetTemplateDataForExport] Error fetching template ${templateId}:`, error);
@@ -323,4 +325,24 @@ export async function getTemplateDataForExport(templateId: string): Promise<GetT
   }
 }
 
+interface DistinctCategoriesResult {
+    categories?: string[];
+    error?: string;
+}
+
+export async function getDistinctTemplateCategories(): Promise<DistinctCategoriesResult> {
+  const session = await auth();
+  if (session?.user?.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+  try {
+    await dbConnect();
+    const categories = await Template.distinct('category').exec();
+    // Filter out null, undefined, or empty string categories if they exist
+    return { categories: categories.filter(cat => cat && typeof cat === 'string' && cat.trim() !== '') as string[] };
+  } catch (error: any) {
+    console.error("[AdminAction_GetDistinctCategories] Error fetching categories:", error);
+    return { error: "Failed to fetch categories: " + error.message };
+  }
+}
     
