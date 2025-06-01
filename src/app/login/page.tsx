@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { signIn } from "next-auth/react";
+import { signIn } from "next-auth/react"; // Correct import for client-side signIn
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -26,8 +26,8 @@ export default function LoginPage() {
 
     try {
       const result = await signIn("credentials", {
-        redirect: false,
-        email,
+        redirect: false, // Handle redirect manually after checking result
+        email: email.trim(), // Trim whitespace
         password,
       });
 
@@ -35,20 +35,25 @@ export default function LoginPage() {
 
       if (result?.error) {
         console.error("[LoginPage] signIn returned an error:", result.error);
+        let errorMessage = "Invalid email or password."; // Default for CredentialsSignin
+        if (result.error !== "CredentialsSignin") {
+            errorMessage = `Login error: ${result.error}. Check server logs for details.`;
+        }
         toast({
           title: "Login Failed",
-          description: result.error === "CredentialsSignin" ? "Invalid email or password." : `Login error: ${result.error}`,
+          description: errorMessage,
           variant: "destructive",
         });
-      } else if (result?.ok) {
-        console.log("[LoginPage] Login successful, redirecting...");
+      } else if (result?.ok) { // result.ok is true on successful sign in with redirect: false
+        console.log("[LoginPage] Login successful, redirecting to dashboard...");
         toast({
           title: "Login Successful",
           description: "Welcome back!",
         });
-        router.push("/");
-        router.refresh();
+        router.push("/"); // Or router.push("/dashboard") or wherever you want to redirect
+        router.refresh(); // Important to refresh server session state
       } else {
+         // This case should ideally not be hit if result.error or result.ok is always populated
          console.warn("[LoginPage] signIn result was not 'ok' and had no specific error, or result was undefined/null. Result:", result);
          toast({
           title: "Login Attempted",
@@ -56,18 +61,20 @@ export default function LoginPage() {
           variant: "destructive",
         });
       }
-    } catch (error: any) {
-      console.error("[LoginPage] CRITICAL: Exception during signIn call or subsequent logic. Error object raw:", error);
-       if (error instanceof Error) {
+    } catch (error: any) { // Catch network errors or other unexpected issues
+      console.error("[LoginPage] CRITICAL: Exception during signIn call or subsequent logic.");
+      console.error("[LoginPage] Error object raw:", error);
+      let errorMessage = "An unexpected error occurred during login. Please try again.";
+      if (error instanceof Error) {
         console.error("[LoginPage] Exception name:", error.name);
         console.error("[LoginPage] Exception message:", error.message);
         console.error("[LoginPage] Exception stack:", error.stack);
-      }
-      let errorMessage = "An unexpected error occurred during login. Please try again.";
-      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-        errorMessage = "Failed to connect to the server. Please check server logs for more details and ensure the server is running correctly."
-      } else if (error.message && error.name !== 'TypeError') {
-        errorMessage = error.message;
+        // Specifically for "TypeError: Failed to fetch"
+        if (error.name === 'TypeError' && error.message.toLowerCase().includes('failed to fetch')) {
+            errorMessage = "Failed to connect to the authentication server. Please check your internet connection and server status (see server logs).";
+        } else if (error.message && error.name !== 'TypeError') {
+           errorMessage = error.message;
+        }
       }
       
       toast({
@@ -114,8 +121,7 @@ export default function LoginPage() {
               />
             </div>
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Login
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Login"}
             </Button>
           </form>
         </CardContent>

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { registerUser } from "@/actions/auth";
+import { registerUser } from "@/actions/auth"; // Server action
 import { Loader2 } from "lucide-react";
 
 export default function RegisterPage() {
@@ -23,20 +23,29 @@ export default function RegisterPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
+    console.log("[RegisterPage] Attempting registration for:", email);
 
     const formData = new FormData(event.currentTarget);
+    // Optional: Log formData entries if debugging
+    // for (let [key, value] of formData.entries()) {
+    //   console.log(`[RegisterPage] FormData: ${key}: ${value}`);
+    // }
+
     const result = await registerUser(formData);
+    console.log("[RegisterPage] registerUser action result:", result);
 
     setIsLoading(false);
 
     if (result.error) {
       let description = result.error;
-      if (result.details) {
+      // If 'details' (field-specific errors from Zod) exists, use that for a more specific message.
+      if (result.details && typeof result.details === 'object' && Object.keys(result.details).length > 0) {
+        // Concatenate all field error messages
         description = Object.values(result.details).flat().join(" ");
       }
       toast({
         title: "Registration Failed",
-        description: description,
+        description: description || "An unknown error occurred.",
         variant: "destructive",
       });
     } else if (result.success) {
@@ -45,6 +54,13 @@ export default function RegisterPage() {
         description: "You can now log in.",
       });
       router.push("/login");
+    } else {
+      // Fallback for unexpected result structure
+      toast({
+        title: "Registration Attempted",
+        description: "An unexpected response was received from the server.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -61,7 +77,7 @@ export default function RegisterPage() {
               <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
-                name="name"
+                name="name" // Name attribute is crucial for FormData
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -74,7 +90,7 @@ export default function RegisterPage() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                name="email"
+                name="email" // Name attribute is crucial for FormData
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -87,7 +103,7 @@ export default function RegisterPage() {
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
-                name="password"
+                name="password" // Name attribute is crucial for FormData
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -97,8 +113,7 @@ export default function RegisterPage() {
               />
             </div>
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Account
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Account"}
             </Button>
           </form>
         </CardContent>
