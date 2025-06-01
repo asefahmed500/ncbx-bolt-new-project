@@ -4,7 +4,8 @@
 import dbConnect from "@/lib/dbConnect";
 import Website, { type IWebsite, type WebsiteStatus, type DomainConnectionStatus } from "@/models/Website";
 import WebsiteVersion, { type IWebsiteVersion, type IWebsiteVersionPage } from "@/models/WebsiteVersion"; 
-import User from "@/models/User";
+import User from "@/models/User"; // Needed for checking user plan limits, if any
+import Template from "@/models/Template"; // Needed if creating from template
 import { auth } from "@/auth";
 import mongoose from "mongoose";
 import { z } from "zod";
@@ -19,6 +20,150 @@ interface WebsiteActionResult {
   error?: string;
   website?: IWebsite; 
 }
+
+// --- Schema for Creating a new Website ---
+const CreateWebsiteInputSchema = z.object({
+  name: z.string().min(3, "Website name must be at least 3 characters.").max(100),
+  subdomain: z.string()
+    .min(3, "Subdomain must be at least 3 characters.")
+    .max(63)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Subdomain must be lowercase alphanumeric with hyphens.")
+    .optional(), // If not provided, we can attempt to generate one
+  templateId: z.string().optional().refine(val => !val || mongoose.Types.ObjectId.isValid(val), {
+    message: "Invalid Template ID format.",
+  }),
+});
+export type CreateWebsiteInput = z.infer<typeof CreateWebsiteInputSchema>;
+
+interface CreateWebsiteResult {
+  success?: string;
+  error?: string;
+  website?: IWebsite;
+}
+
+async function generateUniqueSubdomain(baseName: string): Promise<string> {
+  let subdomain = baseName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').substring(0, 63);
+  if (subdomain.length < 3) subdomain = `site-${subdomain}`; // Ensure min length
+
+  let existing = await Website.findOne({ subdomain });
+  let attempt = 0;
+  while (existing) {
+    attempt++;
+    const newSubdomain = `${subdomain}-${attempt}`;
+    if (newSubdomain.length > 63) { // Prevent overly long subdomains
+        // Fallback to a more random approach if suffixing makes it too long
+        subdomain = `site-${Date.now().toString(36).slice(-6)}`;
+        existing = await Website.findOne({ subdomain }); 
+        if (!existing) return subdomain; // If this random one is unique, use it
+        // If even random one clashes (highly unlikely), this loop will continue, could add max attempts
+    } else {
+        subdomain = newSubdomain;
+        existing = await Website.findOne({ subdomain });
+    }
+    if (attempt > 10) throw new Error("Failed to generate a unique subdomain after multiple attempts.");
+  }
+  return subdomain;
+}
+
+export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWebsiteResult> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "User not authenticated." };
+  }
+  const userId = session.user.id;
+
+  const parsedInput = CreateWebsiteInputSchema.safeParse(input);
+  if (!parsedInput.success) {
+    const errorMessages = parsedInput.error.flatten().fieldErrors;
+    return { error: `Invalid input: ${JSON.stringify(errorMessages)}` };
+  }
+
+  const { name, templateId } = parsedInput.data;
+  let { subdomain } = parsedInput.data;
+
+  try {
+    await dbConnect();
+
+    // TODO: Check user's plan for website creation limits
+    // const user = await User.findById(userId);
+    // const planLimits = session.user.subscriptionLimits; // Assuming limits are on session
+    // const userWebsitesCount = await Website.countDocuments({ userId });
+    // if (planLimits && userWebsitesCount >= planLimits.websites) {
+    //   return { error: "Website creation limit reached for your current plan." };
+    // }
+
+    if (!subdomain) {
+      subdomain = await generateUniqueSubdomain(name);
+    } else {
+      const existingSubdomain = await Website.findOne({ subdomain });
+      if (existingSubdomain) {
+        return { error: `Subdomain "${subdomain}" is already taken. Please choose another or leave it blank to auto-generate.` };
+      }
+    }
+
+    let initialPages: IWebsiteVersionPage[] = [{
+      name: "Home",
+      slug: "/",
+      elements: [] // Start with a blank page if no template
+    }];
+    let globalSettings = {};
+
+    if (templateId) {
+      const template = await Template.findById(templateId);
+      if (template && template.status === 'approved') {
+        // Map template pages to website version pages
+        initialPages = template.pages.map(p => ({
+          name: p.name,
+          slug: p.slug,
+          elements: p.elements.map(el => ({ // Ensure elements are plain objects if necessary
+            type: el.type,
+            config: el.config,
+            order: el.order,
+          })), 
+          seoTitle: p.seoTitle,
+          seoDescription: p.seoDescription,
+        }));
+        // Conceptual: copy global settings from template if they exist
+        // globalSettings = template.globalSettings || {}; 
+      } else {
+        console.warn(`[CreateWebsite] Template ${templateId} not found or not approved. Creating blank website.`);
+      }
+    }
+
+    const newWebsite = new Website({
+      userId,
+      name,
+      subdomain,
+      status: 'draft' as WebsiteStatus,
+      templateId: templateId || undefined,
+    });
+    const savedWebsite = await newWebsite.save();
+
+    // Create an initial WebsiteVersion
+    const initialVersion = new WebsiteVersion({
+      websiteId: savedWebsite._id,
+      versionNumber: Date.now(), 
+      pages: initialPages,
+      globalSettings,
+      createdByUserId: userId,
+    });
+    const savedVersion = await initialVersion.save();
+
+    savedWebsite.currentVersionId = savedVersion._id;
+    const finalWebsite = await savedWebsite.save();
+
+    console.log(`[CreateWebsite] Website "${name}" created for user ${userId} with subdomain ${subdomain}. Initial version ID: ${savedVersion._id}`);
+    return { success: "Website created successfully.", website: finalWebsite.toObject() as IWebsite };
+
+  } catch (error: any) {
+    console.error(`[CreateWebsite] Error creating website for user ${userId}:`, error);
+    if (error.code === 11000 && error.message.includes('subdomain')) { // MongoDB duplicate key error for subdomain
+      return { error: `Subdomain "${subdomain}" is already taken (database constraint).` };
+    }
+    return { error: `Failed to create website: ${error.message}` };
+  }
+}
+
 
 // --- Schema for Saving Website Content ---
 const PageComponentConfigSchema = z.record(z.any()); // Basic schema for component config
@@ -414,24 +559,23 @@ export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteM
   try {
     await dbConnect();
     const website = await Website.findById(websiteId)
-      .select('name customDomain subdomain status lastPublishedAt createdAt currentVersionId publishedVersionId') // Select specific fields
+      .select('name customDomain subdomain status lastPublishedAt createdAt currentVersionId publishedVersionId userId') // Select specific fields
       .lean();
     if (!website) {
       return { error: "Website not found." };
     }
     // If the site is not published, and the user is not the owner/admin, don't return sensitive data or return error
     if (website.status !== 'published') {
-        if (!session || (session.user.id.toString() !== website.userId.toString() && session.user.role !== 'admin')) {
+        // Ensure website.userId exists before trying to convert to string.
+        const websiteOwnerId = website.userId ? website.userId.toString() : null;
+        if (!session || !websiteOwnerId || (session.user.id.toString() !== websiteOwnerId && session.user.role !== 'admin')) {
             return { error: "Website not found or not publicly available." };
         }
     }
     return { website: website as IWebsite };
-  } catch (error: any) {
+  } catch (error: any)
+{
     console.error(`[WebsiteAction_GetWebsiteMetadata] Error fetching website metadata ${websiteId}:`, error);
     return { error: "Failed to fetch website metadata." };
   }
 }
-
-    
-
-    
