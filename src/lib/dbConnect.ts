@@ -1,20 +1,25 @@
 
 import mongoose, { type ConnectionStates } from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI_FROM_ENV = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-  console.error('[dbConnect] CRITICAL: MONGODB_URI is not defined in .env. Please ensure it is set.');
-  throw new Error(
-    'Please define the MONGODB_URI environment variable inside .env'
-  );
-}
+// These initial checks should only happen on the server.
+// If process.env.MONGODB_URI is accessed on the client, it will be undefined
+// (unless explicitly exposed via NEXT_PUBLIC_).
+// This guard prevents the error from being thrown if dbConnect.ts is mistakenly bundled for the client.
+if (typeof window === 'undefined') {
+  if (!MONGODB_URI_FROM_ENV) {
+    console.error('[dbConnect] CRITICAL: MONGODB_URI is not defined in .env. Please ensure it is set.');
+    // This throw should only happen on the server
+    throw new Error(
+      'Please define the MONGODB_URI environment variable inside .env'
+    );
+  }
 
-// Check if the MONGODB_URI contains the placeholder or is missing a database name.
-// A typical valid Atlas URI with a DB name looks like: mongodb+srv://user:pass@cluster.mongodb.net/YOUR_DB_NAME?retryWrites=true...
-// A URI missing the DB name might look like: mongodb+srv://user:pass@cluster.mongodb.net/?retryWrites=true...
-if (MONGODB_URI.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || MONGODB_URI.endsWith("/?retryWrites=true&w=majority") || MONGODB_URI.endsWith("/?retryWrites=true&w=majority&appName=Cluster0")) {
-  console.warn(`[dbConnect] WARNING: Your MONGODB_URI ("${MONGODB_URI.substring(0,30)}...") might be missing a specific database name or using a placeholder. It should typically look like 'mongodb+srv://user:pass@cluster.mongodb.net/YOUR_DB_NAME?retryWrites=true...'. Without a specific database name, Mongoose might use a default 'test' database or fail.`);
+  // Check if the MONGODB_URI contains the placeholder or is missing a database name.
+  if (MONGODB_URI_FROM_ENV.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || MONGODB_URI_FROM_ENV.endsWith("/?retryWrites=true&w=majority") || MONGODB_URI_FROM_ENV.endsWith("/?retryWrites=true&w=majority&appName=Cluster0")) {
+    console.warn(`[dbConnect] WARNING: Your MONGODB_URI ("${MONGODB_URI_FROM_ENV.substring(0,30)}...") might be missing a specific database name or using a placeholder. It should typically look like 'mongodb+srv://user:pass@cluster.mongodb.net/YOUR_DB_NAME?retryWrites=true...'. Without a specific database name, Mongoose might use a default 'test' database or fail.`);
+  }
 }
 
 
@@ -33,15 +38,27 @@ let cached = global.mongoose;
 
 if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
-  console.log('[dbConnect] Initialized global mongoose cache.');
+  if (typeof window === 'undefined') { // Log only on server
+    console.log('[dbConnect] Initialized global mongoose cache.');
+  }
 }
 
 async function dbConnect(): Promise<typeof mongoose> {
-  const MONGODB_URI_FOR_CONNECT = process.env.MONGODB_URI; // Re-check env var in case it changes (though unlikely for a single server lifecycle)
+  // Use the already captured MONGODB_URI_FROM_ENV to ensure consistency within this module's scope for dbConnect calls
+  const MONGODB_URI_FOR_CONNECT = MONGODB_URI_FROM_ENV; 
+
+  if (typeof window !== 'undefined') {
+    // This function should absolutely not be called on the client.
+    // If it is, log an error and prevent mongoose.connect from attempting with an undefined URI.
+    console.error("[dbConnect] CRITICAL: dbConnect() was called on the client-side. This should not happen.");
+    throw new Error("dbConnect cannot be called from the client-side.");
+  }
 
   if (!MONGODB_URI_FOR_CONNECT) {
-    console.error('[dbConnect] CRITICAL: MONGODB_URI is somehow undefined at connect time. This should not happen.');
-    throw new Error('MONGODB_URI is not available.');
+    // This check is now redundant if the top-level server-side check passed,
+    // but good for safety if dbConnect is called in an unexpected server context where env vars might change.
+    console.error('[dbConnect] CRITICAL: MONGODB_URI is somehow undefined at connect time within dbConnect().');
+    throw new Error('MONGODB_URI is not available for connection.');
   }
   
   if (cached.conn) {
@@ -51,14 +68,13 @@ async function dbConnect(): Promise<typeof mongoose> {
         return cached.conn;
     }
     console.warn('[dbConnect] Cached connection exists but is not in connected state. Will attempt to clear cache and reconnect.');
-    cached.conn = null; // Force re-evaluation
+    cached.conn = null; 
     cached.promise = null;
   }
 
   if (!cached.promise) {
     const opts = {
-      bufferCommands: false, // Disable Mongoose's buffering. Good for more immediate error feedback.
-      // serverSelectionTimeoutMS: 5000, // Timeout for server selection, might be useful for debugging connection issues.
+      bufferCommands: false, 
     };
     const uriSnippet = MONGODB_URI_FOR_CONNECT.length > 30 ? `${MONGODB_URI_FOR_CONNECT.substring(0, 15)}...${MONGODB_URI_FOR_CONNECT.substring(MONGODB_URI_FOR_CONNECT.length - 15)}` : MONGODB_URI_FOR_CONNECT;
     console.log(`[dbConnect] No existing promise. Creating new database connection promise to: ${uriSnippet}`);
@@ -81,8 +97,8 @@ async function dbConnect(): Promise<typeof mongoose> {
                 console.error("[dbConnect] HINT: 'bad auth' or 'Authentication failed' indicates incorrect username/password in MONGODB_URI or the user doesn't have permissions for the target database.");
             }
         }
-        cached.promise = null; // Clear the promise on error so retry can happen
-        throw err; // Re-throw the error to be caught by the caller
+        cached.promise = null; 
+        throw err; 
       });
   }
 
@@ -93,7 +109,6 @@ async function dbConnect(): Promise<typeof mongoose> {
     console.log(`[dbConnect] Database connection promise resolved. Final state: ${mongoose.ConnectionStates[finalState]}.`);
     if (finalState !== mongoose.ConnectionStates.connected) {
       console.error(`[dbConnect] CRITICAL: Connection promise resolved but final state is ${mongoose.ConnectionStates[finalState]}. This is unexpected.`);
-      // Potentially throw an error here or clear cache to force full reconnect on next attempt
       cached.conn = null;
       cached.promise = null;
       throw new Error(`Database connection failed. State: ${mongoose.ConnectionStates[finalState]}`);
@@ -105,18 +120,19 @@ async function dbConnect(): Promise<typeof mongoose> {
         console.error("[dbConnect] Resolving Promise Error name:", e.name);
         console.error("[dbConnect] Resolving Promise Error message:", e.message);
     }
-    cached.promise = null; // Clear promise on error
-    throw e; // Re-throw to be caught by caller
+    cached.promise = null; 
+    throw e; 
   }
 
   return cached.conn;
 }
 
 export async function getMongoConnectionState(): Promise<ConnectionStates> {
-    // This function primarily exists for external checks, dbConnect itself handles connection.
+    if (typeof window !== 'undefined') {
+      console.warn("[getMongoConnectionState] Called on client. MongoDB state is only relevant on server. Returning 'disconnected'.");
+      return mongoose.ConnectionStates.disconnected;
+    }
     try {
-      // Attempt connection if not already connected, but don't throw if it fails here,
-      // just return the current state. The main operations will handle connection errors.
       if (mongoose.connection.readyState !== mongoose.ConnectionStates.connected) {
         await dbConnect().catch(() => { /* ignore error here, just want state */ });
       }
