@@ -1,3 +1,4 @@
+
 import mongoose, { Schema, model, models, type Document } from 'mongoose';
 
 export interface IUser extends Document {
@@ -18,7 +19,7 @@ const UserSchema = new Schema<IUser>(
     email: {
       type: String,
       required: [true, 'Email is required.'],
-      unique: true,
+      unique: true, // This implies an index
       trim: true,
       lowercase: true,
       match: [/.+@.+\..+/, 'Please enter a valid email address.'],
@@ -42,7 +43,7 @@ const UserSchema = new Schema<IUser>(
 );
 
 // Indexes
-UserSchema.index({ email: 1 });
+// UserSchema.index({ email: 1 }); // Removed as unique: true on email field handles this
 
 const User = models.User || model<IUser>('User', UserSchema);
 
