@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from "next-auth/react";
 import { signOut } from "@/auth";
 import { signIn } from "next-auth/react";
@@ -21,7 +21,7 @@ import { AppLogo } from "@/components/icons/app-logo";
 import { AiCopyModal } from "./ai-copy-modal";
 import { TemplateGalleryModal } from "./template-gallery-modal";
 import { SaveTemplateModal } from "./save-template-modal";
-import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download, ZoomIn, ZoomOut } from "lucide-react";
+import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download, ZoomIn, ZoomOut, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
 // import { publishWebsite } from '@/actions/website'; // Conceptual: would be used by handlePublish
@@ -35,6 +35,8 @@ interface AppHeaderProps {
   // currentWebsiteId?: string;
 }
 
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
 export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   const { data: session, status } = useSession();
   const [isAiCopyModalOpen, setIsAiCopyModalOpen] = useState(false);
@@ -43,6 +45,26 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   const [currentTheme, setCurrentTheme] = useState('light');
   const { toast } = useToast();
   const pathname = usePathname();
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+
+  const isEditorPage = pathname === '/editor';
+
+  useEffect(() => {
+    let saveInterval: NodeJS.Timeout;
+    if (isEditorPage) {
+      // Simulate auto-save cycle for UI demonstration
+      saveInterval = setInterval(() => {
+        setSaveStatus('saving');
+        setTimeout(() => {
+          setSaveStatus('saved');
+        }, 1500); // Simulate save duration
+      }, 10000); // Trigger save every 10 seconds
+    }
+    return () => {
+      if (saveInterval) clearInterval(saveInterval);
+    };
+  }, [isEditorPage]);
+
 
   const handlePublish = async () => {
     // In a real app, you'd get the websiteId from the current editor context/props
@@ -103,7 +125,6 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
   };
 
   const showDeviceControls = currentDevice && onDeviceChange;
-  const isEditorPage = pathname === '/editor';
 
   const publicNavLinks = [
     { href: "/", label: "Home", icon: Home },
@@ -112,6 +133,36 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
     { href: "/#pricing", label: "Pricing", icon: DollarSign },
     { href: "/#support", label: "Support", icon: HelpCircle },
   ];
+
+  const renderSaveStatus = () => {
+    if (!isEditorPage) return null;
+    switch (saveStatus) {
+      case 'saving':
+        return (
+          <div className="flex items-center text-xs text-muted-foreground mr-2">
+            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            Saving...
+          </div>
+        );
+      case 'saved':
+        return (
+          <div className="flex items-center text-xs text-green-600 mr-2">
+            <CheckCircle className="h-4 w-4 mr-1" />
+            All changes saved
+          </div>
+        );
+      case 'error':
+        return (
+          <div className="flex items-center text-xs text-destructive mr-2">
+            <AlertCircle className="h-4 w-4 mr-1" />
+            Error saving
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
 
   return (
     <>
@@ -208,6 +259,8 @@ export function AppHeader({ currentDevice, onDeviceChange }: AppHeaderProps) {
               <TooltipContent><p>Toggle Theme (Conceptual)</p></TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          
+          {renderSaveStatus()}
 
           {status === "authenticated" ? (
             <>
