@@ -69,9 +69,12 @@ export default function LoginPage() {
         console.error("[LoginPage] Exception message:", error.message);
         console.error("[LoginPage] Exception stack:", error.stack);
         
-        if (error.name === 'TypeError' && error.message.toLowerCase().includes('failed to fetch')) {
+        if (error.name === 'TypeError' && typeof error.message === 'string' && error.message.toLowerCase().includes('failed to fetch')) {
             errorMessage = "Failed to connect to the authentication server. Please check your internet connection and ensure the server is running (see server logs).";
-        } else if (error.message && error.name !== 'TypeError') {
+        } else if (typeof error.message === 'string' && error.message.includes('emitWarning is not a function')) {
+             errorMessage = "Login failed due to a server-side issue. Please contact support (Ref: Mongoose/emitWarning).";
+             console.error("[LoginPage] Detected 'emitWarning' issue: This typically indicates a Mongoose bundling problem on the server, where its browser build might be incorrectly used server-side.");
+        } else if (typeof error.message === 'string' && error.name !== 'TypeError') {
            errorMessage = error.message;
         }
       }
