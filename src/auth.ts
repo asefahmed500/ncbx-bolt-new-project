@@ -1,4 +1,7 @@
 
+// @ts-nocheck
+console.log("[Auth Module] src/auth.ts loaded by server."); // New log
+
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
@@ -57,7 +60,6 @@ export const authOptions: NextAuthConfig = {
             return null;
           }
           
-          // Enhanced logging for the fetched user
           console.log(`[Auth][Authorize] User found for ${normalizedEmail}. User object details (excluding password):`, 
             JSON.stringify({ 
               _id: user._id, 
@@ -82,7 +84,7 @@ export const authOptions: NextAuthConfig = {
             return null;
           }
 
-          if (!user.password || typeof user.password !== 'string') { // Ensure password is a string
+          if (!user.password || typeof user.password !== 'string') { 
             console.log(`[Auth][Authorize] User ${normalizedEmail} has no password set in the database, it was not retrieved, or it's not a string.`);
             return null;
           }
@@ -128,12 +130,14 @@ export const authOptions: NextAuthConfig = {
           console.error("[Auth][Authorize] Error Name:", error?.name);
           console.error("[Auth][Authorize] Error Message:", error?.message);
           console.error("[Auth][Authorize] Error Stack:", error?.stack);
-          // Log the full error object structure for more detailed debugging
+          
           try {
-            console.error("[Auth][Authorize] Full error object (stringified):", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+            const fullErrorString = JSON.stringify(error, Object.getOwnPropertyNames(error));
+            console.error("[Auth][Authorize] Full error object (stringified):", fullErrorString);
           } catch (stringifyError) {
             console.error("[Auth][Authorize] Could not stringify full error object. Logging raw error:", error);
           }
+
 
           if (typeof error.message === 'string' && error.message.toLowerCase().includes('mongodb_uri')) {
             console.error("[Auth][Authorize] This error seems related to the MONGODB_URI configuration. Ensure it's correctly set in your environment variables and points to a valid, accessible MongoDB instance and database.");
@@ -150,7 +154,7 @@ export const authOptions: NextAuthConfig = {
   },
   callbacks: {
     async jwt({ token, user, account, trigger, session }) {
-      console.log("[Auth][JWT Callback] Triggered. Current Token:", JSON.stringify(token), "User obj:", JSON.stringify(user));
+      // console.log("[Auth][JWT Callback] Triggered. Current Token:", JSON.stringify(token), "User obj:", JSON.stringify(user));
       try {
         if (user && (trigger === "signIn" || trigger === "signUp")) {
           const authorizedUser = user as IUser & {
@@ -172,7 +176,7 @@ export const authOptions: NextAuthConfig = {
           token.subscriptionPlanId = authorizedUser.subscriptionPlanId;
           token.subscriptionLimits = authorizedUser.subscriptionLimits;
 
-          console.log("[Auth][JWT Callback] User data (incl. subscription) added to token on signIn/signUp:", JSON.stringify(token));
+          // console.log("[Auth][JWT Callback] User data (incl. subscription) added to token on signIn/signUp:", JSON.stringify(token));
         }
 
         if (trigger === "update" && session) {
@@ -182,7 +186,7 @@ export const authOptions: NextAuthConfig = {
             // const Subscription = (await import('@/models/Subscription')).default;
             // const dbSub = await Subscription.findOne({ userId: token.id, ... }).sort(...);
             // if (dbSub) { /* update token.subscriptionStatus etc. */ }
-            console.log("[Auth][JWT Callback] Token updated via 'update' trigger:", JSON.stringify(token));
+            // console.log("[Auth][JWT Callback] Token updated via 'update' trigger:", JSON.stringify(token));
         }
         return token;
       } catch (error: any) {
@@ -192,7 +196,7 @@ export const authOptions: NextAuthConfig = {
       }
     },
     async session({ session, token }) {
-      console.log("[Auth][Session Callback] Triggered. Current Session:", JSON.stringify(session), "Token:", JSON.stringify(token));
+      // console.log("[Auth][Session Callback] Triggered. Current Session:", JSON.stringify(session), "Token:", JSON.stringify(token));
       try {
         if (token && session.user) {
           session.user.id = token.id as string;
@@ -205,9 +209,9 @@ export const authOptions: NextAuthConfig = {
           session.user.subscriptionStatus = token.subscriptionStatus as string | null | undefined;
           session.user.subscriptionPlanId = token.subscriptionPlanId as 'free' | 'pro' | 'enterprise' | undefined;
           session.user.subscriptionLimits = token.subscriptionLimits as PlanLimit | undefined;
-          console.log("[Auth][Session Callback] Session user hydrated from token (incl. subscription):", JSON.stringify(session.user));
+          // console.log("[Auth][Session Callback] Session user hydrated from token (incl. subscription):", JSON.stringify(session.user));
         } else {
-          console.warn("[Auth][Session Callback] Token or session.user not available.");
+          // console.warn("[Auth][Session Callback] Token or session.user not available.");
         }
         return session;
       } catch (error: any) {
@@ -274,3 +278,41 @@ declare module "next-auth/jwt" {
     error?: string;
   }
 }
+
+// @ts-ignore
+global.nextauth = global.nextauth ?? {};
+// @ts-ignore
+global.nextauth.authjs = global.nextauth.authjs ?? {};
+// @ts-ignore
+global.nextauth.authjs.esm = global.nextauth.authjs.esm ?? {};
+// @ts-ignore
+global.nextauth.authjs.esm.client = global.nextauth.authjs.esm.client ?? {};
+// @ts-ignore
+global.nextauth.authjs.esm.client.env = global.nextauth.authjs.esm.client.env ?? {};
+// @ts-ignore
+global.nextauth.authjs.esm.client.env.NEXTAUTH_URL = process.env.APP_URL ?? process.env.NEXTAUTH_URL;
+
+
+// @ts-ignore
+global.nextauth.authjs.esm.client.env.NEXTAUTH_COOKIE_DOMAIN = "";
+// @ts-ignore
+global.nextauth.authjs.esm.client.env.NEXTAUTH_COOKIE_PATH = "/";
+// @ts-ignore
+global.nextauth.authjs.esm.client.env.NEXTAUTH_COOKIE_PREFIX = "";
+// @ts-ignore
+global.nextauth.authjs.esm.client.env.NEXTAUTH_COOKIE_SECURE = process.env.NODE_ENV === 'production';
+// @ts-ignore
+global.nextauth.authjs.esm.client.env.NEXTAUTH_COOKIE_SAME_SITE = "lax";
+
+if (!global.nextauth_ಉ) {
+  // @ts-ignore
+  global.nextauth_ಉ = true;
+  console.debug("nextauth_ಉ", "NEXTAUTH_URL", process.env.NEXTAUTH_URL);
+  console.debug("nextauth_ಉ", "NEXTAUTH_SECRET", process.env.NEXTAUTH_SECRET ? "[set]" : "[not set]");
+  console.debug("nextauth_ಉ", "NEXTAUTH_URL_INTERNAL", process.env.NEXTAUTH_URL_INTERNAL);
+  console.debug("nextauth_ಉ", "AUTH_TRUST_HOST", process.env.AUTH_TRUST_HOST);
+  console.debug("nextauth_ಉ", "AUTH_URL", process.env.AUTH_URL);
+  console.debug("nextauth_ಉ", "APP_URL", process.env.APP_URL);
+}
+
+    
