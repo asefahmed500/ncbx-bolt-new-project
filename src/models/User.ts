@@ -66,8 +66,8 @@ const UserSchema = new Schema<IUser>(
   }
 );
 
-// Indexes are automatically created for fields with `unique: true`.
-// Explicit UserSchema.index({ email: 1 }); and UserSchema.index({ stripeCustomerId: 1 }); are redundant.
+// unique: true on email and stripeCustomerId automatically creates indexes.
+// Explicit UserSchema.index calls for these are redundant.
 UserSchema.index({ isActive: 1 });
 
 
