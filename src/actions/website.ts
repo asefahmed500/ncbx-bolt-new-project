@@ -3,11 +3,12 @@
 
 import dbConnect from "@/lib/dbConnect";
 import Website, { type IWebsite, type WebsiteStatus, type DomainConnectionStatus } from "@/models/Website";
-import WebsiteVersion, { type IWebsiteVersion } from "@/models/WebsiteVersion"; // Import WebsiteVersion
+import WebsiteVersion, { type IWebsiteVersion, type IWebsiteVersionPage } from "@/models/WebsiteVersion"; 
 import User from "@/models/User";
 import { auth } from "@/auth";
 import mongoose from "mongoose";
 import { z } from "zod";
+import type { IPageComponent } from "@/models/PageComponent";
 
 interface WebsiteActionInput {
   websiteId: string;
@@ -16,25 +17,112 @@ interface WebsiteActionInput {
 interface WebsiteActionResult {
   success?: string;
   error?: string;
-  website?: IWebsite; // This might need to include version data
+  website?: IWebsite; 
 }
 
+// --- Schema for Saving Website Content ---
+const PageComponentConfigSchema = z.record(z.any()); // Basic schema for component config
+
+const PageComponentInputSchema = z.object({
+  type: z.string().min(1, "Component type is required."),
+  config: PageComponentConfigSchema,
+  order: z.number().int(),
+});
+
+const PageInputSchema = z.object({
+  name: z.string().min(1, "Page name is required."),
+  slug: z.string().min(1, "Page slug is required.")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens."),
+  elements: z.array(PageComponentInputSchema).optional(),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+});
+
+const SaveWebsiteContentInputSchema = z.object({
+  websiteId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
+    message: "Invalid Website ID.",
+  }),
+  pages: z.array(PageInputSchema).min(1, "At least one page is required."),
+  globalSettings: z.record(z.any()).optional(),
+});
+
+export type SaveWebsiteContentInput = z.infer<typeof SaveWebsiteContentInputSchema>;
+
+interface SaveWebsiteContentResult {
+  success?: string;
+  error?: string;
+  versionId?: string;
+  website?: IWebsite;
+}
+
+export async function saveWebsiteContent(input: SaveWebsiteContentInput): Promise<SaveWebsiteContentResult> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "User not authenticated." };
+  }
+  const userId = session.user.id;
+
+  const parsedInput = SaveWebsiteContentInputSchema.safeParse(input);
+  if (!parsedInput.success) {
+    const errorMessages = parsedInput.error.flatten().fieldErrors;
+    console.error("[SaveWebsiteContent] Validation errors:", errorMessages);
+    return { error: `Invalid input: ${JSON.stringify(errorMessages)}` };
+  }
+
+  const { websiteId, pages, globalSettings } = parsedInput.data;
+
+  try {
+    await dbConnect();
+    const website = await Website.findById(websiteId);
+
+    if (!website) {
+      return { error: "Website not found." };
+    }
+    if (website.userId.toString() !== userId && session.user.role !== 'admin') {
+      return { error: "Unauthorized to modify this website." };
+    }
+
+    // Create a new WebsiteVersion
+    const newVersion = new WebsiteVersion({
+      websiteId: website._id,
+      versionNumber: Date.now(), // Simple versioning for now, consider sequential later
+      pages: pages.map(p => ({
+        name: p.name,
+        slug: p.slug,
+        elements: p.elements || [],
+        seoTitle: p.seoTitle,
+        seoDescription: p.seoDescription,
+      })),
+      globalSettings: globalSettings || {},
+      createdByUserId: userId,
+    });
+
+    const savedVersion = await newVersion.save();
+
+    // Update the Website document with the new currentVersionId
+    website.currentVersionId = savedVersion._id;
+    // Optionally, update website name if it's part of global settings or a specific input
+    // For now, we assume website name is managed separately or not updated here.
+    const updatedWebsite = await website.save();
+    
+    console.log(`[SaveWebsiteContent] Content saved for website ${websiteId}. New version ID: ${savedVersion._id}`);
+    return {
+      success: "Website content saved successfully.",
+      versionId: savedVersion._id.toString(),
+      website: updatedWebsite.toObject() as IWebsite,
+    };
+
+  } catch (error: any) {
+    console.error(`[SaveWebsiteContent] Error saving content for website ${websiteId}:`, error);
+    if (error instanceof z.ZodError) {
+        return { error: `Zod Validation error: ${error.errors.map(e => e.message).join(', ')}` };
+    }
+    return { error: `Failed to save website content: ${error.message}` };
+  }
+}
+
+
 // --- Publish/Unpublish Actions ---
-
-// IMPORTANT NOTE ON VERSIONING AND PUBLISHING:
-// A full version control system would require the editor to:
-// 1. Allow the user to explicitly "Save a Version". This action would take the editor's current state
-//    (all pages, components, global settings), create a new `WebsiteVersion` document,
-//    and update `Website.currentVersionId` to point to this new version.
-// 2. The `publishWebsite` action below would then take the `Website.currentVersionId`,
-//    mark that specific version's content for deployment, and update `Website.publishedVersionId`.
-//
-// Since the editor currently doesn't have this explicit "Save Version" or state serialization capability
-// to pass to an action, this `publishWebsite` function is simplified.
-// It assumes that `Website.currentVersionId` (if it exists) points to the version intended for publishing.
-// A more robust `publishWebsite` would likely receive the full website content from the editor,
-// create a new WebsiteVersion from it, update currentVersionId, and then proceed to publish.
-
 export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise<WebsiteActionResult> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -62,15 +150,11 @@ export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise
       return { error: "No current version available to publish. Please save a version of your website first." };
     }
 
-    // In a real scenario, here you would trigger the deployment process for the content
-    // stored in the WebsiteVersion document pointed to by `website.currentVersionId`.
-    // This involves fetching that WebsiteVersion's `pages` and `globalSettings`.
     console.log(`[WebsiteAction_Publish] Conceptual: Starting deployment for website ${websiteId}, version ${website.currentVersionId}...`);
-    // ... (Actual deployment logic for the content of website.currentVersionId)
 
     website.status = 'published' as WebsiteStatus;
     website.lastPublishedAt = new Date();
-    website.publishedVersionId = website.currentVersionId; // Mark the current version as published
+    website.publishedVersionId = website.currentVersionId; 
     
     const updatedWebsite = await website.save();
 
@@ -114,8 +198,6 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
     console.log(`[WebsiteAction_Unpublish] Conceptual: Starting unpublish process for website ${websiteId}...`);
     
     website.status = 'unpublished' as WebsiteStatus;
-    // Note: We typically don't clear publishedVersionId upon unpublishing,
-    // as it represents the last version that *was* live.
     const updatedWebsite = await website.save();
 
     console.log(`[WebsiteAction_Unpublish] Conceptual: Unpublish for website ${websiteId} completed.`);
@@ -129,7 +211,7 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
 
 // --- Get User Websites ---
 interface GetUserWebsitesResult {
-  websites?: IWebsite[]; // This returns metadata, not full version content
+  websites?: IWebsite[]; 
   error?: string;
 }
 export async function getUserWebsites(): Promise<GetUserWebsitesResult> {
@@ -226,8 +308,8 @@ export async function setCustomDomain(input: { websiteId: string, domainName: st
 
 // --- Get Website by ID (for editor or detailed view) ---
 interface GetWebsiteEditorDataResult {
-  website?: IWebsite; // Core website metadata
-  currentVersion?: IWebsiteVersion; // Content of the current working version
+  website?: IWebsite; 
+  currentVersion?: IWebsiteVersion; 
   error?: string;
 }
 export async function getWebsiteEditorData(websiteId: string): Promise<GetWebsiteEditorDataResult> {
@@ -248,7 +330,6 @@ export async function getWebsiteEditorData(websiteId: string): Promise<GetWebsit
       return { error: "Website not found." };
     }
 
-    // Ownership check
     if (website.userId.toString() !== userId && session.user.role !== 'admin') {
       return { error: "Unauthorized to view this website." };
     }
@@ -258,12 +339,8 @@ export async function getWebsiteEditorData(websiteId: string): Promise<GetWebsit
       currentVersion = await WebsiteVersion.findById(website.currentVersionId).lean();
     }
 
-    // If there's no current version (e.g., new site) or it wasn't found (should not happen if ID is set),
-    // the editor would typically start with a blank slate or a default template.
-    // For now, we just return null if not found.
     if (website.currentVersionId && !currentVersion) {
       console.warn(`[getWebsiteEditorData] Website ${websiteId} has currentVersionId ${website.currentVersionId} but version document not found.`);
-      // Optionally, you might want to clear website.currentVersionId here or handle it.
     }
     
     return { 
@@ -276,21 +353,12 @@ export async function getWebsiteEditorData(websiteId: string): Promise<GetWebsit
   }
 }
 
-
-// Renamed original getWebsiteById to avoid conflict, as its purpose was less clear
-// This version fetches only the core website metadata.
 interface GetWebsiteMetadataResult {
   website?: IWebsite;
   error?: string;
 }
 export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteMetadataResult> {
    const session = await auth();
-   // Adjust auth check as needed: is this for public viewing or owner/admin only?
-   // For this example, assuming it might be for general info, so public access is allowed if no session.
-   // if (!session?.user?.id) {
-   //   return { error: "User not authenticated." };
-   // }
-
   if (!mongoose.Types.ObjectId.isValid(websiteId)) {
     return { error: "Invalid Website ID format." };
   }
@@ -300,13 +368,11 @@ export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteM
     if (!website) {
       return { error: "Website not found." };
     }
-    // Add ownership/admin check here if this action should be restricted
-    // if (session?.user?.role !== 'admin' && website.userId.toString() !== session?.user?.id) {
-    //   return { error: "Unauthorized to view this website." };
-    // }
     return { website: website as IWebsite };
   } catch (error: any) {
     console.error(`[WebsiteAction_GetWebsiteMetadata] Error fetching website metadata ${websiteId}:`, error);
     return { error: "Failed to fetch website metadata." };
   }
 }
+
+    
