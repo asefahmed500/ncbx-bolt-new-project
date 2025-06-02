@@ -1,49 +1,59 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AppHeader, type DeviceType } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Type, Image as ImageIcon, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Type, Image as ImageIcon, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon, Loader2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch'; // Added for toggles
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Added for select inputs
+import { Switch } from '@/components/ui/switch'; 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; 
 
-// Define a type for the selected element, including potential properties
 interface SelectedElement {
   id: string;
   type: string;
-  // Add conceptual properties here as needed for different types
-  name?: string; // Example: for a section name
-  textContent?: string; // For Heading, Text
-  fontSize?: string; // For Heading, Text
-  color?: string; // For Heading, Text, Button background
-  imageUrl?: string; // For Image
-  altText?: string; // For Image
-  buttonText?: string; // For Button
-  linkUrl?: string; // For Button
-  // Section specific
+  name?: string; 
+  textContent?: string; 
+  fontSize?: string; 
+  color?: string; 
+  imageUrl?: string; 
+  altText?: string; 
+  buttonText?: string; 
+  linkUrl?: string; 
   backgroundColor?: string;
   paddingTop?: string;
   paddingBottom?: string;
   fullWidth?: boolean;
-  // Columns specific
   columnCount?: number;
   columnGap?: string;
   responsiveLayoutMobile?: 'stack' | '2-col' | 'equal';
 }
 
-export default function EditorPage() {
+function EditorPageComponent() {
+  const searchParams = useSearchParams();
+  const websiteIdFromQuery = searchParams.get('websiteId');
+
   const [currentDevice, setCurrentDevice] = useState<DeviceType>('desktop');
   const [selectedElement, setSelectedElement] = useState<null | SelectedElement>(null);
+  const [websiteId, setWebsiteId] = useState<string | null>(null);
+  const [isLoadingWebsiteId, setIsLoadingWebsiteId] = useState(true);
 
-  // Function to render specific property fields based on element type
+  useEffect(() => {
+    if (websiteIdFromQuery) {
+      setWebsiteId(websiteIdFromQuery);
+    }
+    // Simulate loading or validation if needed, for now just set it
+    setIsLoadingWebsiteId(false); 
+  }, [websiteIdFromQuery]);
+
+
   const renderPropertyFields = () => {
     if (!selectedElement) return null;
 
@@ -267,9 +277,39 @@ export default function EditorPage() {
     }
   };
 
+  if (isLoadingWebsiteId) {
+    return (
+      <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading editor...</p>
+      </div>
+    );
+  }
+
+  if (!websiteId && !isLoadingWebsiteId) {
+     return (
+      <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center p-8">
+        <Card className="max-w-md text-center">
+            <CardHeader>
+                <CardTitle className="text-destructive">Error: Website Not Specified</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p className="text-muted-foreground">
+                    No website ID was provided in the URL. Please select a website from your dashboard to edit.
+                </p>
+                <Button asChild className="mt-6">
+                    <a href="/dashboard">Go to Dashboard</a>
+                </Button>
+            </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-      <AppHeader currentDevice={currentDevice} onDeviceChange={setCurrentDevice} />
+      <AppHeader currentDevice={currentDevice} onDeviceChange={setCurrentDevice} websiteId={websiteId} />
       <div className="flex flex-1 overflow-hidden">
         <ComponentLibrarySidebar />
         <main className="flex-1 flex flex-col p-1 md:p-4 overflow-hidden bg-muted/30">
@@ -300,7 +340,8 @@ export default function EditorPage() {
               ) : (
                 <>
                 <p className="text-sm text-muted-foreground">
-                  No element selected. Click an element on the canvas or select one from the Page Outline (conceptual) to edit its properties.
+                  Select an element on the canvas or from the Page Outline to edit its properties.
+                  Current Website ID: {websiteId || "N/A"}
                 </p>
                 <div className="mt-4 space-y-3">
                     <div className="space-y-2">
@@ -374,3 +415,16 @@ export default function EditorPage() {
   );
 }
 
+// Wrap the main component in Suspense for useSearchParams
+export default function EditorPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading editor dependencies...</p>
+      </div>
+    }>
+      <EditorPageComponent />
+    </Suspense>
+  );
+}
