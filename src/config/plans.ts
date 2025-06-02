@@ -1,11 +1,14 @@
 
 // In a real application, Price IDs should come from your Stripe account.
-// Replace these with your actual Stripe Price IDs.
-// For example: price_1PExampleMonthlyPro, price_1PExampleYearlyPro
+// These are now read from environment variables.
+// Ensure you have NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY, etc., set in your .env file.
 
-export const STRIPE_PRICE_ID_PRO_MONTHLY = 'price_YOUR_PRO_MONTHLY_PRICE_ID';
-export const STRIPE_PRICE_ID_PRO_YEARLY = 'price_YOUR_PRO_YEARLY_PRICE_ID'; // If you offer annual
-export const STRIPE_PRICE_ID_ENTERPRISE_MONTHLY = 'price_YOUR_ENTERPRISE_MONTHLY_PRICE_ID';
+export const STRIPE_PRICE_ID_PRO_MONTHLY =
+  process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY || 'price_YOUR_PRO_MONTHLY_PRICE_ID_FROM_ENV';
+export const STRIPE_PRICE_ID_PRO_YEARLY =
+  process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_YEARLY || 'price_YOUR_PRO_YEARLY_PRICE_ID_FROM_ENV';
+export const STRIPE_PRICE_ID_ENTERPRISE_MONTHLY =
+  process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_ENTERPRISE_MONTHLY || 'price_YOUR_ENTERPRISE_MONTHLY_PRICE_ID_FROM_ENV';
 
 export interface PlanLimit {
   websites: number;
@@ -95,5 +98,10 @@ export function getPlanById(planId: 'free' | 'pro' | 'enterprise'): AppPlan | un
 }
 
 export function getPlanByStripePriceId(stripePriceId: string): AppPlan | undefined {
-  return PLANS_CONFIG.find(p => p.stripeMonthlyPriceId === stripePriceId || p.stripeYearlyPriceId === stripePriceId);
+  // Ensure we are comparing against actual Price IDs, not default placeholders if env vars are missing.
+  // This comparison should still work as long as STRIPE_PRICE_ID_PRO_MONTHLY etc. resolve to the actual IDs.
+  return PLANS_CONFIG.find(p =>
+    (p.stripeMonthlyPriceId && p.stripeMonthlyPriceId === stripePriceId && !p.stripeMonthlyPriceId.includes('_YOUR_')) ||
+    (p.stripeYearlyPriceId && p.stripeYearlyPriceId === stripePriceId && !p.stripeYearlyPriceId.includes('_YOUR_'))
+  );
 }

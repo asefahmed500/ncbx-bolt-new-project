@@ -27,6 +27,10 @@ export default function DashboardPage() {
   const currentPlan = session?.user?.subscriptionPlanId ? getPlanById(session.user.subscriptionPlanId) : getPlanById('free');
   const subscriptionStatus = session?.user?.subscriptionStatus;
   const isActiveSubscription = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
+  
+  // Check if the Pro Monthly Price ID is a placeholder
+  const isProPlanConfigured = STRIPE_PRICE_ID_PRO_MONTHLY && !STRIPE_PRICE_ID_PRO_MONTHLY.includes('_YOUR_');
+
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.role === 'admin') {
@@ -46,10 +50,10 @@ export default function DashboardPage() {
 
   const handleSubscribeToPro = async () => {
     setIsSubscribing(true);
-    if (STRIPE_PRICE_ID_PRO_MONTHLY === 'price_YOUR_PRO_MONTHLY_PRICE_ID') {
+    if (!isProPlanConfigured) {
         toast({
             title: "Configuration Needed",
-            description: `Please replace 'price_YOUR_PRO_MONTHLY_PRICE_ID' in src/config/plans.ts with an actual Stripe Price ID for the Pro plan.`,
+            description: `Please ensure NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY is set correctly in your .env file. The current value is a placeholder: ${STRIPE_PRICE_ID_PRO_MONTHLY}`,
             variant: "destructive",
             duration: 10000,
         });
@@ -188,13 +192,13 @@ export default function DashboardPage() {
                 <p className="text-muted-foreground">You are currently on the {currentPlan?.name || 'Free plan'}.</p>
                 <Button
                   onClick={handleSubscribeToPro}
-                  disabled={isSubscribing || STRIPE_PRICE_ID_PRO_MONTHLY === 'price_YOUR_PRO_MONTHLY_PRICE_ID'}
+                  disabled={isSubscribing || !isProPlanConfigured}
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   {isSubscribing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" /> }
-                  {isSubscribing ? "Processing..." : (STRIPE_PRICE_ID_PRO_MONTHLY === 'price_YOUR_PRO_MONTHLY_PRICE_ID' ? "Setup Pro Plan ID" : "Upgrade to Pro")}
+                  {isSubscribing ? "Processing..." : (!isProPlanConfigured ? "Setup Pro Plan ID in .env" : "Upgrade to Pro")}
                 </Button>
-                {STRIPE_PRICE_ID_PRO_MONTHLY === 'price_YOUR_PRO_MONTHLY_PRICE_ID' && <p className="text-xs text-destructive text-center">Admin: Configure Pro Plan Price ID in plans.ts</p>}
+                {!isProPlanConfigured && <p className="text-xs text-destructive text-center mt-1">Admin: Configure Pro Plan Price ID in .env file.</p>}
               </>
             )}
           </CardContent>
@@ -292,5 +296,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
