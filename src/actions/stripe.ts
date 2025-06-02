@@ -8,6 +8,7 @@ import User from "@/models/User";
 import Coupon from "@/models/Coupon";
 import { headers } from "next/headers";
 import { STRIPE_PRICE_ID_PRO_MONTHLY } from "@/config/plans"; // Import your Price ID
+import type Stripe from "stripe";
 
 export async function createStripeCheckoutSession(priceId: string, isSubscription: boolean = true) {
   const session = await auth();
@@ -135,7 +136,8 @@ export async function createOneTimePaymentIntent(
 
   let finalAmountInCents = amountInCents;
   let discountApplied = 0;
-  let couponId: string | null = null;
+  let appliedCouponId: string | null = null;
+  let appliedCouponCode: string | null = null;
 
   try {
     await dbConnect();
@@ -155,15 +157,17 @@ export async function createOneTimePaymentIntent(
       if (coupon.minPurchaseAmount && amountInCents < coupon.minPurchaseAmount) {
         return { error: `Minimum purchase of ${coupon.minPurchaseAmount / 100} ${currency.toUpperCase()} required for this coupon.` };
       }
+      // TODO: Add per-user usage limit check here if needed
 
       if (coupon.discountType === 'percentage') {
         discountApplied = Math.round(amountInCents * (coupon.discountValue / 100));
       } else if (coupon.discountType === 'fixed_amount') {
-        discountApplied = coupon.discountValue;
+        discountApplied = coupon.discountValue; // Assuming this is in cents
       }
       finalAmountInCents = Math.max(0, amountInCents - discountApplied);
-      couponId = coupon._id.toString();
-      console.log(`[CreatePaymentIntent Action] Coupon ${couponCode} applied. Original: ${amountInCents}, Discount: ${discountApplied}, Final: ${finalAmountInCents}`);
+      appliedCouponId = coupon._id.toString();
+      appliedCouponCode = coupon.code; // Store the code to pass in metadata
+      console.log(`[CreatePaymentIntent Action] Coupon ${couponCode} validated. Original: ${amountInCents}, Discount: ${discountApplied}, Final: ${finalAmountInCents}`);
     }
 
     const user = await User.findById(userId);
@@ -183,13 +187,14 @@ export async function createOneTimePaymentIntent(
       await user.save();
     }
 
-    const paymentIntentMetadata = {
+    const paymentIntentMetadata: Record<string, string> = {
       userId: user._id.toString(),
-      originalAmount: amountInCents.toString(),
-      discountApplied: discountApplied.toString(),
-      ...(couponCode && { appliedCouponCode: couponCode }),
-      ...(couponId && { appliedCouponId: couponId }),
-      ...(metadata && metadata),
+      originalAmountInCents: amountInCents.toString(),
+      discountAppliedInCents: discountApplied.toString(),
+      finalAmountInCents: finalAmountInCents.toString(),
+      ...(appliedCouponCode && { appliedCouponCode }), // Use validated coupon code
+      ...(appliedCouponId && { appliedCouponId }), // Pass coupon's DB ID
+      ...(metadata && metadata), // Spread any additional metadata
     };
 
     const paymentIntent = await stripe.paymentIntents.create({
@@ -204,17 +209,11 @@ export async function createOneTimePaymentIntent(
       return { error: "Could not create PaymentIntent." };
     }
 
-    // Note: Incrementing coupon usage here might be premature if payment fails.
-    // It's often better to increment coupon usage in the payment_intent.succeeded webhook.
-    // However, for simplicity in this example, and to prevent race conditions on coupon limits if user retries,
-    // one might do it here or ensure webhook is idempotent. For now, we'll keep it here.
-    // A more robust solution uses a temporary hold or reservation on the coupon.
-    if (couponId && paymentIntent.id) {
-      // This might need adjustment if payment fails often and coupons are exhausted.
-      // Consider moving to webhook if this becomes an issue.
-      await Coupon.findByIdAndUpdate(couponId, { $inc: { timesUsed: 1 } });
-      console.log(`[CreatePaymentIntent Action] Incremented usage for coupon ID ${couponId}`);
-    }
+    // REMOVED: Coupon usage increment. This will be handled by the payment_intent.succeeded webhook.
+    // if (couponId && paymentIntent.id) {
+    //   await Coupon.findByIdAndUpdate(couponId, { $inc: { timesUsed: 1 } });
+    //   console.log(`[CreatePaymentIntent Action] Incremented usage for coupon ID ${couponId}`);
+    // }
 
     console.log(`[CreatePaymentIntent Action] Created PaymentIntent ${paymentIntent.id} for user ${userId}. Final amount: ${finalAmountInCents}. Metadata: ${JSON.stringify(paymentIntentMetadata)}`);
     return {
@@ -223,7 +222,7 @@ export async function createOneTimePaymentIntent(
       finalAmount: finalAmountInCents,
       discountApplied: discountApplied,
       originalAmount: amountInCents,
-      couponApplied: !!couponCode,
+      couponApplied: !!appliedCouponCode,
     };
 
   } catch (error: any) {
@@ -237,3 +236,4 @@ export async function createOneTimePaymentIntent(
     return { error: `An unexpected error occurred: ${error.message}` };
   }
 }
+

@@ -6,6 +6,7 @@ import { stripe } from '@/lib/stripe';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
 import Subscription from '@/models/Subscription';
+import Coupon from '@/models/Coupon'; // Import Coupon model
 import mongoose from 'mongoose';
 
 const relevantEvents = new Set([
@@ -53,8 +54,8 @@ export async function POST(req: NextRequest) {
           const userId = session.metadata?.userId;
           const customerId = session.customer as string;
 
-          if (!userId) {
-            console.warn('[Stripe Webhook] checkout.session.completed: Missing userId in metadata. Session ID:', session.id);
+          if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+            console.warn('[Stripe Webhook] checkout.session.completed: Missing or invalid userId in metadata. Session ID:', session.id);
             break;
           }
            if (!customerId) {
@@ -62,7 +63,6 @@ export async function POST(req: NextRequest) {
             break;
           }
 
-          // Ensure user's stripeCustomerId is set
           await User.findByIdAndUpdate(userId, { stripeCustomerId: customerId });
           console.log(`[Stripe Webhook] User ${userId} updated with Stripe Customer ID ${customerId} if not already set.`);
 
@@ -85,25 +85,20 @@ export async function POST(req: NextRequest) {
             console.log(`[Stripe Webhook] Subscription created/updated for User ${userId}, Subscription ID ${subscription.id}, Status: ${subscription.status}`);
           } else if (session.mode === 'payment') {
             console.log(`[Stripe Webhook] Checkout session ${session.id} was for a one-time payment. PaymentIntent events will handle fulfillment.`);
-            // Fulfillment for one-time payments (like template purchases) is typically handled by 'payment_intent.succeeded'.
-            // If there's specific logic tied to checkout session completion for one-time payments, add it here.
           } else {
             console.log('[Stripe Webhook] Checkout session was not for a subscription or metadata missing, skipping subscription specific logic for ID:', session.id);
           }
           break;
         }
         case 'customer.subscription.updated':
-        case 'customer.subscription.created': { // Note: created might be redundant if checkout.session.completed + retrieve handles it well.
+        case 'customer.subscription.created': {
           const subscription = event.data.object as Stripe.Subscription;
           console.log(`[Stripe Webhook] Handling ${event.type} for subscription ID:`, subscription.id);
           
           const customerId = subscription.customer as string;
-          // Try to find user by stripeCustomerId first, as userId might not be in subscription metadata directly for portal changes
           let user = await User.findOne({ stripeCustomerId: customerId });
           
-          // If user not found by stripeCustomerId (e.g. very first subscription event before user model is updated),
-          // try to get userId from subscription metadata if present (less common for portal changes)
-          if (!user && subscription.metadata?.userId) {
+          if (!user && subscription.metadata?.userId && mongoose.Types.ObjectId.isValid(subscription.metadata.userId)) {
              user = await User.findById(subscription.metadata.userId);
           }
 
@@ -115,7 +110,7 @@ export async function POST(req: NextRequest) {
           await Subscription.findOneAndUpdate(
             { stripeSubscriptionId: subscription.id },
             {
-              userId: user._id, // Ensure userId is set/updated
+              userId: user._id,
               stripeCustomerId: customerId,
               stripePriceId: subscription.items.data[0].price.id,
               stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
@@ -129,12 +124,9 @@ export async function POST(req: NextRequest) {
         case 'customer.subscription.deleted': {
             const subscription = event.data.object as Stripe.Subscription;
             console.log(`[Stripe Webhook] Handling customer.subscription.deleted for subscription ID:`, subscription.id);
-            // Typically, you'd update the status to 'canceled' or similar, or remove the record.
-            // Stripe often sets status to 'canceled' on deletion or at period end after cancellation.
-            // So, findOneAndUpdate with status is usually sufficient.
             const updatedSub = await Subscription.findOneAndUpdate(
               { stripeSubscriptionId: subscription.id },
-              { stripeSubscriptionStatus: 'canceled' }, // Or use subscription.status if it's reliably 'canceled'
+              { stripeSubscriptionStatus: 'canceled' },
               { new: true }
             );
              if (updatedSub) {
@@ -149,16 +141,15 @@ export async function POST(req: NextRequest) {
           console.log('[Stripe Webhook] Handling invoice.payment_succeeded for invoice ID:', invoice.id);
           if (invoice.subscription) {
             const subscriptionId = invoice.subscription as string;
-            // Retrieve the subscription from Stripe to get the latest details
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
             await Subscription.findOneAndUpdate(
               { stripeSubscriptionId: subscriptionId },
               {
-                stripePriceId: subscription.items.data[0].price.id, // Update price ID in case it changed (e.g. upgrade)
+                stripePriceId: subscription.items.data[0].price.id,
                 stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
-                stripeSubscriptionStatus: subscription.status, // Ensure status is active
+                stripeSubscriptionStatus: subscription.status,
               },
-              { new: true } // Upsert could be considered if sub might not exist, but usually it should.
+              { new: true }
             );
             console.log(`[Stripe Webhook] Subscription ${subscriptionId} updated on invoice.payment_succeeded. Status: ${subscription.status}`);
           } else if (invoice.payment_intent) {
@@ -171,10 +162,10 @@ export async function POST(req: NextRequest) {
           console.log('[Stripe Webhook] Handling invoice.payment_failed for invoice ID:', invoice.id);
            if (invoice.subscription) {
             const subscriptionId = invoice.subscription as string;
-            const subscription = await stripe.subscriptions.retrieve(subscriptionId); // Get latest status
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId); 
              await Subscription.findOneAndUpdate(
               { stripeSubscriptionId: subscriptionId },
-              { stripeSubscriptionStatus: subscription.status } // e.g., 'past_due', 'unpaid'
+              { stripeSubscriptionStatus: subscription.status } 
             );
             console.log(`[Stripe Webhook] Subscription ${subscriptionId} status updated to ${subscription.status} on invoice.payment_failed.`);
           }
@@ -186,25 +177,47 @@ export async function POST(req: NextRequest) {
 
           const userId = paymentIntent.metadata.userId;
           const templateId = paymentIntent.metadata.templateId; // For template purchases
+          const appliedCouponId = paymentIntent.metadata.appliedCouponId; // Get coupon ID from metadata
 
-          if (userId && templateId) {
-            console.log(`[Stripe Webhook] Payment for template purchase. User ID: ${userId}, Template ID: ${templateId}`);
-            const user = await User.findById(userId);
-            if (user) {
-              const templateObjectId = new mongoose.Types.ObjectId(templateId);
-              if (!user.purchasedTemplateIds.some(id => id.equals(templateObjectId))) {
-                user.purchasedTemplateIds.push(templateObjectId);
-                await user.save();
-                console.log(`[Stripe Webhook] User ${userId} granted access to template ${templateId}.`);
+          if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+            if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
+              console.log(`[Stripe Webhook] Payment for template purchase. User ID: ${userId}, Template ID: ${templateId}`);
+              const user = await User.findById(userId);
+              if (user) {
+                const templateObjectId = new mongoose.Types.ObjectId(templateId);
+                if (!user.purchasedTemplateIds.some(id => id.equals(templateObjectId))) {
+                  user.purchasedTemplateIds.push(templateObjectId);
+                  await user.save();
+                  console.log(`[Stripe Webhook] User ${userId} granted access to template ${templateId}.`);
+                } else {
+                  console.log(`[Stripe Webhook] User ${userId} already had access to template ${templateId}.`);
+                }
               } else {
-                console.log(`[Stripe Webhook] User ${userId} already had access to template ${templateId}.`);
+                console.warn(`[Stripe Webhook] User ${userId} not found for template purchase.`);
               }
             } else {
-              console.warn(`[Stripe Webhook] User ${userId} not found for template purchase.`);
+              console.log(`[Stripe Webhook] General payment (non-template specific) for user ${userId} of ${paymentIntent.amount / 100} ${paymentIntent.currency.toUpperCase()} succeeded.`);
+              // TODO: Fulfill other types of one-time purchases based on metadata if applicable
             }
-          } else if (userId) {
-             console.log(`[Stripe Webhook] General payment (non-template) for user ${userId} of ${paymentIntent.amount / 100} ${paymentIntent.currency.toUpperCase()} succeeded.`);
-             // TODO: Fulfill other types of one-time purchases based on metadata if applicable
+
+            // Increment coupon usage if a coupon was applied to this PaymentIntent
+            if (appliedCouponId && mongoose.Types.ObjectId.isValid(appliedCouponId)) {
+              const coupon = await Coupon.findById(appliedCouponId);
+              if (coupon) {
+                if (coupon.usageLimit === 0 || coupon.timesUsed < coupon.usageLimit) {
+                  coupon.timesUsed += 1;
+                  await coupon.save();
+                  console.log(`[Stripe Webhook] Incremented usage for coupon ID ${appliedCouponId}. New count: ${coupon.timesUsed}`);
+                } else {
+                  console.warn(`[Stripe Webhook] Coupon ${appliedCouponId} usage limit already reached or issue with limit logic.`);
+                }
+              } else {
+                console.warn(`[Stripe Webhook] Applied coupon ID ${appliedCouponId} not found in database for incrementing usage.`);
+              }
+            }
+
+          } else {
+            console.warn(`[Stripe Webhook] payment_intent.succeeded: Missing or invalid userId in PaymentIntent metadata. PI_ID: ${paymentIntent.id}`);
           }
           break;
         }
@@ -213,7 +226,6 @@ export async function POST(req: NextRequest) {
           console.warn(`[Stripe Webhook] PaymentIntent ${paymentIntent.id} failed. Reason: ${paymentIntent.last_payment_error?.message}`);
           if (paymentIntent.metadata?.userId) {
             console.warn(`[Stripe Webhook] Payment failure for user ${paymentIntent.metadata.userId}.`);
-            // Potentially revert any optimistic updates or notify the user.
           }
           break;
         }
@@ -230,3 +242,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ received: true });
 }
+
