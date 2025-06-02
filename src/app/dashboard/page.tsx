@@ -8,10 +8,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2, Tag, ShieldAlert, ArrowUpCircle, ExternalLink } from "lucide-react";
+import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2, Tag, ShieldAlert, ArrowUpCircle, ExternalLink, PlusSquare } from "lucide-react";
 import { createStripeCheckoutSession, createOneTimePaymentIntent, createStripeCustomerPortalSession } from '@/actions/stripe';
 import { useToast } from '@/hooks/use-toast';
 import { STRIPE_PRICE_ID_PRO_MONTHLY, getPlanById, type AppPlan } from '@/config/plans';
+import Link from 'next/link';
 
 export default function DashboardPage() {
   const { data: session, status, update: updateSession } = useSession();
@@ -133,6 +134,7 @@ export default function DashboardPage() {
   
   const userProjectsUsed = session?.user?.projectsUsed || 0;
   const websiteLimit = currentPlan?.limits?.websites ?? 0;
+  const canCreateWebsite = websiteLimit === Infinity || userProjectsUsed < websiteLimit;
 
   return (
     <div className="flex-1 p-6 md:p-10">
@@ -147,11 +149,15 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">You have created {userProjectsUsed} out of {websiteLimit === Infinity ? 'unlimited' : websiteLimit} websites.</p>
-            {userProjectsUsed >= websiteLimit && websiteLimit !== Infinity && (
+            {!canCreateWebsite && (
                  <p className="text-sm text-destructive mt-1">You've reached your website limit for the {currentPlan?.name || 'current plan'}.</p>
             )}
-            <Button className="mt-4 w-full" disabled={userProjectsUsed >= websiteLimit && websiteLimit !== Infinity}>Create New Website</Button>
-             {userProjectsUsed >= websiteLimit && websiteLimit !== Infinity && currentPlan?.id !== 'enterprise' && (
+            <Button asChild className="mt-4 w-full" disabled={!canCreateWebsite}>
+              <Link href="/dashboard/websites/create">
+                <PlusSquare className="mr-2 h-4 w-4" /> Create New Website
+              </Link>
+            </Button>
+             {!canCreateWebsite && currentPlan?.id !== 'enterprise' && (
                 <Button variant="outline" className="mt-2 w-full" onClick={handleSubscribeToPro}>Upgrade to Pro/Enterprise</Button>
             )}
           </CardContent>
@@ -205,7 +211,7 @@ export default function DashboardPage() {
               <p>AI Copy Generations: 5 / {currentPlan?.id === 'pro' || currentPlan?.id === 'enterprise' ? 'Unlimited' : '50 per month'} (Placeholder)</p>
               <p>Storage: 100MB / {currentPlan?.id === 'pro' ? '5GB' : currentPlan?.id === 'enterprise' ? '20GB' : '1GB'} (Placeholder)</p>
             </div>
-            {userProjectsUsed >= websiteLimit && websiteLimit !== Infinity && currentPlan?.id !== 'enterprise' && (
+            {!canCreateWebsite && currentPlan?.id !== 'enterprise' && (
               <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleSubscribeToPro}>
                 <ArrowUpCircle className="mr-2 h-4 w-4" />
                 Upgrade Plan to Increase Limits
@@ -286,3 +292,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
