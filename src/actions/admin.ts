@@ -1,3 +1,4 @@
+
 "use server";
 
 import dbConnect from "@/lib/dbConnect";
@@ -6,14 +7,25 @@ import Coupon, { type ICoupon } from "@/models/Coupon";
 import ModerationQueueItem, { type IModerationQueueItem } from "@/models/ModerationQueueItem";
 import Template, { type ITemplate, type TemplateStatus } from "@/models/Template"; // Import Template model
 import TemplateReview from "@/models/TemplateReview"; // Needed for moderation actions
+import Website from "@/models/Website"; // Import Website model
+import Subscription from "@/models/Subscription"; // Import Subscription model
+import { getPlanByStripePriceId } from "@/config/plans"; // Import plan helper
 import { z } from "zod";
 import { auth } from "@/auth";
 import mongoose from "mongoose";
 
+// Define an extended user type for admin view
+export interface IUserForAdmin extends IUser {
+  websiteCount: number;
+  subscriptionPlanName?: string;
+  subscriptionStatus?: string;
+  // stripeCustomerId is already part of IUser
+}
+
 // --- User Management ---
 
 interface GetUsersResult {
-  users?: IUser[];
+  users?: IUserForAdmin[];
   totalUsers?: number;
   error?: string;
 }
@@ -39,7 +51,7 @@ export async function getUsersForAdmin(
     }
 
     const skip = (page - 1) * limit;
-    const users = await User.find(query)
+    const usersFromDB = await User.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -47,7 +59,44 @@ export async function getUsersForAdmin(
 
     const totalUsers = await User.countDocuments(query);
 
-    return { users: users as IUser[], totalUsers };
+    const enrichedUsers: IUserForAdmin[] = await Promise.all(
+      usersFromDB.map(async (user) => {
+        const websiteCount = await Website.countDocuments({ userId: user._id });
+        const latestSubscription = await Subscription.findOne({ userId: user._id })
+          .sort({ createdAt: -1 }) // Get the most recent subscription record
+          .lean();
+
+        let subscriptionPlanName: string | undefined = 'Free'; // Default to Free
+        let subscriptionStatus: string | undefined = 'N/A';
+
+        if (latestSubscription) {
+          const plan = getPlanByStripePriceId(latestSubscription.stripePriceId);
+          subscriptionPlanName = plan?.name || 'Unknown Plan';
+          subscriptionStatus = latestSubscription.stripeSubscriptionStatus as string;
+        } else {
+          // If no subscription record, infer as Free and perhaps 'inactive' or 'N/A'
+           const userHasStripeId = !!user.stripeCustomerId;
+           if (!userHasStripeId) { // if they never even went to stripe, they are free
+             subscriptionPlanName = 'Free';
+             subscriptionStatus = 'Active'; // Free plan is implicitly active
+           } else { // has stripe ID but no sub, might be cancelled old sub
+             subscriptionPlanName = 'Free'; // Or 'Cancelled' if you want to reflect that
+             subscriptionStatus = 'Cancelled'; // Or 'N/A'
+           }
+        }
+
+
+        return {
+          ...(user as IUser), // Cast because lean() returns plain objects
+          _id: user._id, // Ensure _id is present and correct type
+          websiteCount,
+          subscriptionPlanName,
+          subscriptionStatus,
+        };
+      })
+    );
+
+    return { users: enrichedUsers, totalUsers };
   } catch (error: any) {
     console.error("[AdminAction_GetUsers] Error fetching users:", error);
     return { error: "Failed to fetch users: " + error.message };
@@ -562,4 +611,6 @@ export async function getDistinctTemplateCategories(): Promise<DistinctCategorie
     return { error: "Failed to fetch categories: " + error.message };
   }
 }
+    
+
     

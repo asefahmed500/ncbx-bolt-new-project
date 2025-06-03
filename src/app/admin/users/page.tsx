@@ -4,8 +4,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getUsersForAdmin, updateUserStatus } from '@/actions/admin';
-import type { IUser } from '@/models/User';
+import { getUsersForAdmin, updateUserStatus, type IUserForAdmin } from '@/actions/admin'; // Use IUserForAdmin
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -17,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, Search, ChevronLeft, ChevronRight, ExternalLink, UserCheck, UserX } from 'lucide-react';
+import { Loader2, AlertTriangle, Search, ChevronLeft, ChevronRight, ExternalLink, UserCheck, UserX, Globe, ShoppingBag, CheckCircle, XCircle, AlertCircle as AlertCircleIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const ITEMS_PER_PAGE = 10;
@@ -28,7 +27,7 @@ export default function AdminUsersPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  const [users, setUsers] = useState<IUser[]>([]);
+  const [users, setUsers] = useState<IUserForAdmin[]>([]); // Use IUserForAdmin
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
@@ -105,14 +104,28 @@ export default function AdminUsersPage() {
       toast({ title: "Error", description: result.error, variant: "destructive" });
     } else if (result.success && result.user) {
       toast({ title: "Success", description: result.success });
-      setUsers(prevUsers => prevUsers.map(u => u._id === userId ? { ...u, isActive: result.user!.isActive } : u));
+      setUsers(prevUsers => prevUsers.map(u => u._id.toString() === userId ? { ...u, isActive: result.user!.isActive } : u));
     }
   };
   
   const getStripeCustomerDashboardUrl = (customerId: string) => {
-    // Note: Stripe dashboard URLs can change. This is a common pattern but verify.
-    // Also, ensure your Stripe account ID is used if this structure differs for your region/account.
     return `https://dashboard.stripe.com/customers/${customerId}`;
+  };
+
+  const getSubscriptionStatusBadgeVariant = (status?: string) => {
+    if (!status) return 'secondary';
+    switch (status.toLowerCase()) {
+      case 'active':
+      case 'trialing':
+        return 'default'; // Green-ish in default theme
+      case 'past_due':
+      case 'unpaid':
+        return 'destructive';
+      case 'canceled':
+        return 'secondary';
+      default:
+        return 'outline';
+    }
   };
 
 
@@ -167,6 +180,9 @@ export default function AdminUsersPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-center"><Globe className="inline-block h-4 w-4 mr-1" />Sites</TableHead>
+                <TableHead><ShoppingBag className="inline-block h-4 w-4 mr-1" />Plan</TableHead>
+                <TableHead>Sub Status</TableHead>
                 <TableHead>Stripe</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -174,13 +190,27 @@ export default function AdminUsersPage() {
             </TableHeader>
             <TableBody>
               {users.map((user) => (
-                <TableRow key={user._id as string}>
+                <TableRow key={user._id.toString()}>
                   <TableCell className="font-medium">{user.name || 'N/A'}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell className="capitalize">{user.role}</TableCell>
                   <TableCell>
                     <Badge variant={user.isActive ? 'default' : 'destructive'}>
+                      {user.isActive ? <UserCheck className="inline-block h-3 w-3 mr-1" /> : <UserX className="inline-block h-3 w-3 mr-1" />}
                       {user.isActive ? 'Active' : 'Suspended'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">{user.websiteCount}</TableCell>
+                  <TableCell>{user.subscriptionPlanName || 'N/A'}</TableCell>
+                  <TableCell>
+                    <Badge variant={getSubscriptionStatusBadgeVariant(user.subscriptionStatus)} className="capitalize">
+                        {
+                            user.subscriptionStatus === 'active' ? <CheckCircle className="inline-block h-3 w-3 mr-1" /> :
+                            user.subscriptionStatus === 'past_due' || user.subscriptionStatus === 'unpaid' ? <AlertCircleIcon className="inline-block h-3 w-3 mr-1" /> :
+                            user.subscriptionStatus === 'canceled' ? <XCircle className="inline-block h-3 w-3 mr-1" /> :
+                            null // Add more icons for other statuses if needed
+                        }
+                        {user.subscriptionStatus || 'N/A'}
                     </Badge>
                   </TableCell>
                    <TableCell>
@@ -203,10 +233,10 @@ export default function AdminUsersPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleToggleUserStatus(user._id as string, user.isActive)}
-                      disabled={isUpdatingStatus === (user._id as string)}
+                      onClick={() => handleToggleUserStatus(user._id.toString(), user.isActive)}
+                      disabled={isUpdatingStatus === user._id.toString()}
                     >
-                      {isUpdatingStatus === (user._id as string) ? (
+                      {isUpdatingStatus === user._id.toString() ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : user.isActive ? (
                         <UserX className="h-4 w-4 mr-1" />
@@ -249,3 +279,6 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+
+
+    
