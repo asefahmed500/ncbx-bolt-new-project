@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2, Tag, ShieldAlert, ArrowUpCircle, ExternalLink, PlusSquare, Edit3, Globe, Trash2 } from "lucide-react";
+import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2 as SettingsIcon, BarChart2, Tag, ShieldAlert, ArrowUpCircle, ExternalLink, PlusSquare, Edit3, Globe, Trash2, Link2, ServerCrash, CheckCircle, AlertCircle } from "lucide-react";
 import { createStripeCheckoutSession, createOneTimePaymentIntent, createStripeCustomerPortalSession } from '@/actions/stripe';
-import { getUserWebsites } from '@/actions/website'; // Import action to get websites
-import type { IWebsite } from '@/models/Website'; // Import IWebsite type
+import { getUserWebsites } from '@/actions/website'; 
+import type { IWebsite, DomainConnectionStatus } from '@/models/Website'; 
 import { useToast } from '@/hooks/use-toast';
 import { STRIPE_PRICE_ID_PRO_MONTHLY, getPlanById, type AppPlan } from '@/config/plans';
 import Link from 'next/link';
@@ -153,19 +153,31 @@ export default function DashboardPage() {
     );
   }
   
-  const userProjectsUsed = userWebsites.length; // Get count from fetched websites
+  const userProjectsUsed = userWebsites.length;
   const websiteLimit = currentPlan?.limits?.websites ?? 0;
   const canCreateWebsite = websiteLimit === Infinity || userProjectsUsed < websiteLimit;
 
   const getStatusBadgeVariant = (status: IWebsite['status']) => {
     switch (status) {
-      case 'published': return 'default'; // Greenish or primary
+      case 'published': return 'default'; 
       case 'draft': return 'outline';
       case 'unpublished': return 'secondary';
       case 'error_publishing': return 'destructive';
       default: return 'secondary';
     }
   };
+
+  const getDomainStatusInfo = (status?: DomainConnectionStatus) => {
+    switch (status) {
+        case 'verified': return { text: 'Verified', icon: CheckCircle, color: 'text-green-500', badgeVariant: 'default' as const };
+        case 'pending_verification': return { text: 'Pending', icon: Loader2, color: 'text-yellow-500 animate-spin', badgeVariant: 'outline' as const };
+        case 'error_dns':
+        case 'error_ssl': return { text: 'Error', icon: AlertCircle, color: 'text-red-500', badgeVariant: 'destructive' as const };
+        case 'unconfigured':
+        default: return { text: 'Unconfigured', icon: Link2, color: 'text-muted-foreground', badgeVariant: 'secondary' as const };
+    }
+};
+
 
   return (
     <div className="flex-1 p-6 md:p-10">
@@ -211,16 +223,29 @@ export default function DashboardPage() {
           </Card>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {userWebsites.map(site => (
+            {userWebsites.map(site => {
+              const domainStatusInfo = getDomainStatusInfo(site.domainStatus);
+              return (
               <Card key={site._id as string} className="shadow-sm hover:shadow-md transition-shadow flex flex-col">
                 <CardHeader>
                   <CardTitle className="font-headline text-lg truncate">{site.name}</CardTitle>
                   <CardDescription className="text-xs truncate">
-                    {site.subdomain}.{process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'notthedomain.com'}
+                    Subdomain: {site.subdomain}.{process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'notthedomain.com'}
                   </CardDescription>
+                   {site.customDomain && (
+                    <CardDescription className="text-xs truncate">
+                      Custom Domain: {site.customDomain}
+                    </CardDescription>
+                  )}
                 </CardHeader>
-                <CardContent className="flex-grow">
-                  <Badge variant={getStatusBadgeVariant(site.status)} className="capitalize text-xs mb-2">{site.status.replace('_', ' ')}</Badge>
+                <CardContent className="flex-grow space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={getStatusBadgeVariant(site.status)} className="capitalize text-xs">{site.status.replace('_', ' ')}</Badge>
+                    <Badge variant={domainStatusInfo.badgeVariant} className="capitalize text-xs">
+                      <domainStatusInfo.icon className={`mr-1 h-3 w-3 ${domainStatusInfo.color}`} />
+                      Domain: {domainStatusInfo.text}
+                    </Badge>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Created: {new Date(site.createdAt).toLocaleDateString()}
                   </p>
@@ -230,20 +255,25 @@ export default function DashboardPage() {
                     </p>
                   )}
                 </CardContent>
-                <CardFooter className="gap-2">
-                  <Button asChild variant="outline" size="sm" className="flex-1">
+                <CardFooter className="gap-2 flex-wrap">
+                  <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px]">
                     <Link href={`/editor?websiteId=${site._id}`}>
                       <Edit3 className="mr-1.5 h-3.5 w-3.5" /> Edit
                     </Link>
                   </Button>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" disabled>
+                  <Button asChild variant="secondary" size="sm" className="flex-1 min-w-[80px]">
+                    <Link href={`/dashboard/websites/${site._id}/settings`}>
+                      <SettingsIcon className="mr-1.5 h-3.5 w-3.5" /> Settings
+                    </Link>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive flex-shrink-0" disabled>
                      <Trash2 className="h-4 w-4" />
                      <span className="sr-only">Delete Website (Conceptual)</span>
                   </Button>
-                  {/* Add Manage/Settings button later */}
                 </CardFooter>
               </Card>
-            ))}
+            );
+          })}
           </div>
         )}
       </section>
@@ -265,7 +295,7 @@ export default function DashboardPage() {
                   disabled={isManagingSubscription}
                   className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
                 >
-                  {isManagingSubscription ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Settings2 className="mr-2 h-4 w-4" />}
+                  {isManagingSubscription ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SettingsIcon className="mr-2 h-4 w-4" />}
                   Manage Subscription & Billing
                 </Button>
                  <p className="text-xs text-muted-foreground text-center">Manage details via Stripe Customer Portal.</p>
@@ -379,4 +409,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
