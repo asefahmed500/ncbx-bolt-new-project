@@ -8,8 +8,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2, Tag, ShieldAlert, ArrowUpCircle, ExternalLink, PlusSquare } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2, BarChart2, Tag, ShieldAlert, ArrowUpCircle, ExternalLink, PlusSquare, Edit3, Globe, Trash2 } from "lucide-react";
 import { createStripeCheckoutSession, createOneTimePaymentIntent, createStripeCustomerPortalSession } from '@/actions/stripe';
+import { getUserWebsites } from '@/actions/website'; // Import action to get websites
+import type { IWebsite } from '@/models/Website'; // Import IWebsite type
 import { useToast } from '@/hooks/use-toast';
 import { STRIPE_PRICE_ID_PRO_MONTHLY, getPlanById, type AppPlan } from '@/config/plans';
 import Link from 'next/link';
@@ -23,12 +26,13 @@ export default function DashboardPage() {
   const [couponCode, setCouponCode] = useState("");
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
+  const [userWebsites, setUserWebsites] = useState<IWebsite[]>([]);
+  const [isLoadingWebsites, setIsLoadingWebsites] = useState(true);
 
   const currentPlan = session?.user?.subscriptionPlanId ? getPlanById(session.user.subscriptionPlanId) : getPlanById('free');
   const subscriptionStatus = session?.user?.subscriptionStatus;
   const isActiveSubscription = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
   
-  // Check if the Pro Monthly Price ID is a placeholder
   const isProPlanConfigured = STRIPE_PRICE_ID_PRO_MONTHLY && !STRIPE_PRICE_ID_PRO_MONTHLY.includes('_YOUR_');
 
 
@@ -36,24 +40,37 @@ export default function DashboardPage() {
     if (status === 'authenticated' && session?.user?.role === 'admin') {
       router.replace('/admin/dashboard');
     }
-    // Check for Stripe Checkout session success query parameter
+    if (status === 'authenticated') {
+        fetchWebsites();
+    }
     const queryParams = new URLSearchParams(window.location.search);
     if (queryParams.get('session_id')) {
         toast({
             title: "Subscription Updated!",
             description: "Your subscription details may take a moment to refresh.",
         });
-        // updateSession(); // Request session update after returning from Stripe
-        router.replace('/dashboard', undefined); // Remove query params
+        router.replace('/dashboard', undefined); 
     }
-  }, [session, status, router, toast, updateSession]);
+  }, [session, status, router, toast]);
+
+  const fetchWebsites = async () => {
+    setIsLoadingWebsites(true);
+    const result = await getUserWebsites();
+    if (result.error) {
+      toast({ title: "Error", description: `Failed to load your websites: ${result.error}`, variant: "destructive" });
+      setUserWebsites([]);
+    } else if (result.websites) {
+      setUserWebsites(result.websites);
+    }
+    setIsLoadingWebsites(false);
+  };
 
   const handleSubscribeToPro = async () => {
     setIsSubscribing(true);
     if (!isProPlanConfigured) {
         toast({
             title: "Configuration Needed",
-            description: `Please ensure NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY is set correctly in your .env file. The current value is a placeholder: ${STRIPE_PRICE_ID_PRO_MONTHLY}`,
+            description: `Please ensure NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY is set correctly in your .env file.`,
             variant: "destructive",
             duration: 10000,
         });
@@ -136,37 +153,103 @@ export default function DashboardPage() {
     );
   }
   
-  const userProjectsUsed = session?.user?.projectsUsed || 0;
+  const userProjectsUsed = userWebsites.length; // Get count from fetched websites
   const websiteLimit = currentPlan?.limits?.websites ?? 0;
   const canCreateWebsite = websiteLimit === Infinity || userProjectsUsed < websiteLimit;
+
+  const getStatusBadgeVariant = (status: IWebsite['status']) => {
+    switch (status) {
+      case 'published': return 'default'; // Greenish or primary
+      case 'draft': return 'outline';
+      case 'unpublished': return 'secondary';
+      case 'error_publishing': return 'destructive';
+      default: return 'secondary';
+    }
+  };
 
   return (
     <div className="flex-1 p-6 md:p-10">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-headline font-semibold">Dashboard</h1>
+        <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!canCreateWebsite}>
+          <Link href="/dashboard/websites/create">
+            <PlusSquare className="mr-2 h-4 w-4" /> Create New Website
+          </Link>
+        </Button>
       </div>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader>
-            <CardTitle className="font-headline flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary" />My Websites</CardTitle>
-            <CardDescription>View and manage your created websites.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">You have created {userProjectsUsed} out of {websiteLimit === Infinity ? 'unlimited' : websiteLimit} websites.</p>
-            {!canCreateWebsite && (
-                 <p className="text-sm text-destructive mt-1">You've reached your website limit for the {currentPlan?.name || 'current plan'}.</p>
-            )}
-            <Button asChild className="mt-4 w-full" disabled={!canCreateWebsite}>
-              <Link href="/dashboard/websites/create">
-                <PlusSquare className="mr-2 h-4 w-4" /> Create New Website
-              </Link>
-            </Button>
-             {!canCreateWebsite && currentPlan?.id !== 'enterprise' && (
-                <Button variant="outline" className="mt-2 w-full" onClick={handleSubscribeToPro}>Upgrade to Pro/Enterprise</Button>
-            )}
-          </CardContent>
-        </Card>
+      {!canCreateWebsite && (
+        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 text-yellow-700 rounded-md text-sm">
+          You've reached your website limit of {websiteLimit} for the {currentPlan?.name || 'current plan'}. Please upgrade to create more websites.
+        </div>
+      )}
 
+      {/* Websites List Section */}
+      <section className="mb-10">
+        <h2 className="text-2xl font-semibold font-headline mb-4 flex items-center"><ListChecks className="mr-3 h-6 w-6 text-primary" />My Websites</h2>
+        {isLoadingWebsites ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1,2,3].map(i => (
+              <Card key={i} className="shadow-sm animate-pulse">
+                <CardHeader><div className="h-6 bg-muted rounded w-3/4"></div></CardHeader>
+                <CardContent><div className="h-4 bg-muted rounded w-1/2 mb-2"></div><div className="h-4 bg-muted rounded w-full"></div></CardContent>
+                <CardFooter><div className="h-8 bg-muted rounded w-1/4"></div></CardFooter>
+              </Card>
+            ))}
+          </div>
+        ) : userWebsites.length === 0 ? (
+          <Card className="text-center py-10 bg-muted/30 border-dashed">
+            <CardContent>
+              <Globe className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <p className="text-lg font-medium text-muted-foreground">No websites yet!</p>
+              <p className="text-sm text-muted-foreground mb-6">Start building your online presence.</p>
+              <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!canCreateWebsite}>
+                <Link href="/dashboard/websites/create">
+                    <PlusSquare className="mr-2 h-4 w-4" /> Create Your First Website
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {userWebsites.map(site => (
+              <Card key={site._id as string} className="shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                <CardHeader>
+                  <CardTitle className="font-headline text-lg truncate">{site.name}</CardTitle>
+                  <CardDescription className="text-xs truncate">
+                    {site.subdomain}.{process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'notthedomain.com'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <Badge variant={getStatusBadgeVariant(site.status)} className="capitalize text-xs mb-2">{site.status.replace('_', ' ')}</Badge>
+                  <p className="text-xs text-muted-foreground">
+                    Created: {new Date(site.createdAt).toLocaleDateString()}
+                  </p>
+                  {site.lastPublishedAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Last Published: {new Date(site.lastPublishedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </CardContent>
+                <CardFooter className="gap-2">
+                  <Button asChild variant="outline" size="sm" className="flex-1">
+                    <Link href={`/editor?websiteId=${site._id}`}>
+                      <Edit3 className="mr-1.5 h-3.5 w-3.5" /> Edit
+                    </Link>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" disabled>
+                     <Trash2 className="h-4 w-4" />
+                     <span className="sr-only">Delete Website (Conceptual)</span>
+                  </Button>
+                  {/* Add Manage/Settings button later */}
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle className="font-headline flex items-center"><CreditCard className="mr-2 h-5 w-5 text-primary" />Subscription</CardTitle>
@@ -296,3 +379,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
