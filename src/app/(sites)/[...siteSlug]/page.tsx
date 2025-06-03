@@ -1,36 +1,36 @@
+
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getPublishedSiteDataByHost } from '@/actions/website';
 import type { IWebsiteVersionPage } from '@/models/WebsiteVersion';
 import ElementRenderer from '@/components/site-renderer/ElementRenderer';
 
-// This page handles the root slug "/" for sites identified by hostname.
+type SiteSlugPageProps = {
+  params: { siteSlug: string[] }; // siteSlug will always be present and have items
+};
 
-export default async function SiteRootPage() {
+export default async function SiteSlugPage({ params }: SiteSlugPageProps) {
   const host = headers().get('host') || '';
-  const slug = '/'; // This page specifically handles the root
+  // params.siteSlug is guaranteed to be an array of strings here, e.g., ['about'] or ['products', 'item']
+  const slug = `/${params.siteSlug.join('/')}`;
 
   const { website, publishedVersion, error } = await getPublishedSiteDataByHost(host);
 
   if (error || !website || !publishedVersion) {
-    console.warn(`[SiteRootPage] Site not found or error for host "${host}":`, error);
-    // This page is intended for user sites. If getPublishedSiteDataByHost fails,
-    // it means no published site is configured for this specific hostname.
-    // The main application's root (src/app/page.tsx) handles the app's own domain.
+    console.warn(`[SiteSlugPage] Site not found or error for host "${host}", slug "${slug}":`, error);
     notFound();
   }
 
   const currentPage: IWebsiteVersionPage | undefined = publishedVersion.pages.find(p => p.slug === slug);
 
   if (!currentPage) {
-    // This case means a site exists for the host, but it has no "homepage" (a page with slug "/")
-    console.warn(`[SiteRootPage] Homepage (slug "/") not found for host "${host}" in published version.`);
+    console.warn(`[SiteSlugPage] Page not found for slug "${slug}" on host "${host}"`);
     notFound();
   }
 
   // Apply global styles or settings here if needed, e.g., background color
   // const siteBackgroundColor = publishedVersion.globalSettings?.backgroundColor || '#FFFFFF';
-  
+
   return (
     <div className="mx-auto p-4" /* style={{ backgroundColor: siteBackgroundColor }} */ >
       {/* Basic structure, real styling would come from component configs & global CSS */}

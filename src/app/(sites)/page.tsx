@@ -1,3 +1,4 @@
+
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getPublishedSiteDataByHost } from '@/actions/website';
