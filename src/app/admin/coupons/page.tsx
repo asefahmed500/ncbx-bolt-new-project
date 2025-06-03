@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getCouponsForAdmin } from '@/actions/admin';
+import { getCouponsForAdmin, deleteCouponByAdmin } from '@/actions/admin';
 import type { ICoupon } from '@/models/Coupon';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,6 +19,17 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, PlusCircle, Tag, Edit, Trash2, Percent, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -33,6 +44,8 @@ export default function AdminCouponsPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
   const [totalPages, setTotalPages] = useState(0);
+  const [couponToDelete, setCouponToDelete] = useState<ICoupon | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -84,10 +97,26 @@ export default function AdminCouponsPage() {
       return `${coupon.discountValue}%`;
     }
     if (coupon.discountType === 'fixed_amount') {
-      return `$${(coupon.discountValue / 100).toFixed(2)}`;
+      // Assuming discountValue for fixed_amount is stored in cents
+      return `$${(coupon.discountValue / 100).toFixed(2)}`; 
     }
     return coupon.discountValue;
   };
+
+  const handleDeleteCoupon = async () => {
+    if (!couponToDelete || !couponToDelete._id) return;
+    setIsDeleting(true);
+    const result = await deleteCouponByAdmin(couponToDelete._id.toString());
+    if (result.error) {
+      toast({ title: "Error", description: result.error, variant: "destructive" });
+    } else if (result.success) {
+      toast({ title: "Success", description: result.success });
+      fetchCoupons(currentPage); // Refresh the list
+    }
+    setIsDeleting(false);
+    setCouponToDelete(null);
+  };
+
 
   if (status === 'loading' || (isLoading && coupons.length === 0)) {
     return (
@@ -163,15 +192,17 @@ export default function AdminCouponsPage() {
                   <TableCell>{new Date(coupon.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right space-x-1">
                     <Button asChild variant="outline" size="icon" className="h-8 w-8">
-                      <Link href={`/admin/coupons/edit/${coupon._id}`} title="Edit Coupon (Conceptual)">
+                      <Link href={`/admin/coupons/edit/${coupon._id}`} title="Edit Coupon">
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit Coupon</span>
                       </Link>
                     </Button>
-                     <Button variant="destructive" size="icon" className="h-8 w-8" disabled title="Delete Coupon (Conceptual)">
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => setCouponToDelete(coupon)} title="Delete Coupon">
                         <Trash2 className="h-4 w-4" />
                         <span className="sr-only">Delete Coupon</span>
-                    </Button>
+                      </Button>
+                    </AlertDialogTrigger>
                   </TableCell>
                 </TableRow>
               ))}
@@ -179,6 +210,24 @@ export default function AdminCouponsPage() {
           </Table>
         </div>
       )}
+      
+      <AlertDialog open={!!couponToDelete} onOpenChange={(isOpen) => !isOpen && setCouponToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this coupon?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. Coupon code: <strong>{couponToDelete?.code}</strong> will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCouponToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCoupon} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       {totalPages > 1 && (
         <div className="flex justify-center items-center space-x-2 mt-6">
@@ -206,3 +255,5 @@ export default function AdminCouponsPage() {
     </div>
   );
 }
+
+    

@@ -232,7 +232,7 @@ export default function AdminTemplatesPage() {
                         <Download className="mr-1 h-3.5 w-3.5" /> Export
                     </Button>
                     <Button asChild variant="ghost" size="sm">
-                      <Link href={`/admin/templates/edit/${template._id}`} title="Edit Template (Conceptual)">
+                      <Link href={`/admin/templates/edit/${template._id}`} title="Edit Template Metadata & Status">
                         <Edit className="mr-1 h-3.5 w-3.5" /> Edit
                       </Link>
                     </Button> 
@@ -270,4 +270,6 @@ export default function AdminTemplatesPage() {
     </div>
   );
 }
+    
+
     

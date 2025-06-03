@@ -5,11 +5,11 @@ import dbConnect from "@/lib/dbConnect";
 import User, { type IUser } from "@/models/User";
 import Coupon, { type ICoupon } from "@/models/Coupon";
 import ModerationQueueItem, { type IModerationQueueItem } from "@/models/ModerationQueueItem";
-import Template, { type ITemplate, type TemplateStatus } from "@/models/Template"; // Import Template model
-import TemplateReview from "@/models/TemplateReview"; // Needed for moderation actions
-import Website from "@/models/Website"; // Import Website model
-import Subscription from "@/models/Subscription"; // Import Subscription model
-import { getPlanByStripePriceId } from "@/config/plans"; // Import plan helper
+import Template, { type ITemplate, type TemplateStatus } from "@/models/Template";
+import TemplateReview from "@/models/TemplateReview";
+import Website from "@/models/Website";
+import Subscription from "@/models/Subscription";
+import { getPlanByStripePriceId } from "@/config/plans";
 import { z } from "zod";
 import { auth } from "@/auth";
 import mongoose from "mongoose";
@@ -19,7 +19,6 @@ export interface IUserForAdmin extends IUser {
   websiteCount: number;
   subscriptionPlanName?: string;
   subscriptionStatus?: string;
-  // stripeCustomerId is already part of IUser
 }
 
 // --- User Management ---
@@ -63,10 +62,10 @@ export async function getUsersForAdmin(
       usersFromDB.map(async (user) => {
         const websiteCount = await Website.countDocuments({ userId: user._id });
         const latestSubscription = await Subscription.findOne({ userId: user._id })
-          .sort({ createdAt: -1 }) // Get the most recent subscription record
+          .sort({ createdAt: -1 })
           .lean();
 
-        let subscriptionPlanName: string | undefined = 'Free'; // Default to Free
+        let subscriptionPlanName: string | undefined = 'Free';
         let subscriptionStatus: string | undefined = 'N/A';
 
         if (latestSubscription) {
@@ -74,21 +73,19 @@ export async function getUsersForAdmin(
           subscriptionPlanName = plan?.name || 'Unknown Plan';
           subscriptionStatus = latestSubscription.stripeSubscriptionStatus as string;
         } else {
-          // If no subscription record, infer as Free and perhaps 'inactive' or 'N/A'
            const userHasStripeId = !!user.stripeCustomerId;
-           if (!userHasStripeId) { // if they never even went to stripe, they are free
+           if (!userHasStripeId) {
              subscriptionPlanName = 'Free';
-             subscriptionStatus = 'Active'; // Free plan is implicitly active
-           } else { // has stripe ID but no sub, might be cancelled old sub
-             subscriptionPlanName = 'Free'; // Or 'Cancelled' if you want to reflect that
-             subscriptionStatus = 'Cancelled'; // Or 'N/A'
+             subscriptionStatus = 'Active';
+           } else {
+             subscriptionPlanName = 'Free';
+             subscriptionStatus = 'Cancelled';
            }
         }
 
-
         return {
-          ...(user as IUser), // Cast because lean() returns plain objects
-          _id: user._id, // Ensure _id is present and correct type
+          ...(user as IUser),
+          _id: user._id,
           websiteCount,
           subscriptionPlanName,
           subscriptionStatus,
@@ -189,21 +186,20 @@ export async function createCoupon(input: CreateCouponInput): Promise<CreateCoup
     if (discountType === 'percentage' && (discountValue < 0 || discountValue > 100)) {
         return { error: "Percentage discount value must be between 0 and 100." };
     }
-    if (discountType === 'fixed_amount' && discountValue < 0) { // Fixed amount already min(0) by Zod
+    if (discountType === 'fixed_amount' && discountValue < 0) {
         return { error: "Fixed amount discount value must be non-negative."};
     }
-
 
     const newCouponData: Partial<ICoupon> = {
       code,
       description,
       discountType,
-      discountValue, // Assuming discountValue is already in cents for fixed_amount
+      discountValue,
       isActive,
       usageLimit,
       timesUsed: 0,
       userUsageLimit,
-      minPurchaseAmount, // Assuming minPurchaseAmount is in cents
+      minPurchaseAmount,
     };
 
     if (expiresAt) {
@@ -259,6 +255,27 @@ export async function getCouponsForAdmin(
   }
 }
 
+export async function getCouponByIdForAdmin(couponId: string): Promise<{ coupon?: ICoupon; error?: string }> {
+  const session = await auth();
+  if (session?.user?.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+  if (!mongoose.Types.ObjectId.isValid(couponId)) {
+    return { error: "Invalid Coupon ID format." };
+  }
+  try {
+    await dbConnect();
+    const coupon = await Coupon.findById(couponId).lean();
+    if (!coupon) {
+      return { error: "Coupon not found." };
+    }
+    return { coupon: coupon as ICoupon };
+  } catch (error: any) {
+    console.error(`[AdminAction_GetCouponById] Error fetching coupon ${couponId}:`, error);
+    return { error: "Failed to fetch coupon: " + error.message };
+  }
+}
+
 const UpdateCouponInputSchema = z.object({
   couponId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
     message: "Invalid Coupon ID",
@@ -302,7 +319,6 @@ export async function updateCouponByAdmin(input: UpdateCouponInput): Promise<Upd
       return { error: "Coupon not found." };
     }
 
-    // Validate discountValue based on discountType if both are present
     const finalDiscountType = updateData.discountType || coupon.discountType;
     const finalDiscountValue = updateData.discountValue !== undefined ? updateData.discountValue : coupon.discountValue;
 
@@ -313,14 +329,12 @@ export async function updateCouponByAdmin(input: UpdateCouponInput): Promise<Upd
       return { error: "Fixed amount discount value must be non-negative." };
     }
 
-    // Apply updates
     Object.assign(coupon, updateData);
-    if (updateData.expiresAt === null) { // Explicitly set to null to remove expiration
+    if (updateData.expiresAt === null) {
         coupon.expiresAt = undefined;
     } else if (updateData.expiresAt) {
         coupon.expiresAt = new Date(updateData.expiresAt);
     }
-
 
     const updatedCoupon = await coupon.save();
 
@@ -333,6 +347,29 @@ export async function updateCouponByAdmin(input: UpdateCouponInput): Promise<Upd
         return { error: `Validation error: ${error.errors.map(e => e.message).join(', ')}` };
     }
     return { error: `An unexpected error occurred: ${error.message || "Could not update coupon."}` };
+  }
+}
+
+export async function deleteCouponByAdmin(couponId: string): Promise<{ success?: string; error?: string }> {
+  const session = await auth();
+  if (session?.user?.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+  if (!mongoose.Types.ObjectId.isValid(couponId)) {
+    return { error: "Invalid Coupon ID format." };
+  }
+
+  try {
+    await dbConnect();
+    const result = await Coupon.deleteOne({ _id: couponId });
+    if (result.deletedCount === 0) {
+      return { error: "Coupon not found or already deleted." };
+    }
+    console.log(`[AdminAction_DeleteCoupon] Coupon ${couponId} deleted by admin ${session.user.id}.`);
+    return { success: "Coupon deleted successfully." };
+  } catch (error: any) {
+    console.error(`[AdminAction_DeleteCoupon] Error deleting coupon ${couponId}:`, error);
+    return { error: `Failed to delete coupon: ${error.message}` };
   }
 }
 
@@ -362,15 +399,13 @@ export async function getModerationQueueItems(
     } else if (statusFilter && statusFilter.toLowerCase() === 'all') {
       // No status filter needed
     } else if (statusFilter) {
-      // Default to pending if an invalid filter is passed but a filter is intended
       query.status = 'pending';
     }
 
-
     const skip = (page - 1) * limit;
     const items = await ModerationQueueItem.find(query)
-      .populate('userId', 'name email') // Populate user who created content
-      .populate('reporterId', 'name email') // Populate user who reported
+      .populate('userId', 'name email')
+      .populate('reporterId', 'name email')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -422,36 +457,42 @@ export async function processModerationItemByAdmin(input: ProcessModerationItemI
       return { error: "Moderation item not found." };
     }
 
-    item.status = action; // 'approve' -> 'approved', 'reject' -> 'rejected', 'escalate' -> 'escalated'
+    // Determine the new status based on the action
+    let newStatus: IModerationQueueItem['status'];
+    switch (action) {
+      case 'approve': newStatus = 'approved'; break;
+      case 'reject': newStatus = 'rejected'; break;
+      case 'escalate': newStatus = 'escalated'; break;
+      default: return { error: "Invalid action." }; // Should be caught by Zod anyway
+    }
+    item.status = newStatus;
     item.moderatedBy = new mongoose.Types.ObjectId(adminUserId);
     item.moderatedAt = new Date();
     if (moderatorNotes) {
       item.moderatorNotes = moderatorNotes;
     }
 
-    // Conceptual: Update related content based on item.contentType and item.contentId
     if (item.contentType === 'template_review' && item.contentRefModel === 'TemplateReview') {
       const review = await TemplateReview.findById(item.contentId);
       if (review) {
-        review.isApproved = action === 'approve'; // Set approval status on the review itself
+        review.isApproved = action === 'approve';
         await review.save();
-        console.log(`[AdminAction_ProcessModeration] TemplateReview ${review._id} status updated to isApproved: ${review.isApproved}.`);
+        console.log(`[AdminAction_ProcessModeration] TemplateReview ${review._id} isApproved updated to: ${review.isApproved}.`);
       }
     } else if (item.contentType === 'template_submission' && item.contentRefModel === 'Template') {
        const template = await Template.findById(item.contentId);
        if(template) {
            if(action === 'approve') template.status = 'approved' as TemplateStatus;
            else if (action === 'reject') template.status = 'rejected' as TemplateStatus;
-           // 'escalated' doesn't change template status directly, it remains in moderation.
+           // 'escalated' action on item does not change template status from pending_approval here
            await template.save();
            console.log(`[AdminAction_ProcessModeration] Template ${template._id} status updated to: ${template.status}.`);
        }
     }
-    // Add more else if blocks for other content types (e.g., website_content, user_report)
 
     const updatedItem = await item.save();
-    console.log(`[AdminAction_ProcessModeration] Item ${itemId} processed by admin ${adminUserId}. Action: ${action}.`);
-    return { success: `Moderation item ${action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'escalated'}.`, item: updatedItem.toObject() };
+    console.log(`[AdminAction_ProcessModeration] Item ${itemId} processed by admin ${adminUserId}. Action: ${action}, New Status: ${newStatus}.`);
+    return { success: `Moderation item status set to ${newStatus}.`, item: updatedItem.toObject() };
 
   } catch (error: any) {
     console.error("[AdminAction_ProcessModeration] Error processing item:", error);
@@ -489,11 +530,9 @@ export async function getTemplatesForAdmin(
         // Default to all if invalid status filter is passed but filter is intended.
     }
 
-
     if (categoryFilter && categoryFilter.toLowerCase() !== 'all') {
       query.category = categoryFilter;
     }
-
 
     const skip = (page - 1) * limit;
     const templates = await Template.find(query)
@@ -511,13 +550,11 @@ export async function getTemplatesForAdmin(
   }
 }
 
-
 const UpdateTemplateStatusInputSchema = z.object({
   templateId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
     message: "Invalid Template ID",
   }),
   status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']),
-  // adminNotes can be added later if needed for rejection reasons etc.
 });
 export type UpdateTemplateStatusInput = z.infer<typeof UpdateTemplateStatusInputSchema>;
 
@@ -560,6 +597,86 @@ export async function updateTemplateStatusByAdmin(input: UpdateTemplateStatusInp
   }
 }
 
+const UpdateTemplateMetadataInputSchema = z.object({
+  name: z.string().min(1, "Name cannot be empty.").max(100).optional(),
+  description: z.string().max(500).optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  isPremium: z.boolean().optional(),
+  price: z.number().min(0).optional(),
+  previewImageUrl: z.string().url("Invalid URL for preview image.").optional().or(z.literal('')),
+  liveDemoUrl: z.string().url("Invalid URL for live demo.").optional().or(z.literal('')),
+  // status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']).optional(), // Status handled by separate action
+});
+export type UpdateTemplateMetadataInput = z.infer<typeof UpdateTemplateMetadataInputSchema>;
+
+interface UpdateTemplateMetadataResult {
+  success?: string;
+  error?: string;
+  template?: ITemplate;
+}
+
+export async function updateTemplateMetadataByAdmin(
+  templateId: string,
+  data: UpdateTemplateMetadataInput
+): Promise<UpdateTemplateMetadataResult> {
+  const session = await auth();
+  if (session?.user?.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+  if (!mongoose.Types.ObjectId.isValid(templateId)) {
+    return { error: "Invalid Template ID." };
+  }
+
+  const parsedData = UpdateTemplateMetadataInputSchema.safeParse(data);
+  if (!parsedData.success) {
+    const errorMessages = parsedData.error.flatten().fieldErrors;
+    return { error: `Invalid input: ${JSON.stringify(errorMessages)}` };
+  }
+
+  try {
+    await dbConnect();
+    const template = await Template.findById(templateId);
+    if (!template) {
+      return { error: "Template not found." };
+    }
+
+    const updateFields = parsedData.data;
+
+    // Handle specific logic for price and isPremium
+    if (updateFields.isPremium !== undefined) {
+      template.isPremium = updateFields.isPremium;
+      if (!template.isPremium) {
+        template.price = undefined; // Remove price if not premium
+      } else if (updateFields.price !== undefined) {
+        template.price = updateFields.price;
+      } else if (template.isPremium && template.price === undefined) {
+        template.price = 0; // Default price to 0 if marked premium and no price given
+      }
+    } else if (updateFields.price !== undefined && template.isPremium) {
+      template.price = updateFields.price;
+    }
+
+
+    // Apply other updates
+    if (updateFields.name) template.name = updateFields.name;
+    if (updateFields.description) template.description = updateFields.description;
+    if (updateFields.category) template.category = updateFields.category;
+    if (updateFields.tags) template.tags = updateFields.tags;
+    if (updateFields.previewImageUrl !== undefined) template.previewImageUrl = updateFields.previewImageUrl || undefined;
+    if (updateFields.liveDemoUrl !== undefined) template.liveDemoUrl = updateFields.liveDemoUrl || undefined;
+    // Note: 'status' is handled by updateTemplateStatusByAdmin
+
+    const updatedTemplate = await template.save();
+    console.log(`[AdminAction_UpdateTemplateMeta] Template ${templateId} metadata updated by admin ${session.user.id}.`);
+    return { success: "Template metadata updated successfully.", template: updatedTemplate.toObject() };
+
+  } catch (error: any) {
+    console.error(`[AdminAction_UpdateTemplateMeta] Error updating template ${templateId}:`, error);
+    return { error: `Failed to update template metadata: ${error.message}` };
+  }
+}
+
 
 interface GetTemplateDataResult {
   template?: ITemplate;
@@ -568,7 +685,7 @@ interface GetTemplateDataResult {
 
 export async function getTemplateDataForExport(templateId: string): Promise<GetTemplateDataResult> {
   const session = await auth();
-  if (session?.user?.role !== "admin") { // Or consider allowing creator to export their own?
+  if (session?.user?.role !== "admin") {
     return { error: "Unauthorized" };
   }
 
@@ -583,8 +700,6 @@ export async function getTemplateDataForExport(templateId: string): Promise<GetT
     if (!template) {
       return { error: "Template not found." };
     }
-    // For admin export, we might want to include more data, or filter certain fields.
-    // For now, returning the full template object.
     return { template: template as ITemplate };
   } catch (error: any) {
     console.error(`[AdminAction_GetTemplateDataForExport] Error fetching template ${templateId}:`, error);
@@ -600,11 +715,11 @@ interface DistinctCategoriesResult {
 export async function getDistinctTemplateCategories(): Promise<DistinctCategoriesResult> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
-    return { error: "Unauthorized" }; // Or allow any authenticated user to see categories
+    return { error: "Unauthorized" };
   }
   try {
     await dbConnect();
-    const categories = await Template.distinct('category').where({ status: 'approved' }).exec(); // Only show categories of approved templates
+    const categories = await Template.distinct('category').where({ status: 'approved' }).exec();
     return { categories: categories.filter(cat => cat && typeof cat === 'string' && cat.trim() !== '') as string[] };
   } catch (error: any) {
     console.error("[AdminAction_GetDistinctCategories] Error fetching categories:", error);
