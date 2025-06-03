@@ -18,9 +18,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AppLogo } from "@/components/icons/app-logo";
 import { AiCopyModal } from "./ai-copy-modal";
-// TemplateGalleryModal and SaveTemplateModal will be opened by EditorPage now
-// import { TemplateGalleryModal } from "./template-gallery-modal";
-// import { SaveTemplateModal } from "./save-template-modal";
 import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download, ZoomIn, ZoomOut, Loader2, CheckCircle, AlertCircle, Menu, CloudOff, PackagePlus } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
@@ -33,11 +30,11 @@ export type EditorSaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unsaved_
 
 
 interface AppHeaderProps {
-  currentDevice?: DeviceType; // Optional for non-editor pages
-  onDeviceChange?: (device: DeviceType) => void; // Optional
-  websiteId?: string | null; // Optional
-  getEditorContentForSave?: () => SaveWebsiteContentInput['pages']; // Callback to get content from editor
-  editorSaveStatus?: EditorSaveStatus; // To reflect editor's internal save state
+  currentDevice?: DeviceType; 
+  onDeviceChange?: (device: DeviceType) => void; 
+  websiteId?: string | null; 
+  getEditorContentForSave?: () => SaveWebsiteContentInput['pages']; 
+  editorSaveStatus?: EditorSaveStatus; 
   onOpenSaveTemplateModal?: () => void;
   onOpenTemplateGalleryModal?: () => void;
 }
@@ -47,16 +44,13 @@ export function AppHeader({
   currentDevice, 
   onDeviceChange, 
   websiteId,
-  getEditorContentForSave, // Not used directly for save here anymore, but kept for potential future use. EditorPage handles its own save.
-  editorSaveStatus, // Used to enable/disable publish based on editor's save state
+  getEditorContentForSave,
+  editorSaveStatus, 
   onOpenSaveTemplateModal,
   onOpenTemplateGalleryModal 
 }: AppHeaderProps) {
   const { data: session, status: sessionStatus } = useSession();
   const [isAiCopyModalOpen, setIsAiCopyModalOpen] = useState(false);
-  // Modals are now controlled by EditorPage
-  // const [isTemplateGalleryModalOpen, setIsTemplateGalleryModalOpen] = useState(false);
-  // const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState('light');
   const { toast } = useToast();
   const pathname = usePathname();
@@ -67,6 +61,8 @@ export function AppHeader({
   const [isLoadingWebsiteData, setIsLoadingWebsiteData] = useState(false);
 
   const isEditorPage = pathname === '/editor' && !!websiteId;
+  const isStripeProPriceIdMissing = !STRIPE_PRICE_ID_PRO_MONTHLY || STRIPE_PRICE_ID_PRO_MONTHLY.includes('YOUR_PRO_MONTHLY_PRICE_ID');
+
 
   const fetchWebsiteData = useCallback(async () => {
     if (isEditorPage && websiteId) {
@@ -94,7 +90,6 @@ export function AppHeader({
     fetchWebsiteData();
   }, [fetchWebsiteData]);
   
-  // Re-fetch website data when websiteId changes, if on editor page
   useEffect(() => {
     if (isEditorPage && websiteId) {
       fetchWebsiteData();
@@ -116,21 +111,13 @@ export function AppHeader({
 
 
   const handlePublish = async () => {
-    if (!websiteId || !websiteData) { // Check websiteData as well
+    if (!websiteId || !websiteData) { 
       toast({ title: "Error", description: "No website selected or data loaded.", variant: "destructive" });
       return;
     }
-    // Rely on editorSaveStatus passed from EditorPage
-    if (editorSaveStatus !== 'saved' && editorSaveStatus !== 'idle' && editorSaveStatus !== 'unsaved_changes') { // Allow publish if idle (just loaded) or unsaved (but user wants to publish latest *DB* version)
-       // If there are unsaved changes, it's better to prompt user to save first, or publish latest saved.
-       // For now, we allow publishing if there are unsaved_changes, implying they want to publish the version currently in DB.
-       // A better UX would be to force save or clarify.
-       if (editorSaveStatus === 'unsaved_changes'){
-         toast({ title: "Unsaved Changes", description: "Publishing the last saved version. Save current changes to include them.", variant: "default", duration: 5000 });
-       } else if (editorSaveStatus !== 'idle' && editorSaveStatus !== 'saved') {
-         toast({ title: "Save Required", description: "Please ensure your latest changes are saved before publishing.", variant: "destructive" });
-         return;
-       }
+    if (editorSaveStatus === 'unsaved_changes' || editorSaveStatus === 'error') {
+       toast({ title: "Save Required", description: "Please save your changes before publishing.", variant: "destructive" });
+       return;
     }
 
     setIsPublishing(true);
@@ -139,7 +126,7 @@ export function AppHeader({
       const result = await publishWebsite({ websiteId });
       if (result.success && result.website) {
         toast({ title: "Website Published!", description: `"${result.website.name}" is now live.` });
-        setWebsiteData(result.website); // Update local state with new status
+        setWebsiteData(result.website); 
       } else {
         toast({ title: "Publish Failed", description: result.error || "Unknown error.", variant: "destructive" });
       }
@@ -195,9 +182,7 @@ export function AppHeader({
        if (websiteData.status === 'published') {
         window.open(siteUrl, '_blank');
       } else {
-        toast({ title: "Site Not Published", description: "Publish your site to view it live.", variant: "default" });
-        // Conceptual: A specific preview URL for drafts might be different
-        // window.open(`${siteUrl}?preview=true`, '_blank'); 
+        toast({ title: "Site Not Published", description: "Publish your site to view it live. You can preview unsaved changes in the editor.", variant: "default" });
       }
     } else {
       toast({ title: "Cannot Preview", description: "Website needs to be published with a subdomain or verified custom domain.", variant: "destructive" });
@@ -277,7 +262,12 @@ export function AppHeader({
     );
   };
   
-  const isProPlanConfigured = STRIPE_PRICE_ID_PRO_MONTHLY && !STRIPE_PRICE_ID_PRO_MONTHLY.includes('_YOUR_');
+  const canPublish = editorSaveStatus === 'saved' || editorSaveStatus === 'idle';
+  let publishTooltipContent = "Publish your website to make it live.";
+  if (editorSaveStatus === 'unsaved_changes' || editorSaveStatus === 'error') {
+    publishTooltipContent = "Please save your changes before publishing.";
+  }
+
 
   return (
     <>
@@ -327,7 +317,6 @@ export function AppHeader({
             <>
               {isEditorPage && (
                 <>
-                 {/* Save button is now primarily in EditorPage itself */}
                   {websiteData?.status === 'published' ? (
                      <Button 
                         variant="outline" 
@@ -340,18 +329,26 @@ export function AppHeader({
                       <span className="hidden md:inline">Unpublish</span>
                     </Button>
                   ) : (
-                    <Button 
-                      variant="default" 
-                      size="sm" 
-                      onClick={handlePublish} 
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground hidden xs:flex"
-                      disabled={isPublishing || isLoadingWebsiteData || (editorSaveStatus !== 'saved' && editorSaveStatus !== 'idle' && editorSaveStatus !== 'unsaved_changes')}
-                    >
-                      {isPublishing ? <Loader2 className="mr-1 md:mr-2 h-4 w-4 animate-spin" /> : <ArrowUpCircle className="mr-1 md:mr-2 h-4 w-4" />}
-                      <span className="hidden md:inline">Publish</span>
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                           <div className="hidden xs:flex"> {/* Wrapper div for TooltipTrigger when button is disabled */}
+                            <Button 
+                              variant="default" 
+                              size="sm" 
+                              onClick={handlePublish} 
+                              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                              disabled={isPublishing || isLoadingWebsiteData || !canPublish}
+                            >
+                              {isPublishing ? <Loader2 className="mr-1 md:mr-2 h-4 w-4 animate-spin" /> : <ArrowUpCircle className="mr-1 md:mr-2 h-4 w-4" />}
+                              <span className="hidden md:inline">Publish</span>
+                            </Button>
+                           </div>
+                        </TooltipTrigger>
+                        <TooltipContent><p>{publishTooltipContent}</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
-                  {/* View Live/Preview Button */}
                   <Button variant="secondary" size="sm" className="hidden sm:flex items-center" onClick={handlePreview} disabled={isLoadingWebsiteData || !websiteData || (!websiteData?.subdomain && !websiteData?.customDomain)}>
                       <Eye className="mr-1 h-4 w-4 md:mr-2" />
                       <span className="hidden md:inline">{websiteData?.status === 'published' ? 'View Live' : 'Preview'}</span>
@@ -365,7 +362,6 @@ export function AppHeader({
                     <Link href="/dashboard"><LayoutDashboard className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Dashboard</span></Link>
                   </Button>
                   <Button variant="ghost" size="sm" asChild className="hidden sm:flex items-center">
-                     {/* This link might need to be dynamic if user has a last edited site */}
                     <Link href="/dashboard"><PencilRuler className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Go to Editor</span></Link>
                   </Button>
                   {onOpenTemplateGalleryModal && <Button variant="outline" size="sm" onClick={onOpenTemplateGalleryModal} className="hidden sm:flex items-center">
@@ -399,7 +395,6 @@ export function AppHeader({
                   
                   {isEditorPage ? (
                     <>
-                      {/* Save button is now primarily in EditorPage */}
                       {onOpenTemplateGalleryModal && <DropdownMenuItem onClick={onOpenTemplateGalleryModal}><LayoutGrid className="mr-2 h-4 w-4" />Load Template</DropdownMenuItem>}
                       <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)}><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
                       <DropdownMenuSeparator />
@@ -412,7 +407,7 @@ export function AppHeader({
                           Unpublish Site
                         </DropdownMenuItem>
                       ) : (
-                        <DropdownMenuItem onClick={handlePublish} className="xs:hidden" disabled={isPublishing || isLoadingWebsiteData || (editorSaveStatus !== 'saved' && editorSaveStatus !== 'idle' && editorSaveStatus !== 'unsaved_changes')}>
+                        <DropdownMenuItem onClick={handlePublish} className="xs:hidden" disabled={isPublishing || isLoadingWebsiteData || !canPublish}>
                           {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowUpCircle className="mr-2 h-4 w-4" />}
                            Publish Site
                         </DropdownMenuItem>
@@ -472,24 +467,20 @@ export function AppHeader({
       {sessionStatus === "authenticated" && (
         <>
           <AiCopyModal isOpen={isAiCopyModalOpen} onOpenChange={setIsAiCopyModalOpen} />
-          {/* TemplateGalleryModal and SaveTemplateModal are now controlled and rendered by EditorPage to pass props */}
         </>
       )}
     </>
   );
 }
 
-// Ensure IPageComponent, IWebsiteVersionPage from models are compatible
 declare module '@/models/Website' {
     interface IPageComponent {
       _id?: string | import('mongoose').Types.ObjectId;
-      // ... other properties if needed for client-side state
     }
     interface IWebsiteVersionPage {
       _id?: string | import('mongoose').Types.ObjectId;
     }
   }
   
-  // Import mongoose for ObjectId generation if not already available
-  import mongoose from 'mongoose';
+import mongoose from 'mongoose';
   

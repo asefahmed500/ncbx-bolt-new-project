@@ -19,6 +19,8 @@ import Link from 'next/link';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { loadStripe, type Stripe as StripeType } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY && !process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.includes("YOUR_STRIPE_PUBLISHABLE_KEY")
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -29,9 +31,10 @@ interface OneTimePaymentFormProps {
   setCouponCode: (code: string) => void;
   paymentAmount: string;
   setPaymentAmount: (amount: string) => void;
+  isStripeReady: boolean;
 }
 
-function OneTimePaymentForm({ couponCode, setCouponCode, paymentAmount, setPaymentAmount }: OneTimePaymentFormProps) {
+function OneTimePaymentForm({ couponCode, setCouponCode, paymentAmount, setPaymentAmount, isStripeReady }: OneTimePaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const { toast } = useToast();
@@ -39,8 +42,8 @@ function OneTimePaymentForm({ couponCode, setCouponCode, paymentAmount, setPayme
 
   const handleOneTimePaymentSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!stripe || !elements) {
-      toast({ title: "Stripe Not Loaded", description: "Stripe.js has not loaded yet. Please try again in a moment.", variant: "destructive" });
+    if (!stripe || !elements || !isStripeReady) {
+      toast({ title: "Stripe Not Loaded", description: "Stripe.js has not loaded yet or is not configured. Please try again in a moment or contact support.", variant: "destructive" });
       return;
     }
 
@@ -148,7 +151,7 @@ function OneTimePaymentForm({ couponCode, setCouponCode, paymentAmount, setPayme
       </div>
       <Button
         type="submit"
-        disabled={isProcessingPayment || !stripe || !elements}
+        disabled={isProcessingPayment || !isStripeReady || !stripe || !elements}
         className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
       >
         {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
@@ -171,28 +174,26 @@ export default function DashboardPage() {
   const [isLoadingWebsites, setIsLoadingWebsites] = useState(true);
   const [deletingWebsiteId, setDeletingWebsiteId] = useState<string | null>(null);
   const [isStripePublishableKeyMissing, setIsStripePublishableKeyMissing] = useState(false);
+  const [isStripeProPriceIdMissing, setIsStripeProPriceIdMissing] = useState(false);
 
 
   const currentPlan = session?.user?.subscriptionPlanId ? getPlanById(session.user.subscriptionPlanId) : getPlanById('free');
   const subscriptionStatus = session?.user?.subscriptionStatus;
   const isActiveSubscription = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
   
-  const isProPlanConfigured = STRIPE_PRICE_ID_PRO_MONTHLY && !STRIPE_PRICE_ID_PRO_MONTHLY.includes('_YOUR_');
-
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.includes('YOUR_STRIPE_PUBLISHABLE_KEY')) {
       setIsStripePublishableKeyMissing(true);
       console.warn("Stripe Publishable Key is missing or is a placeholder. Payment form will not work.");
-      if (stripePromise === null) { // Explicitly check if stripePromise remained null
-        toast({
-            title: "Stripe Configuration Incomplete",
-            description: "The Stripe Publishable Key is missing or invalid. Payment features will be disabled. Admin: please check your .env file.",
-            variant: "destructive",
-            duration: 10000,
-        });
-      }
     } else {
       setIsStripePublishableKeyMissing(false);
+    }
+
+    if (!STRIPE_PRICE_ID_PRO_MONTHLY || STRIPE_PRICE_ID_PRO_MONTHLY.includes('YOUR_PRO_MONTHLY_PRICE_ID')) {
+      setIsStripeProPriceIdMissing(true);
+      console.warn("Stripe Pro Monthly Price ID is missing or is a placeholder. Upgrade to Pro button will be disabled or show warning.");
+    } else {
+      setIsStripeProPriceIdMissing(false);
     }
   }, []);
 
@@ -210,7 +211,6 @@ export default function DashboardPage() {
             title: "Subscription Updated!",
             description: "Your subscription details may take a moment to refresh.",
         });
-        // Update session or re-fetch user data here if needed to reflect new subscription immediately
         updateSession();
         router.replace('/dashboard', undefined); 
     }
@@ -230,10 +230,10 @@ export default function DashboardPage() {
 
   const handleSubscribeToPro = async () => {
     setIsSubscribing(true);
-    if (!isProPlanConfigured) {
+    if (isStripeProPriceIdMissing) {
         toast({
-            title: "Configuration Needed",
-            description: `Please ensure NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY is set correctly in your .env file.`,
+            title: "Configuration Error",
+            description: `The Pro Plan is not configured correctly. Admin: please check NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY in your .env file.`,
             variant: "destructive",
             duration: 10000,
         });
@@ -467,15 +467,25 @@ export default function DashboardPage() {
             ) : (
               <>
                 <p className="text-muted-foreground">You are currently on the {currentPlan?.name || 'Free plan'}.</p>
-                <Button
-                  onClick={handleSubscribeToPro}
-                  disabled={isSubscribing || !isProPlanConfigured}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                >
-                  {isSubscribing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" /> }
-                  {isSubscribing ? "Processing..." : (!isProPlanConfigured ? "Setup Pro Plan ID in .env" : "Upgrade to Pro")}
-                </Button>
-                {!isProPlanConfigured && <p className="text-xs text-destructive text-center mt-1">Admin: Configure Pro Plan Price ID in .env file.</p>}
+                <TooltipProvider>
+                  <Tooltip open={isStripeProPriceIdMissing ? undefined : false}>
+                     <TooltipTrigger asChild>
+                        <Button
+                          onClick={handleSubscribeToPro}
+                          disabled={isSubscribing || isStripeProPriceIdMissing}
+                          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                        >
+                          {isSubscribing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" /> }
+                          {isSubscribing ? "Processing..." : "Upgrade to Pro"}
+                        </Button>
+                      </TooltipTrigger>
+                      {isStripeProPriceIdMissing && (
+                        <TooltipContent side="bottom">
+                          <p className="text-xs text-destructive">Pro Plan not configured. Admin: Set Price ID in .env.</p>
+                        </TooltipContent>
+                      )}
+                  </Tooltip>
+                </TooltipProvider>
               </>
             )}
           </CardContent>
@@ -493,10 +503,25 @@ export default function DashboardPage() {
               <p>Storage: 100MB / {currentPlan?.id === 'pro' ? '5GB' : currentPlan?.id === 'enterprise' ? '20GB' : '1GB'} (Placeholder)</p>
             </div>
             {!isActiveSubscription && currentPlan?.id !== 'enterprise' && (
-              <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleSubscribeToPro} disabled={!isProPlanConfigured || isStripePublishableKeyMissing}>
-                <ArrowUpCircle className="mr-2 h-4 w-4" />
-                Upgrade Plan to Increase Limits
-              </Button>
+                <TooltipProvider>
+                  <Tooltip open={isStripeProPriceIdMissing ? undefined : false}>
+                    <TooltipTrigger asChild>
+                        <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleSubscribeToPro} disabled={isStripeProPriceIdMissing || isStripePublishableKeyMissing}>
+                            <ArrowUpCircle className="mr-2 h-4 w-4" />
+                            Upgrade Plan to Increase Limits
+                        </Button>
+                    </TooltipTrigger>
+                     {(isStripeProPriceIdMissing || isStripePublishableKeyMissing) && (
+                        <TooltipContent side="bottom">
+                          <p className="text-xs text-destructive">
+                            {isStripePublishableKeyMissing && "Stripe payments not configured. "}
+                            {isStripeProPriceIdMissing && "Pro Plan not configured. "}
+                            Admin: Check .env file.
+                          </p>
+                        </TooltipContent>
+                      )}
+                  </Tooltip>
+                </TooltipProvider>
             )}
           </CardContent>
         </Card>
@@ -519,6 +544,7 @@ export default function DashboardPage() {
                   setCouponCode={setCouponCode}
                   paymentAmount={paymentAmount}
                   setPaymentAmount={setPaymentAmount}
+                  isStripeReady={!isStripePublishableKeyMissing}
                 />
               </Elements>
             ) : (

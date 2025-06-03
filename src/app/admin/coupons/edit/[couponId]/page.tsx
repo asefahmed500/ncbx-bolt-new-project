@@ -28,12 +28,12 @@ import { cn } from "@/lib/utils";
 const editCouponFormSchema = z.object({
   description: z.string().max(255, "Description max 255 chars").optional(),
   discountType: z.enum(["percentage", "fixed_amount"]),
-  discountValue: z.number().min(0, "Discount value must be non-negative."),
+  discountValue: z.number().min(0, "Discount value must be non-negative."), // This will be in dollars for fixed_amount in UI
   isActive: z.boolean(),
-  usageLimit: z.number().min(0, "Usage limit must be non-negative."),
-  userUsageLimit: z.number().min(0, "User usage limit must be non-negative."),
+  usageLimit: z.number().min(0, "Usage limit must be non-negative.").int(),
+  userUsageLimit: z.number().min(0, "User usage limit must be non-negative.").int(),
   expiresAt: z.date().nullable().optional(),
-  minPurchaseAmount: z.number().min(0, "Min purchase amount must be non-negative.").optional(),
+  minPurchaseAmount: z.number().min(0, "Min purchase amount must be non-negative.").optional(), // This will be in dollars for UI
 }).refine(data => {
     if (data.discountType === "percentage" && (data.discountValue < 0 || data.discountValue > 100)) {
         return false;
@@ -82,12 +82,12 @@ export default function EditCouponPage() {
           form.reset({
             description: result.coupon.description || '',
             discountType: result.coupon.discountType,
-            discountValue: result.coupon.discountValue,
+            discountValue: result.coupon.discountType === 'fixed_amount' ? result.coupon.discountValue / 100 : result.coupon.discountValue,
             isActive: result.coupon.isActive,
             usageLimit: result.coupon.usageLimit,
             userUsageLimit: result.coupon.userUsageLimit,
             expiresAt: result.coupon.expiresAt ? parseISO(result.coupon.expiresAt.toString()) : null,
-            minPurchaseAmount: result.coupon.minPurchaseAmount !== undefined ? result.coupon.minPurchaseAmount / 100 : 0, // Assuming stored in cents
+            minPurchaseAmount: result.coupon.minPurchaseAmount !== undefined ? result.coupon.minPurchaseAmount / 100 : 0,
           });
         }
         setIsFetchingCoupon(false);
@@ -103,11 +103,13 @@ export default function EditCouponPage() {
       couponId,
       description: data.description,
       discountType: data.discountType,
+      // Convert to cents if fixed_amount
       discountValue: data.discountType === 'fixed_amount' ? Math.round(data.discountValue * 100) : data.discountValue,
       isActive: data.isActive,
       usageLimit: data.usageLimit,
       userUsageLimit: data.userUsageLimit,
       expiresAt: data.expiresAt ? data.expiresAt.toISOString() : null,
+      // Convert to cents
       minPurchaseAmount: data.minPurchaseAmount !== undefined ? Math.round(data.minPurchaseAmount * 100) : undefined,
     };
     
@@ -129,7 +131,7 @@ export default function EditCouponPage() {
     );
   }
   
-  if (!couponData) return null; // Or some other loading/error state
+  if (!couponData) return null; 
 
   return (
     <div className="container mx-auto p-4 md:p-8 flex justify-center">
@@ -169,7 +171,14 @@ export default function EditCouponPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Discount Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={(value) => {
+                          field.onChange(value);
+                          // Reset discountValue if type changes to percentage and current value is > 100
+                          if (value === 'percentage' && form.getValues("discountValue") > 100) {
+                            form.setValue("discountValue", 100);
+                          }
+                        }} 
+                        defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger className="bg-input">
                             <SelectValue placeholder="Select discount type" />
@@ -189,10 +198,17 @@ export default function EditCouponPage() {
                   name="discountValue"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Discount Value</FormLabel>
+                      <FormLabel>Discount Value {form.watch("discountType") === "fixed_amount" ? "($)" : "(%)"}</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" placeholder={form.getValues("discountType") === "percentage" ? "e.g., 20 for 20%" : "e.g., 10 for $10.00"} {...field} onChange={e => field.onChange(parseFloat(e.target.value))} className="bg-input" />
+                        <Input type="number" step="0.01" 
+                               placeholder={form.getValues("discountType") === "percentage" ? "e.g., 20" : "e.g., 10.00"} 
+                               {...field} 
+                               onChange={e => field.onChange(parseFloat(e.target.value))} 
+                               className="bg-input" />
                       </FormControl>
+                      <FormDescription>
+                        {form.watch("discountType") === "percentage" ? "Enter a value between 0 and 100." : "Enter the amount in dollars, e.g., 10.50 for $10.50."}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -233,10 +249,13 @@ export default function EditCouponPage() {
                   name="minPurchaseAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Minimum Purchase Amount (Optional)</FormLabel>
+                      <FormLabel>Minimum Purchase Amount ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" placeholder="e.g., 50 for $50.00 (0 for no minimum)" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} className="bg-input" />
+                        <Input type="number" step="0.01" placeholder="e.g., 50.00 (0 for no minimum)" {...field} 
+                               onChange={e => field.onChange(parseFloat(e.target.value))} 
+                               className="bg-input" />
                       </FormControl>
+                       <FormDescription>Enter the minimum purchase amount in dollars.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -267,6 +286,7 @@ export default function EditCouponPage() {
                           mode="single"
                           selected={field.value || undefined}
                           onSelect={(date) => field.onChange(date || null)}
+                          disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))} // Disable past dates
                           initialFocus
                         />
                          <Button size="sm" variant="ghost" className="w-full" onClick={() => field.onChange(null)}>Clear Date</Button>
@@ -296,7 +316,7 @@ export default function EditCouponPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || !form.formState.isDirty}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Changes
               </Button>
@@ -310,6 +330,3 @@ export default function EditCouponPage() {
     </div>
   );
 }
-
-
-    
