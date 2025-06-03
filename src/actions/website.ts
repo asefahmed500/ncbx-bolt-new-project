@@ -84,13 +84,15 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
   try {
     await dbConnect();
 
-    // TODO: Check user's plan for website creation limits
-    // const user = await User.findById(userId);
-    // const planLimits = session.user.subscriptionLimits; // Assuming limits are on session
-    // const userWebsitesCount = await Website.countDocuments({ userId });
-    // if (planLimits && userWebsitesCount >= planLimits.websites) {
-    //   return { error: "Website creation limit reached for your current plan." };
-    // }
+    const user = await User.findById(userId);
+    if (!user) {
+      return { error: "User not found." };
+    }
+    const planLimits = session.user.subscriptionLimits; 
+    const userWebsitesCount = await Website.countDocuments({ userId });
+    if (planLimits && planLimits.websites !== Infinity && userWebsitesCount >= planLimits.websites) {
+      return { error: "Website creation limit reached for your current plan." };
+    }
 
     if (!subdomain) {
       subdomain = await generateUniqueSubdomain(name);
@@ -102,6 +104,7 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
     }
 
     let initialPages: IWebsiteVersionPage[] = [{
+      _id: new mongoose.Types.ObjectId().toString(),
       name: "Home",
       slug: "/",
       elements: [] // Start with a blank page if no template
@@ -111,11 +114,12 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
     if (templateId) {
       const template = await Template.findById(templateId);
       if (template && template.status === 'approved') {
-        // Map template pages to website version pages
         initialPages = template.pages.map(p => ({
+          _id: new mongoose.Types.ObjectId().toString(),
           name: p.name,
           slug: p.slug,
-          elements: p.elements.map(el => ({ // Ensure elements are plain objects if necessary
+          elements: p.elements.map(el => ({ 
+            _id: new mongoose.Types.ObjectId().toString(),
             type: el.type,
             config: el.config,
             order: el.order,
@@ -123,7 +127,6 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
           seoTitle: p.seoTitle,
           seoDescription: p.seoDescription,
         }));
-        // Conceptual: copy global settings from template if they exist
         // globalSettings = template.globalSettings || {}; 
       } else {
         console.warn(`[CreateWebsite] Template ${templateId} not found or not approved. Creating blank website.`);
@@ -139,7 +142,6 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
     });
     const savedWebsite = await newWebsite.save();
 
-    // Create an initial WebsiteVersion
     const initialVersion = new WebsiteVersion({
       websiteId: savedWebsite._id,
       versionNumber: Date.now(), 
@@ -157,7 +159,7 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
 
   } catch (error: any) {
     console.error(`[CreateWebsite] Error creating website for user ${userId}:`, error);
-    if (error.code === 11000 && error.message.includes('subdomain')) { // MongoDB duplicate key error for subdomain
+    if (error.code === 11000 && error.message.includes('subdomain')) { 
       return { error: `Subdomain "${subdomain}" is already taken (database constraint).` };
     }
     return { error: `Failed to create website: ${error.message}` };
@@ -166,18 +168,20 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
 
 
 // --- Schema for Saving Website Content ---
-const PageComponentConfigSchema = z.record(z.any()); // Basic schema for component config
+const PageComponentConfigSchema = z.record(z.any()); 
 
 const PageComponentInputSchema = z.object({
+  _id: z.string().optional(), // Allow _id, but make it optional as it might be new
   type: z.string().min(1, "Component type is required."),
   config: PageComponentConfigSchema,
   order: z.number().int(),
 });
 
 const PageInputSchema = z.object({
+  _id: z.string().optional(), // Allow _id for existing pages
   name: z.string().min(1, "Page name is required."),
   slug: z.string().min(1, "Page slug is required.")
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens."),
+    .regex(/^(?:[a-z0-9]+(?:-[a-z0-9]+)*|\/)$/, "Slug must be lowercase alphanumeric with hyphens, or a single '/' for home."),
   elements: z.array(PageComponentInputSchema).optional(),
   seoTitle: z.string().optional(),
   seoDescription: z.string().optional(),
@@ -227,14 +231,19 @@ export async function saveWebsiteContent(input: SaveWebsiteContentInput): Promis
       return { error: "Unauthorized to modify this website." };
     }
 
-    // Create a new WebsiteVersion
     const newVersion = new WebsiteVersion({
       websiteId: website._id,
-      versionNumber: Date.now(), // Simple versioning for now, consider sequential later
+      versionNumber: Date.now(), 
       pages: pages.map(p => ({
+        _id: p._id || new mongoose.Types.ObjectId().toString(), // Ensure pages have an ID for React keys if not provided
         name: p.name,
         slug: p.slug,
-        elements: p.elements || [],
+        elements: p.elements?.map(el => ({
+            _id: el._id || new mongoose.Types.ObjectId().toString(), // Ensure elements have IDs
+            type: el.type,
+            config: el.config,
+            order: el.order,
+        })) || [],
         seoTitle: p.seoTitle,
         seoDescription: p.seoDescription,
       })),
@@ -243,11 +252,7 @@ export async function saveWebsiteContent(input: SaveWebsiteContentInput): Promis
     });
 
     const savedVersion = await newVersion.save();
-
-    // Update the Website document with the new currentVersionId
     website.currentVersionId = savedVersion._id;
-    // Optionally, update website name if it's part of global settings or a specific input
-    // For now, we assume website name is managed separately or not updated here.
     const updatedWebsite = await website.save();
     
     console.log(`[SaveWebsiteContent] Content saved for website ${websiteId}. New version ID: ${savedVersion._id}`);
@@ -303,13 +308,11 @@ export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise
     
     const updatedWebsite = await website.save();
 
-    // Placeholder for actual deployment logic (e.g., triggering a build, updating CDN)
-    console.log(`[WebsiteAction_Publish] Website ${websiteId}, version ${website.publishedVersionId} marked as published. Conceptual deployment would occur now.`);
+    console.log(`[WebsiteAction_Publish] Website ${websiteId}, version ${website.publishedVersionId} marked as published.`);
     return { success: "Website published successfully.", website: updatedWebsite.toObject() as IWebsite };
 
   } catch (error: any) {
     console.error(`[WebsiteAction_Publish] Error publishing website ${websiteId}:`, error);
-    // Attempt to revert status or mark as error
     try {
       await Website.findByIdAndUpdate(websiteId, { status: 'error_publishing' as WebsiteStatus });
     } catch (statusUpdateError) {
@@ -345,13 +348,9 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
     console.log(`[WebsiteAction_Unpublish] Attempting to unpublish website ${websiteId}...`);
     
     website.status = 'unpublished' as WebsiteStatus;
-    // Optionally clear publishedVersionId and lastPublishedAt
-    // website.publishedVersionId = undefined;
-    // website.lastPublishedAt = undefined;
     const updatedWebsite = await website.save();
 
-    // Placeholder for actual unpublishing logic (e.g., removing from CDN, updating DNS)
-    console.log(`[WebsiteAction_Unpublish] Website ${websiteId} marked as unpublished. Conceptual unpublishing tasks would occur now.`);
+    console.log(`[WebsiteAction_Unpublish] Website ${websiteId} marked as unpublished.`);
     return { success: "Website unpublished successfully.", website: updatedWebsite.toObject() as IWebsite };
 
   } catch (error: any) {
@@ -386,11 +385,9 @@ export async function deleteWebsite({ websiteId }: WebsiteActionInput): Promise<
 
     console.log(`[WebsiteAction_Delete] Attempting to delete website ${websiteId} and its versions...`);
 
-    // Delete all associated WebsiteVersion documents
     const deletionResult = await WebsiteVersion.deleteMany({ websiteId: website._id });
     console.log(`[WebsiteAction_Delete] Deleted ${deletionResult.deletedCount} versions for website ${websiteId}.`);
 
-    // Delete the Website document itself
     await Website.findByIdAndDelete(website._id);
     
     console.log(`[WebsiteAction_Delete] Website ${websiteId} deleted successfully.`);
@@ -552,21 +549,19 @@ interface GetWebsiteMetadataResult {
   error?: string;
 }
 export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteMetadataResult> {
-   const session = await auth(); // Allow unauthenticated access for metadata for public sites, or add role checks
+   const session = await auth(); 
   if (!mongoose.Types.ObjectId.isValid(websiteId)) {
     return { error: "Invalid Website ID format." };
   }
   try {
     await dbConnect();
     const website = await Website.findById(websiteId)
-      .select('name customDomain subdomain status lastPublishedAt createdAt currentVersionId publishedVersionId userId') // Select specific fields
+      .select('name customDomain subdomain status lastPublishedAt createdAt currentVersionId publishedVersionId userId domainStatus') 
       .lean();
     if (!website) {
       return { error: "Website not found." };
     }
-    // If the site is not published, and the user is not the owner/admin, don't return sensitive data or return error
     if (website.status !== 'published') {
-        // Ensure website.userId exists before trying to convert to string.
         const websiteOwnerId = website.userId ? website.userId.toString() : null;
         if (!session || !websiteOwnerId || (session.user.id.toString() !== websiteOwnerId && session.user.role !== 'admin')) {
             return { error: "Website not found or not publicly available." };
@@ -578,5 +573,52 @@ export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteM
     console.error(`[WebsiteAction_GetWebsiteMetadata] Error fetching website metadata ${websiteId}:`, error);
     return { error: "Failed to fetch website metadata." };
   }
+}
+
+
+// --- Get Published Site Data by Hostname ---
+interface GetPublishedSiteDataResult {
+  website?: IWebsite;
+  publishedVersion?: IWebsiteVersion;
+  error?: string;
+}
+
+export async function getPublishedSiteDataByHost(host: string): Promise<GetPublishedSiteDataResult> {
+  await dbConnect();
+  const appBaseDomain = process.env.NEXT_PUBLIC_APP_BASE_DOMAIN;
+
+  if (!appBaseDomain) {
+    console.error("[getPublishedSiteDataByHost] NEXT_PUBLIC_APP_BASE_DOMAIN is not set. Subdomain parsing will fail.");
+    return { error: "Application base domain not configured." };
+  }
+
+  let website: IWebsite | null = null;
+
+  // Check if it's a subdomain of our app
+  if (host.endsWith(`.${appBaseDomain}`)) {
+    const subdomain = host.substring(0, host.length - (appBaseDomain.length + 1));
+    if (subdomain && subdomain !== 'www') { // Add common exclusions like 'www' if your app itself is at www.appBaseDomain
+      website = await Website.findOne({ subdomain, status: 'published' }).lean();
+    }
+  } else {
+    // If not a subdomain, assume it's a custom domain
+    website = await Website.findOne({ customDomain: host, status: 'published', domainStatus: 'verified' }).lean();
+  }
+
+  if (!website) {
+    return { error: "Site not found or not published." };
+  }
+
+  if (!website.publishedVersionId) {
+    return { error: "Site is published but has no published version." };
+  }
+
+  const publishedVersion = await WebsiteVersion.findById(website.publishedVersionId).lean();
+
+  if (!publishedVersion) {
+    return { error: "Published version content not found." };
+  }
+
+  return { website: website as IWebsite, publishedVersion: publishedVersion as IWebsiteVersion };
 }
 
