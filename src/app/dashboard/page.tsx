@@ -9,13 +9,155 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, FileText, Settings2 as SettingsIcon, BarChart2, Tag, ShieldAlert, ArrowUpCircle, ExternalLink, PlusSquare, Edit3, Globe, Trash2, Link2, ServerCrash, CheckCircle, AlertCircle } from "lucide-react";
+import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, Settings2 as SettingsIcon, BarChart2, Tag, ArrowUpCircle, ExternalLink, PlusSquare, Edit3, Globe, Trash2, Link2, CheckCircle, AlertCircle, FileText, AlertTriangle, XCircle } from "lucide-react";
 import { createStripeCheckoutSession, createOneTimePaymentIntent, createStripeCustomerPortalSession } from '@/actions/stripe';
-import { getUserWebsites } from '@/actions/website'; 
-import type { IWebsite, DomainConnectionStatus } from '@/models/Website'; 
+import { getUserWebsites, deleteWebsite as deleteWebsiteAction, type IWebsite, type DomainConnectionStatus } from '@/actions/website'; 
 import { useToast } from '@/hooks/use-toast';
 import { STRIPE_PRICE_ID_PRO_MONTHLY, getPlanById, type AppPlan } from '@/config/plans';
 import Link from 'next/link';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { loadStripe, type Stripe as StripeType } from '@stripe/stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
+
+interface OneTimePaymentFormProps {
+  couponCode: string;
+  setCouponCode: (code: string) => void;
+  paymentAmount: string;
+  setPaymentAmount: (amount: string) => void;
+}
+
+function OneTimePaymentForm({ couponCode, setCouponCode, paymentAmount, setPaymentAmount }: OneTimePaymentFormProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const { toast } = useToast();
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  const handleOneTimePaymentSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) {
+      toast({ title: "Stripe Not Loaded", description: "Stripe.js has not loaded yet. Please try again in a moment.", variant: "destructive" });
+      return;
+    }
+
+    const cardElement = elements.getElement(CardElement);
+    if (!cardElement) {
+      toast({ title: "Card Element Error", description: "Card input element not found.", variant: "destructive" });
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    const amountInCents = Math.round(parseFloat(paymentAmount) * 100);
+    if (isNaN(amountInCents) || amountInCents <= 0) {
+      toast({ title: "Invalid Amount", description: "Please enter a valid payment amount.", variant: "destructive" });
+      setIsProcessingPayment(false);
+      return;
+    }
+
+    const intentResult = await createOneTimePaymentIntent(amountInCents, 'usd', couponCode.trim() || undefined);
+
+    if (intentResult.error || !intentResult.clientSecret) {
+      toast({ title: "Payment Setup Error", description: intentResult.error || "Could not create payment intent.", variant: "destructive" });
+      setIsProcessingPayment(false);
+      return;
+    }
+
+    const { clientSecret, paymentIntentId, finalAmount, discountApplied, couponApplied } = intentResult;
+
+    toast({ title: "Processing Payment...", description: `Attempting to confirm payment for $${(finalAmount! / 100).toFixed(2)}.`});
+
+    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+      payment_method: {
+        card: cardElement,
+      },
+    });
+
+    if (error) {
+      toast({ title: "Payment Failed", description: error.message || "An unknown error occurred.", variant: "destructive" });
+    } else if (paymentIntent?.status === 'succeeded') {
+      let successMessage = `Payment of $${(paymentIntent.amount / 100).toFixed(2)} Succeeded!`;
+       if(couponApplied && discountApplied) {
+        successMessage += ` Discount of $${(discountApplied/100).toFixed(2)} applied.`;
+      }
+      toast({ title: "Payment Successful!", description: successMessage });
+      // Optionally reset form or redirect
+      setPaymentAmount("10.00");
+      setCouponCode("");
+      cardElement.clear();
+    } else {
+      toast({ title: "Payment Incomplete", description: `Payment status: ${paymentIntent?.status}.`, variant: "destructive" });
+    }
+    setIsProcessingPayment(false);
+  };
+  
+  const cardElementOptions = {
+    style: {
+      base: {
+        fontSize: '16px',
+        color: typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? '#FFFFFF' : '#32325d',
+        fontFamily: 'Inter, sans-serif',
+        '::placeholder': {
+          color: typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? '#aab7c4' : '#aab7c4',
+        },
+        iconColor: typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? '#FFFFFF' : '#32325d',
+      },
+      invalid: {
+        color: '#fa755a',
+        iconColor: '#fa755a',
+      },
+    },
+    hidePostalCode: true,
+  };
+
+
+  return (
+    <form onSubmit={handleOneTimePaymentSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="paymentAmount" className="text-sm">Amount (USD)</Label>
+        <Input
+          id="paymentAmount"
+          type="number"
+          value={paymentAmount}
+          onChange={(e) => setPaymentAmount(e.target.value)}
+          placeholder="e.g., 10.00"
+          step="0.01"
+          min="0.50"
+          required
+          className="bg-input mt-1"
+        />
+      </div>
+      <div>
+        <Label htmlFor="couponCode" className="text-sm flex items-center">
+          <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
+          Coupon Code (Optional)
+        </Label>
+        <Input
+          id="couponCode"
+          type="text"
+          value={couponCode}
+          onChange={(e) => setCouponCode(e.target.value)}
+          placeholder="e.g., SUMMER25"
+          className="bg-input mt-1"
+        />
+      </div>
+      <div className="p-3 border border-input rounded-md bg-background">
+        <CardElement options={cardElementOptions} />
+      </div>
+      <Button
+        type="submit"
+        disabled={isProcessingPayment || !stripe || !elements}
+        className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
+      >
+        {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
+        {isProcessingPayment ? "Processing..." : `Pay $${paymentAmount}`}
+      </Button>
+    </form>
+  );
+}
+
 
 export default function DashboardPage() {
   const { data: session, status, update: updateSession } = useSession();
@@ -24,16 +166,27 @@ export default function DashboardPage() {
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("10.00");
   const [couponCode, setCouponCode] = useState("");
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [userWebsites, setUserWebsites] = useState<IWebsite[]>([]);
   const [isLoadingWebsites, setIsLoadingWebsites] = useState(true);
+  const [deletingWebsiteId, setDeletingWebsiteId] = useState<string | null>(null);
+  const [isStripePublishableKeyMissing, setIsStripePublishableKeyMissing] = useState(false);
+
 
   const currentPlan = session?.user?.subscriptionPlanId ? getPlanById(session.user.subscriptionPlanId) : getPlanById('free');
   const subscriptionStatus = session?.user?.subscriptionStatus;
   const isActiveSubscription = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
   
   const isProPlanConfigured = STRIPE_PRICE_ID_PRO_MONTHLY && !STRIPE_PRICE_ID_PRO_MONTHLY.includes('_YOUR_');
+
+  useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.includes('YOUR_STRIPE_PUBLISHABLE_KEY')) {
+      setIsStripePublishableKeyMissing(true);
+      console.warn("Stripe Publishable Key is missing or is a placeholder. Payment form will not work.");
+    } else {
+      setIsStripePublishableKeyMissing(false);
+    }
+  }, []);
 
 
   useEffect(() => {
@@ -103,37 +256,17 @@ export default function DashboardPage() {
     setIsManagingSubscription(false);
   };
 
-  const handleOneTimePayment = async (e: FormEvent) => {
-    e.preventDefault();
-    setIsProcessingPayment(true);
-
-    const amountInCents = Math.round(parseFloat(paymentAmount) * 100);
-    if (isNaN(amountInCents) || amountInCents <= 0) {
-      toast({ title: "Invalid Amount", description: "Please enter a valid payment amount.", variant: "destructive" });
-      setIsProcessingPayment(false);
-      return;
-    }
-
-    const result = await createOneTimePaymentIntent(amountInCents, 'usd', couponCode.trim() || undefined);
-
+  const handleDeleteWebsite = async () => {
+    if (!deletingWebsiteId) return;
+    const result = await deleteWebsiteAction({ websiteId: deletingWebsiteId });
     if (result.error) {
-      toast({ title: "Payment Error", description: result.error, variant: "destructive" });
-    } else if (result.clientSecret && result.paymentIntentId) {
-      let description = `Client Secret ready. PI ID: ${result.paymentIntentId}. Final amount: $${(result.finalAmount!/100).toFixed(2)}.`;
-      if(result.couponApplied) {
-        description += ` Discount of $${(result.discountApplied!/100).toFixed(2)} applied with coupon.`
-      }
-      description += ` Integrate Stripe Elements to complete payment.`
-
-      toast({
-        title: "Payment Intent Created",
-        description: description,
-      });
-      console.log("PaymentIntent Client Secret:", result.clientSecret);
+      toast({ title: "Error Deleting Website", description: result.error, variant: "destructive" });
+    } else if (result.success) {
+      toast({ title: "Website Deleted", description: "The website has been successfully deleted." });
+      fetchWebsites(); // Refresh the list
     }
-    setIsProcessingPayment(false);
+    setDeletingWebsiteId(null);
   };
-
 
   if (status === 'loading') {
     return (
@@ -171,13 +304,12 @@ export default function DashboardPage() {
     switch (status) {
         case 'verified': return { text: 'Verified', icon: CheckCircle, color: 'text-green-500', badgeVariant: 'default' as const };
         case 'pending_verification': return { text: 'Pending', icon: Loader2, color: 'text-yellow-500 animate-spin', badgeVariant: 'outline' as const };
-        case 'error_dns':
-        case 'error_ssl': return { text: 'Error', icon: AlertCircle, color: 'text-red-500', badgeVariant: 'destructive' as const };
+        case 'error_dns': return { text: 'DNS Error', icon: AlertCircle, color: 'text-red-500', badgeVariant: 'destructive' as const };
+        case 'error_ssl': return { text: 'SSL Error', icon: AlertCircle, color: 'text-red-500', badgeVariant: 'destructive' as const };
         case 'unconfigured':
         default: return { text: 'Unconfigured', icon: Link2, color: 'text-muted-foreground', badgeVariant: 'secondary' as const };
     }
-};
-
+  };
 
   return (
     <div className="flex-1 p-6 md:p-10">
@@ -190,7 +322,8 @@ export default function DashboardPage() {
         </Button>
       </div>
       {!canCreateWebsite && (
-        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 text-yellow-700 rounded-md text-sm">
+        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 text-yellow-700 rounded-md text-sm flex items-center">
+           <AlertTriangle className="h-5 w-5 mr-2" />
           You've reached your website limit of {websiteLimit} for the {currentPlan?.name || 'current plan'}. Please upgrade to create more websites.
         </div>
       )}
@@ -204,7 +337,7 @@ export default function DashboardPage() {
               <Card key={i} className="shadow-sm animate-pulse">
                 <CardHeader><div className="h-6 bg-muted rounded w-3/4"></div></CardHeader>
                 <CardContent><div className="h-4 bg-muted rounded w-1/2 mb-2"></div><div className="h-4 bg-muted rounded w-full"></div></CardContent>
-                <CardFooter><div className="h-8 bg-muted rounded w-1/4"></div></CardFooter>
+                <CardFooter className="flex justify-between items-center"><div className="h-8 bg-muted rounded w-1/4"></div><div className="h-8 bg-muted rounded w-1/4"></div></CardFooter>
               </Card>
             ))}
           </div>
@@ -229,17 +362,16 @@ export default function DashboardPage() {
               <Card key={site._id as string} className="shadow-sm hover:shadow-md transition-shadow flex flex-col">
                 <CardHeader>
                   <CardTitle className="font-headline text-lg truncate">{site.name}</CardTitle>
-                  <CardDescription className="text-xs truncate">
-                    Subdomain: {site.subdomain}.{process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'notthedomain.com'}
+                   <CardDescription className="text-xs truncate">
+                    {site.customDomain ? (
+                        <>Custom Domain: {site.customDomain}</>
+                    ) : (
+                        <>Subdomain: {site.subdomain}.{process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'notthedomain.com'}</>
+                    )}
                   </CardDescription>
-                   {site.customDomain && (
-                    <CardDescription className="text-xs truncate">
-                      Custom Domain: {site.customDomain}
-                    </CardDescription>
-                  )}
                 </CardHeader>
                 <CardContent className="flex-grow space-y-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant={getStatusBadgeVariant(site.status)} className="capitalize text-xs">{site.status.replace('_', ' ')}</Badge>
                     <Badge variant={domainStatusInfo.badgeVariant} className="capitalize text-xs">
                       <domainStatusInfo.icon className={`mr-1 h-3 w-3 ${domainStatusInfo.color}`} />
@@ -255,21 +387,39 @@ export default function DashboardPage() {
                     </p>
                   )}
                 </CardContent>
-                <CardFooter className="gap-2 flex-wrap">
-                  <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px]">
+                <CardFooter className="gap-2 flex-wrap items-center">
+                  <Button asChild variant="outline" size="sm" className="flex-1 min-w-[70px]">
                     <Link href={`/editor?websiteId=${site._id}`}>
                       <Edit3 className="mr-1.5 h-3.5 w-3.5" /> Edit
                     </Link>
                   </Button>
-                  <Button asChild variant="secondary" size="sm" className="flex-1 min-w-[80px]">
-                    <Link href={`/dashboard/websites/${site._id}/settings`}>
-                      <SettingsIcon className="mr-1.5 h-3.5 w-3.5" /> Settings
-                    </Link>
+                  <Button asChild variant="secondary" size="sm" className="flex-1 min-w-[70px]">
+                     <Link href={`/dashboard/websites/${site._id}/settings`}>
+                        <SettingsIcon className="mr-1.5 h-3.5 w-3.5" /> Settings
+                     </Link>
                   </Button>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive flex-shrink-0" disabled>
-                     <Trash2 className="h-4 w-4" />
-                     <span className="sr-only">Delete Website (Conceptual)</span>
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive flex-shrink-0" onClick={() => setDeletingWebsiteId(site._id as string)}>
+                         <Trash2 className="h-4 w-4" />
+                         <span className="sr-only">Delete Website</span>
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the website "{site.name}" and all its data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setDeletingWebsiteId(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteWebsite} className="bg-destructive hover:bg-destructive/90">
+                            Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </CardFooter>
               </Card>
             );
@@ -289,7 +439,12 @@ export default function DashboardPage() {
             {isActiveSubscription && currentPlan ? (
               <>
                 <p>Current Plan: <span className="font-semibold text-primary">{currentPlan.name}</span></p>
-                <p>Status: <span className="font-semibold capitalize text-green-600">{subscriptionStatus}</span></p>
+                <p>Status: 
+                    <Badge variant={subscriptionStatus === 'active' || subscriptionStatus === 'trialing' ? 'default' : 'secondary'} className="ml-2 capitalize">
+                        {subscriptionStatus === 'active' || subscriptionStatus === 'trialing' ? <CheckCircle className="inline-block h-3 w-3 mr-1" /> : <AlertCircle className="inline-block h-3 w-3 mr-1" />}
+                        {subscriptionStatus}
+                    </Badge>
+                </p>
                 <Button
                   onClick={handleManageSubscription}
                   disabled={isManagingSubscription}
@@ -328,8 +483,8 @@ export default function DashboardPage() {
               <p>AI Copy Generations: 5 / {currentPlan?.id === 'pro' || currentPlan?.id === 'enterprise' ? 'Unlimited' : '50 per month'} (Placeholder)</p>
               <p>Storage: 100MB / {currentPlan?.id === 'pro' ? '5GB' : currentPlan?.id === 'enterprise' ? '20GB' : '1GB'} (Placeholder)</p>
             </div>
-            {!canCreateWebsite && currentPlan?.id !== 'enterprise' && (
-              <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleSubscribeToPro}>
+            {!isActiveSubscription && currentPlan?.id !== 'enterprise' && (
+              <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleSubscribeToPro} disabled={!isProPlanConfigured}>
                 <ArrowUpCircle className="mr-2 h-4 w-4" />
                 Upgrade Plan to Increase Limits
               </Button>
@@ -343,50 +498,32 @@ export default function DashboardPage() {
             <CardDescription>Make a single payment for credits or services.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleOneTimePayment} className="space-y-4">
-              <div>
-                <Label htmlFor="paymentAmount" className="text-sm">Amount (USD)</Label>
-                <Input
-                  id="paymentAmount"
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder="e.g., 10.00"
-                  step="0.01"
-                  min="0.50"
-                  required
-                  className="bg-input mt-1"
+            {isStripePublishableKeyMissing ? (
+              <div className="p-4 bg-destructive/10 text-destructive border border-destructive rounded-md text-sm">
+                <AlertTriangle className="inline h-5 w-5 mr-2" />
+                Stripe payments are not configured. Admin: Please set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY in your .env file.
+              </div>
+            ) : stripePromise ? (
+              <Elements stripe={stripePromise}>
+                <OneTimePaymentForm 
+                  couponCode={couponCode}
+                  setCouponCode={setCouponCode}
+                  paymentAmount={paymentAmount}
+                  setPaymentAmount={setPaymentAmount}
                 />
-              </div>
-              <div>
-                <Label htmlFor="couponCode" className="text-sm flex items-center">
-                  <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
-                  Coupon Code (Optional)
-                </Label>
-                <Input
-                  id="couponCode"
-                  type="text"
-                  value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value)}
-                  placeholder="e.g., SUMMER25"
-                  className="bg-input mt-1"
-                />
-              </div>
-              <div className="p-3 border border-dashed rounded-md bg-muted/50 text-center text-muted-foreground">
-                Stripe Card Element would be here for secure input.
-              </div>
-              <Button
-                type="submit"
-                disabled={isProcessingPayment}
-                className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
-              >
-                {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
-                {isProcessingPayment ? "Processing..." : `Pay $${paymentAmount}`}
-              </Button>
-            </form>
+              </Elements>
+            ) : (
+                 <div className="flex items-center justify-center h-full">
+                    <Loader2 className="mr-2 h-6 w-6 animate-spin" /> Loading Stripe...
+                </div>
+            )}
           </CardContent>
            <CardFooter>
-            <p className="text-xs text-muted-foreground">This is a demo. Full card input with Stripe Elements is needed for actual payments.</p>
+            <p className="text-xs text-muted-foreground">
+              {isStripePublishableKeyMissing 
+                ? "Payment form disabled until Stripe is configured."
+                : "Secure payments powered by Stripe."}
+            </p>
           </CardFooter>
         </Card>
       </div>
