@@ -7,7 +7,7 @@ import { AppHeader, type DeviceType } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Type, Image as ImageIcon, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2 } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Type, Image as ImageIconLucide, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -120,7 +120,12 @@ function EditorPageComponent() {
         const pageToUpdate = newPages[selectedElement.pageIndex];
         const elementToUpdate = pageToUpdate.elements[selectedElement.elementIndex];
         if (elementToUpdate) {
-          elementToUpdate.config = { ...elementToUpdate.config, [propertyName]: value };
+          if (selectedElement.type === 'image' && propertyName === 'src') {
+            // For images, ensure the src is updated and also clear any potential AI hint if src is manually changed
+            elementToUpdate.config = { ...elementToUpdate.config, src: value, dataAiHint: undefined };
+          } else {
+            elementToUpdate.config = { ...elementToUpdate.config, [propertyName]: value };
+          }
           setSelectedElement(prevSel => prevSel ? {...prevSel, config: elementToUpdate.config} : null);
         }
       }
@@ -268,7 +273,7 @@ function EditorPageComponent() {
                 <Label htmlFor="imageUrl" className="text-xs">Image Source URL</Label>
                 <Input type="url" id="imageUrl" value={currentElementConfig?.src || ""} placeholder="https://placehold.co/600x400.png" className="text-xs" onChange={(e) => handlePropertyChange('src', e.target.value)} />
               </div>
-              {currentElementConfig?.src && (<div className="mt-2"><img src={currentElementConfig.src as string} alt={currentElementConfig?.alt as string || 'Preview'} className="rounded-md max-w-full h-auto border" data-ai-hint="placeholder image"/></div>)}
+              {currentElementConfig?.src && (<div className="mt-2"><img src={currentElementConfig.src as string} alt={currentElementConfig?.alt as string || 'Preview'} className="rounded-md max-w-full h-auto border" data-ai-hint={currentElementConfig.dataAiHint as string || 'placeholder image'}/></div>)}
               <Button variant="outline" size="sm" className="w-full mt-2 text-xs" disabled><UploadCloud className="mr-2 h-3.5 w-3.5" /> Upload Image (Conceptual)</Button>
               <div className="space-y-2 mt-2">
                 <Label htmlFor="altText" className="text-xs">Alt Text</Label>
@@ -363,10 +368,18 @@ function EditorPageComponent() {
                   <TabsTrigger key={page._id as string || index} value={index.toString()} className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none rounded-t-md border-b-2 border-transparent data-[state=active]:border-primary">
                     {page.name}
                     {currentPages.length > 1 && (
-                        <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-5 w-5 ml-1.5 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive" onClick={(e) => {e.stopPropagation(); setPageToDeleteIndex(index);}}>
-                                <Trash2 className="h-3 w-3"/>
-                            </Button>
+                        <AlertDialogTrigger
+                            onClick={(e) => {
+                                e.stopPropagation(); // Prevent tab selection
+                                setPageToDeleteIndex(index);
+                            }}
+                            // Apply minimal styling to make it look like an icon button.
+                            // Using className prop for Shadcn's AlertDialogTrigger.
+                            // The trigger will render a <button> by default.
+                            className="ml-1.5 p-0.5 rounded hover:bg-destructive/10 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+                            aria-label={`Delete page ${page.name}`}
+                        >
+                                <Trash2 className="h-3 w-3 text-destructive"/>
                         </AlertDialogTrigger>
                     )}
                   </TabsTrigger>
@@ -415,3 +428,16 @@ function EditorPageComponent() {
 export default function EditorPage() {
   return (<Suspense fallback={<div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="mt-4 text-muted-foreground">Loading editor...</p></div>}><EditorPageComponent /></Suspense>);
 }
+
+declare module '@/models/Website' {
+    interface IPageComponent {
+      _id?: string | import('mongoose').Types.ObjectId;
+    }
+    interface IWebsiteVersionPage {
+      _id?: string | import('mongoose').Types.ObjectId;
+    }
+  }
+  
+import mongoose from 'mongoose';
+  
+
