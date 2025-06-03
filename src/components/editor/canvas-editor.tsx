@@ -4,15 +4,23 @@
 import { useState } from 'react';
 import type { DeviceType } from './app-header';
 import { useToast } from "@/hooks/use-toast";
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, Package } from 'lucide-react';
+import type { IWebsiteVersionPage, IPageComponent } from '@/models/Website'; // Assuming this is the correct path
 
+export interface CanvasElementPlaceholder extends IPageComponent {
+  // any additional client-side properties for rendering or interaction if needed
+}
 interface CanvasEditorProps {
   devicePreview: DeviceType;
+  pages: IWebsiteVersionPage[]; // Now expects full page data
+  onElementSelect: (elementId: string, pageIndex: number) => void;
+  onDropComponent: (componentType: string, pageIndex: number, targetOrder?: number) => void; // For dropping new components
 }
 
-export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
+export function CanvasEditor({ devicePreview, pages, onElementSelect, onDropComponent }: CanvasEditorProps) {
   const { toast } = useToast();
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [draggedOverElementId, setDraggedOverElementId] = useState<string | null>(null);
 
   const getCanvasWidth = () => {
     switch (devicePreview) {
@@ -26,46 +34,43 @@ export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
     }
   };
 
-  const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragEnterCanvas = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     if (event.dataTransfer.types.includes('application/json')) {
       setIsDraggingOver(true);
-      event.dataTransfer.dropEffect = "move";
+      event.dataTransfer.dropEffect = "copy"; // Changed from "move" to "copy" for new components
     } else {
       event.dataTransfer.dropEffect = "none";
     }
   };
 
-  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragLeaveCanvas = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     if (!event.currentTarget.contains(event.relatedTarget as Node)) {
         setIsDraggingOver(false);
     }
   };
 
-  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOverCanvas = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault(); 
     if (event.dataTransfer.types.includes('application/json')) {
-      event.dataTransfer.dropEffect = "move";
+      event.dataTransfer.dropEffect = "copy";
       if (!isDraggingOver) setIsDraggingOver(true);
     } else {
       event.dataTransfer.dropEffect = "none";
     }
   };
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDropOnCanvas = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDraggingOver(false);
     const dataString = event.dataTransfer.getData('application/json');
     if (dataString) {
       try {
-        const componentData = JSON.parse(dataString);
-        console.log("Dropped component:", componentData);
-        toast({
-          title: "Component Dropped",
-          description: `"${componentData.label}" component was added to the canvas (conceptually).`,
-        });
-        // Future: Add componentData to a state managing canvas elements
+        const componentData = JSON.parse(dataString); // Expected: { type: string, label: string }
+        // Assuming single page editing for now, pageIndex 0
+        // targetOrder can be calculated based on drop position if elements are draggable within canvas
+        onDropComponent(componentData.type, 0, pages[0]?.elements.length || 0); 
       } catch (error) {
         console.error("Failed to parse dropped data:", error);
         toast({
@@ -77,13 +82,17 @@ export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
     }
   };
 
+  // For now, we'll render elements from the first page if available
+  const currentPage = pages && pages.length > 0 ? pages[0] : null;
+  const elementsToRender: CanvasElementPlaceholder[] = currentPage ? currentPage.elements as CanvasElementPlaceholder[] : [];
+
   return (
     <div 
       className="flex-1 bg-muted/50 p-6 rounded-lg shadow-inner flex justify-center items-start overflow-auto"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
+      onDragEnter={handleDragEnterCanvas}
+      onDragLeave={handleDragLeaveCanvas}
+      onDragOver={handleDragOverCanvas}
+      onDrop={handleDropOnCanvas}
     >
       <div 
         className="bg-background shadow-lg transition-all duration-200 ease-in-out mx-auto relative"
@@ -102,15 +111,57 @@ export function CanvasEditor({ devicePreview }: CanvasEditorProps) {
         }}
         aria-label={`Website canvas preview for ${devicePreview}`}
       >
-        <div className="flex flex-col items-center justify-center h-full text-muted-foreground pointer-events-none select-none">
-          <LayoutGrid className="w-16 h-16 mb-4 text-muted-foreground/50" />
-          <p className="text-lg font-medium">Canvas Editor</p>
-          <p className="text-sm">Drag components here to build your website.</p>
-          <p className="text-xs mt-2">(Current view: {devicePreview})</p>
-           {isDraggingOver && <p className="text-xs mt-2 text-primary font-semibold">Release to drop component</p>}
-        </div>
-        {/* Render dropped components here based on state */}
+        {elementsToRender.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground pointer-events-none select-none">
+            <LayoutGrid className="w-16 h-16 mb-4 text-muted-foreground/50" />
+            <p className="text-lg font-medium">Canvas Editor</p>
+            <p className="text-sm">Drag components here from the library to build your page.</p>
+            <p className="text-xs mt-2">(Current view: {devicePreview})</p>
+            {isDraggingOver && <p className="text-xs mt-2 text-primary font-semibold">Release to drop component</p>}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {elementsToRender.map((element, index) => (
+              <div
+                key={(element._id as unknown as string) || `el-${index}`} // Use element._id if available
+                onClick={() => onElementSelect((element._id as unknown as string), 0)} // Assuming pageIndex 0 for now
+                className="p-3 border border-dashed border-muted-foreground/30 rounded-md hover:border-primary hover:bg-primary/5 cursor-pointer transition-all"
+                style={{ order: element.order }} // Conceptual, full reordering needs dnd-kit
+              >
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <Package className="w-3 h-3 mr-2 text-primary/70" />
+                  <span className="font-medium text-primary/90 capitalize">{element.type}</span>
+                  <span className="ml-2 text-muted-foreground/70">Order: {element.order}</span>
+                </div>
+                {/* Basic preview of config - highly conceptual */}
+                <div className="mt-1 text-xs text-muted-foreground/80 truncate">
+                  {element.type === 'heading' && element.config?.text && `Text: ${element.config.text}`}
+                  {element.type === 'text' && element.config?.htmlContent && `Content: ${element.config.htmlContent.substring(0,30)}...`}
+                  {element.type === 'image' && element.config?.src && `Src: ${element.config.src}`}
+                  {element.type === 'button' && element.config?.text && `Button: ${element.config.text}`}
+                </div>
+              </div>
+            ))}
+            {isDraggingOver && (
+                <div className="p-3 border-2 border-dashed border-primary rounded-md bg-primary/10 text-center text-xs text-primary font-semibold">
+                    Drop here to add component
+                </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+// Ensure IPageComponent has _id, createdAt, updatedAt if they are expected (Mongoose does this for subdocs with _id: true)
+declare module '@/models/Website' {
+  interface IPageComponent {
+    _id?: string | import('mongoose').Types.ObjectId; // Make _id optional or ensure it's always there
+    createdAt?: Date;
+    updatedAt?: Date;
+  }
+   interface IWebsiteVersionPage {
+    _id?: string | import('mongoose').Types.ObjectId;
+  }
 }

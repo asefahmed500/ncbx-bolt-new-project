@@ -1,24 +1,55 @@
 
-import mongoose, { Schema, model, models, type Document } from 'mongoose';
+import mongoose, { Schema, model, models, type Document, type Types } from 'mongoose';
+import type { IPageComponent } from './PageComponent'; // Ensure this path is correct
 
 export type WebsiteStatus = 'draft' | 'published' | 'unpublished' | 'error_publishing';
 export type DomainConnectionStatus = 'unconfigured' | 'pending_verification' | 'verified' | 'error_dns' | 'error_ssl';
 
+// Interface for a page snapshot within a WebsiteVersion (used here as well for clarity on what WebsiteVersion.pages holds)
+export interface IWebsiteVersionPage {
+  _id?: string | Types.ObjectId; // Added _id as it's useful for client-side keying, Mongoose subdocs can have it
+  name: string;
+  slug: string;
+  elements: IPageComponent[];
+  seoTitle?: string;
+  seoDescription?: string;
+  createdAt?: Date; // Mongoose subdocs can have timestamps if schema configured
+  updatedAt?: Date;
+}
+
+
+export interface IWebsiteVersion extends Document {
+  websiteId: Types.ObjectId;
+  versionNumber: number;
+  name?: string;
+  description?: string;
+  pages: IWebsiteVersionPage[];
+  globalSettings?: {
+    faviconUrl?: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    fontFamily?: string;
+    siteName?: string; // Added siteName to global settings
+  };
+  createdAt: Date;
+  createdByUserId?: Types.ObjectId;
+}
+
+
 export interface IWebsite extends Document {
-  userId: mongoose.Schema.Types.ObjectId;
+  userId: Types.ObjectId;
   name: string;
   customDomain?: string;
   domainStatus?: DomainConnectionStatus;
   dnsInstructions?: string;
   subdomain: string;
-  templateId?: mongoose.Schema.Types.ObjectId;
+  templateId?: Types.ObjectId;
   status: WebsiteStatus;
   lastPublishedAt?: Date;
-
-  // Version control fields
-  currentVersionId?: mongoose.Schema.Types.ObjectId; // Points to the WebsiteVersion being edited
-  publishedVersionId?: mongoose.Schema.Types.ObjectId; // Points to the live WebsiteVersion
-
+  currentVersionId?: Types.ObjectId;
+  publishedVersionId?: Types.ObjectId;
+  // For convenience, currentVersion can be populated if needed, but it's not stored directly on IWebsite
+  currentVersion?: IWebsiteVersion; 
   createdAt: Date;
   updatedAt: Date;
 }

@@ -1,82 +1,250 @@
 
 "use client";
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppHeader, type DeviceType } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
-import { CanvasEditor } from '@/components/editor/canvas-editor';
+import { CanvasEditor, type CanvasElementPlaceholder } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Type, Image as ImageIcon, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon, Loader2 } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Type, Image as ImageIcon, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon, Loader2, Save, AlertTriangle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch'; 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; 
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getWebsiteEditorData, saveWebsiteContent, type SaveWebsiteContentInput } from '@/actions/website';
+import type { IWebsite, IWebsiteVersion, IWebsiteVersionPage, IPageComponent } from '@/models/Website';
+import type { ITemplate } from '@/models/Template';
+import { useToast } from '@/hooks/use-toast';
+import { SaveTemplateModal } from '@/components/editor/save-template-modal';
+import { TemplateGalleryModal } from '@/components/editor/template-gallery-modal';
 
-interface SelectedElement {
-  id: string;
-  type: string;
-  name?: string; 
-  textContent?: string; 
-  fontSize?: string; 
-  color?: string; 
-  imageUrl?: string; 
-  altText?: string; 
-  buttonText?: string; 
-  linkUrl?: string; 
-  backgroundColor?: string;
-  paddingTop?: string;
-  paddingBottom?: string;
-  fullWidth?: boolean;
-  columnCount?: number;
-  columnGap?: string;
-  responsiveLayoutMobile?: 'stack' | '2-col' | 'equal';
+// Represents the data structure for an element selected in the editor
+interface SelectedElementData extends IPageComponent {
+  pageIndex: number; // To know which page it belongs to
 }
+
+const defaultInitialPage: IWebsiteVersionPage = {
+  _id: Date.now().toString(), // Temporary client-side ID
+  name: "Home",
+  slug: "/",
+  elements: [],
+  seoTitle: "Home Page",
+  seoDescription: "Welcome to your new site!",
+};
+
+type EditorSaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unsaved_changes';
+
 
 function EditorPageComponent() {
   const searchParams = useSearchParams();
+  const { toast } = useToast();
   const websiteIdFromQuery = searchParams.get('websiteId');
 
   const [currentDevice, setCurrentDevice] = useState<DeviceType>('desktop');
-  const [selectedElement, setSelectedElement] = useState<null | SelectedElement>(null);
   const [websiteId, setWebsiteId] = useState<string | null>(null);
-  const [isLoadingWebsiteId, setIsLoadingWebsiteId] = useState(true);
+  const [websiteData, setWebsiteData] = useState<IWebsite | null>(null); // Only IWebsite initially
+  
+  // State for the actual content being edited
+  const [currentPages, setCurrentPages] = useState<IWebsiteVersionPage[]>([defaultInitialPage]);
+  const [selectedElement, setSelectedElement] = useState<SelectedElementData | null>(null);
+  
+  const [isLoadingWebsite, setIsLoadingWebsite] = useState(true);
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
+  const [isTemplateGalleryModalOpen, setIsTemplateGalleryModalOpen] = useState(false);
+
+  // Save status for changes within the editor page itself
+  const [editorSaveStatus, setEditorSaveStatus] = useState<EditorSaveStatus>('idle');
+
+
+  const loadWebsiteData = useCallback(async (id: string) => {
+    setIsLoadingWebsite(true);
+    setEditorSaveStatus('idle');
+    try {
+      const result = await getWebsiteEditorData(id);
+      if (result.error) {
+        toast({ title: "Error Loading Website", description: result.error, variant: "destructive" });
+        setWebsiteData(null);
+        setCurrentPages([defaultInitialPage]);
+      } else if (result.website) {
+        setWebsiteData(result.website);
+        if (result.currentVersion && result.currentVersion.pages && result.currentVersion.pages.length > 0) {
+          setCurrentPages(result.currentVersion.pages.map(p => ({...p, _id: p._id || new mongoose.Types.ObjectId().toString() } as IWebsiteVersionPage)));
+        } else {
+          // If no current version or pages, start with a default blank page.
+          // Ensure websiteId is associated with this default state for saving.
+          setCurrentPages([{ ...defaultInitialPage, _id: new mongoose.Types.ObjectId().toString() }]);
+        }
+        setEditorSaveStatus('saved'); // Initially, content matches DB
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: `Failed to load website: ${err.message}`, variant: "destructive" });
+    } finally {
+      setIsLoadingWebsite(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
     if (websiteIdFromQuery) {
       setWebsiteId(websiteIdFromQuery);
+      loadWebsiteData(websiteIdFromQuery);
+    } else {
+      setIsLoadingWebsite(false); // No ID, nothing to load
     }
-    // Simulate loading or validation if needed, for now just set it
-    setIsLoadingWebsiteId(false); 
-  }, [websiteIdFromQuery]);
+  }, [websiteIdFromQuery, loadWebsiteData]);
+
+  const handleElementSelect = useCallback((elementId: string, pageIndex: number) => {
+    const page = currentPages[pageIndex];
+    if (page) {
+      const element = page.elements.find(el => (el._id as unknown as string) === elementId);
+      if (element) {
+        setSelectedElement({ ...element, pageIndex });
+      } else {
+        setSelectedElement(null);
+      }
+    }
+  }, [currentPages]);
+
+  const handleContentChange = () => {
+    // This function would be called by the property inspector or canvas interactions
+    // to update `currentPages` state. For now, just sets status.
+    setEditorSaveStatus('unsaved_changes');
+  };
+  
+  // Called by AppHeader's save mechanism
+  const getEditorContentForSave = useCallback((): SaveWebsiteContentInput['pages'] => {
+    return currentPages.map(page => ({
+        name: page.name,
+        slug: page.slug,
+        elements: page.elements.map(el => ({ type: el.type, config: el.config, order: el.order })), // Strip _id for saving if they are client-generated for new elements
+        seoTitle: page.seoTitle,
+        seoDescription: page.seoDescription,
+    }));
+  }, [currentPages]);
+
+  const handleApplyTemplate = useCallback((template: ITemplate) => {
+    if (template.pages && template.pages.length > 0) {
+      // Ensure new elements get client-side IDs if needed, or handle this on backend
+      const newPagesWithIds = template.pages.map(p => ({
+        ...p,
+        _id: new mongoose.Types.ObjectId().toString(), // Give page a new ID
+        elements: p.elements.map(el => ({ ...el, _id: new mongoose.Types.ObjectId().toString() })) // Give elements new IDs
+      })) as IWebsiteVersionPage[];
+      setCurrentPages(newPagesWithIds);
+      setSelectedElement(null); // Deselect any current element
+      setEditorSaveStatus('unsaved_changes'); // Mark as unsaved
+      toast({ title: "Template Applied", description: `"${template.name}" has been applied. Save your changes to persist.` });
+    } else {
+      toast({ title: "Empty Template", description: "Selected template has no content.", variant: "destructive" });
+    }
+    setIsTemplateGalleryModalOpen(false);
+  }, [toast]);
+  
+  // Function to be called by the editor's own Save button
+  const handleEditorSaveChanges = async () => {
+    if (!websiteId) {
+      toast({ title: "Error", description: "No website ID available to save changes.", variant: "destructive" });
+      return;
+    }
+    setEditorSaveStatus('saving');
+    const contentToSave: SaveWebsiteContentInput = {
+      websiteId: websiteId,
+      pages: getEditorContentForSave(),
+      // globalSettings: websiteData?.currentVersion?.globalSettings || {}, // TODO: Manage global settings
+    };
+
+    try {
+      const result = await saveWebsiteContent(contentToSave);
+      if (result.success && result.website) {
+        setEditorSaveStatus('saved');
+        setWebsiteData(result.website); // Update website data (might have new currentVersionId)
+        if (result.versionId && result.website.currentVersionId?.toString() === result.versionId) {
+             // If save was successful, we might need to reload the pages from the new version
+             // to get any backend-generated IDs or transformations.
+             // For simplicity now, we assume client state is source of truth after save until next full load.
+             // Or, we could update currentPages with the result if the action returned it.
+            const savedVersion = await getWebsiteEditorData(websiteId);
+            if(savedVersion.currentVersion?.pages) {
+                 setCurrentPages(savedVersion.currentVersion.pages.map(p => ({...p, _id: p._id || new mongoose.Types.ObjectId().toString() } as IWebsiteVersionPage)));
+            }
+        }
+        toast({ title: "Changes Saved!", description: "Your website content has been updated." });
+      } else {
+        setEditorSaveStatus('error');
+        toast({ title: "Save Failed", description: result.error || "Could not save changes.", variant: "destructive" });
+      }
+    } catch (error: any) {
+      setEditorSaveStatus('error');
+      toast({ title: "Save Error", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+    }
+  };
 
 
   const renderPropertyFields = () => {
     if (!selectedElement) return null;
 
+    // Example of how one might update: (VERY CONCEPTUAL, NOT FULLY WIRED)
+    const handlePropertyChange = (propertyName: keyof IPageComponent['config'], value: any) => {
+      setCurrentPages(prevPages => {
+        const newPages = [...prevPages];
+        const pageToUpdate = newPages[selectedElement.pageIndex];
+        if (pageToUpdate) {
+          const elementToUpdate = pageToUpdate.elements.find(el => (el._id as unknown as string) === (selectedElement._id as unknown as string));
+          if (elementToUpdate) {
+            elementToUpdate.config = { ...elementToUpdate.config, [propertyName]: value };
+            // Update the selectedElement state as well to reflect change immediately in inspector
+            setSelectedElement(prevSel => prevSel ? {...prevSel, config: elementToUpdate.config} : null);
+            handleContentChange(); // Mark as unsaved
+          }
+        }
+        return newPages;
+      });
+    };
+
     switch (selectedElement.type) {
-      case 'Heading':
+      case 'heading': // Ensure type matches registry and PageComponentSchema
         return (
           <>
-            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
+            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.config?.text || selectedElement.config?.content || 'Heading'}</strong> (ID: {(selectedElement._id as unknown as string).slice(-6)})</p>
             <div className="space-y-2">
               <Label htmlFor="textContent" className="text-xs">Text Content</Label>
-              <Textarea id="textContent" defaultValue={selectedElement.textContent || ""} placeholder="Enter heading text" className="text-xs" />
+              <Textarea 
+                id="textContent" 
+                defaultValue={selectedElement.config?.text || selectedElement.config?.content || ""} 
+                placeholder="Enter heading text" 
+                className="text-xs" 
+                onChange={(e) => handlePropertyChange('text', e.target.value)} 
+              />
             </div>
             <div className="space-y-2 mt-2">
               <Label htmlFor="fontSize" className="text-xs">Font Size (e.g., 2rem, 24px)</Label>
-              <Input type="text" id="fontSize" defaultValue={selectedElement.fontSize || ""} placeholder="e.g., 2rem" className="text-xs" />
+              <Input 
+                type="text" 
+                id="fontSize" 
+                defaultValue={selectedElement.config?.fontSize || ""} 
+                placeholder="e.g., 2rem" className="text-xs" 
+                onChange={(e) => handlePropertyChange('fontSize', e.target.value)}
+              />
             </div>
             <div className="space-y-2 mt-2">
               <Label htmlFor="color" className="text-xs">Text Color</Label>
-              <Input type="color" id="color" defaultValue={selectedElement.color || "#333333"} className="text-xs h-8 w-full" />
+              <Input 
+                type="color" 
+                id="color" 
+                defaultValue={selectedElement.config?.color || "#333333"} 
+                className="text-xs h-8 w-full" 
+                onChange={(e) => handlePropertyChange('color', e.target.value)}
+              />
             </div>
              <div className="space-y-2 mt-2">
               <Label htmlFor="headingLevel" className="text-xs">Level (H1-H6)</Label>
-              <Select defaultValue="h2">
+              <Select 
+                defaultValue={selectedElement.config?.level || "h2"}
+                onValueChange={(value) => handlePropertyChange('level', value)}
+              >
                 <SelectTrigger id="headingLevel" className="w-full text-xs bg-input">
                     <SelectValue placeholder="Select level" />
                 </SelectTrigger>
@@ -90,194 +258,44 @@ function EditorPageComponent() {
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">Alignment, spacing, and advanced typography settings would appear here. Changes would reflect live on the canvas.</p>
           </>
         );
-      case 'Text':
+      // ... other cases from original file ...
+      case 'image':
          return (
           <>
-            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
-            <p className="text-xs text-muted-foreground mb-2">
-              A WYSIWYG toolbar (Bold, Italic, Underline, Lists, Links, etc.) would appear here or above the text area.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="richTextContent" className="text-xs">Content</Label>
-              <Textarea 
-                id="richTextContent" 
-                defaultValue={selectedElement.textContent || ""} 
-                placeholder="Enter your rich text content here. You can add multiple paragraphs, format text, and create lists. A full toolbar with formatting options (bold, italic, lists, links etc.) would appear here." 
-                rows={8} 
-                className="text-xs" 
-              />
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Font family, size, color, alignment, and line height controls would be available.
-              Image insertion within this text block is typically handled by a dedicated Image component or advanced editor plugins.
-              Form validation would ensure content meets any constraints (e.g., character limits).
-            </p>
-          </>
-        );
-      case 'Image':
-        return (
-          <>
-            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
+            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.config?.alt || 'Image'}</strong> (ID: {(selectedElement._id as unknown as string).slice(-6)})</p>
             <div className="space-y-2">
               <Label htmlFor="imageUrl" className="text-xs">Image Source URL</Label>
-              <Input type="url" id="imageUrl" defaultValue={selectedElement.imageUrl || ""} placeholder="https://placehold.co/600x400.png" className="text-xs" />
+              <Input type="url" id="imageUrl" defaultValue={selectedElement.config?.src || ""} placeholder="https://placehold.co/600x400.png" className="text-xs" onChange={(e) => handlePropertyChange('src', e.target.value)} />
             </div>
+             {/* Image preview if src exists */}
+            {selectedElement.config?.src && (
+                <div className="mt-2">
+                    <img src={selectedElement.config.src as string} alt={selectedElement.config?.alt as string || 'Preview'} className="rounded-md max-w-full h-auto border" data-ai-hint="placeholder image"/>
+                </div>
+            )}
             <Button variant="outline" size="sm" className="w-full mt-2 text-xs" disabled>
               <UploadCloud className="mr-2 h-3.5 w-3.5" /> Upload Image (Conceptual)
             </Button>
-            <p className="text-xs text-muted-foreground mt-1 text-center">Or drag & drop an image here.</p>
-            
-            <Separator className="my-3" />
-
             <div className="space-y-2 mt-2">
               <Label htmlFor="altText" className="text-xs">Alt Text (Accessibility)</Label>
-              <Input type="text" id="altText" defaultValue={selectedElement.altText || ""} placeholder="Descriptive text for image" className="text-xs" />
+              <Input type="text" id="altText" defaultValue={selectedElement.config?.alt || ""} placeholder="Descriptive text for image" className="text-xs" onChange={(e) => handlePropertyChange('alt', e.target.value)}/>
             </div>
-            <div className="space-y-2 mt-2">
-              <Label htmlFor="imageWidth" className="text-xs">Width (e.g., 100%, 300px)</Label>
-              <Input type="text" id="imageWidth" placeholder="e.g., 100%" className="text-xs" />
-            </div>
-            <div className="space-y-2 mt-2">
-              <Label htmlFor="imageLink" className="text-xs">Link URL (Optional)</Label>
-              <Input type="url" id="imageLink" placeholder="https://example.com" className="text-xs" />
-            </div>
-
-            <Separator className="my-3" />
-             <div>
-              <h4 className="text-xs font-medium mb-1 text-muted-foreground flex items-center"><Crop className="mr-1.5 h-3.5 w-3.5" /> Basic Editing (Conceptual)</h4>
-              <div className="flex gap-2 mt-1">
-                <Button variant="outline" size="sm" className="text-xs flex-1" disabled>Crop</Button>
-                <Button variant="outline" size="sm" className="text-xs flex-1" disabled>Resize</Button>
-                <Button variant="outline" size="sm" className="text-xs flex-1" disabled>Filters</Button>
-              </div>
-               <p className="text-xs text-muted-foreground mt-2">Advanced image editing tools might open in a modal or separate view.</p>
-            </div>
-
-            <Separator className="my-3" />
-            <div className="flex items-center text-xs text-muted-foreground">
-              <Sparkles className="mr-1.5 h-3.5 w-3.5 text-green-500" />
-              <span>Images are automatically optimized for performance. Supports JPG, PNG, WebP, GIF.</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Controls for height, alignment, border-radius, shadow, and lightbox options would also be here.</p>
-          </>
-        );
-      case 'Button':
-        return (
-          <>
-            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
-            <div className="space-y-2">
-              <Label htmlFor="buttonText" className="text-xs">Button Text</Label>
-              <Input type="text" id="buttonText" defaultValue={selectedElement.buttonText || ""} placeholder="Click Me" className="text-xs" />
-            </div>
-            <div className="space-y-2 mt-2">
-              <Label htmlFor="linkUrl" className="text-xs">Link URL</Label>
-              <Input type="url" id="linkUrl" defaultValue={selectedElement.linkUrl || ""} placeholder="/contact" className="text-xs" />
-            </div>
-            <div className="space-y-2 mt-2">
-              <Label htmlFor="buttonBgColor" className="text-xs">Background Color</Label>
-              <Input type="color" id="buttonBgColor" defaultValue={selectedElement.color || "hsl(var(--primary))"} className="text-xs h-8 w-full" />
-            </div>
-            <div className="space-y-2 mt-2">
-              <Label htmlFor="buttonTextColor" className="text-xs">Text Color</Label>
-              <Input type="color" id="buttonTextColor" defaultValue="#FFFFFF" className="text-xs h-8 w-full" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Options for style (solid, outline), size, hover effects, icons, and padding/margin would be available here.</p>
-          </>
-        );
-      case 'Section':
-        return (
-          <>
-            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
-            <div className="space-y-2">
-              <Label htmlFor="sectionBgColor" className="text-xs">Background Color</Label>
-              <Input type="color" id="sectionBgColor" defaultValue={selectedElement.backgroundColor || "#FFFFFF"} className="text-xs h-8 w-full" />
-            </div>
-            <div className="space-y-2 mt-2">
-              <Label htmlFor="sectionPaddingTop" className="text-xs">Padding Top (e.g., 20px, 2rem)</Label>
-              <Input type="text" id="sectionPaddingTop" defaultValue={selectedElement.paddingTop || "20px"} placeholder="e.g., 20px" className="text-xs" />
-            </div>
-            <div className="space-y-2 mt-2">
-              <Label htmlFor="sectionPaddingBottom" className="text-xs">Padding Bottom (e.g., 20px, 2rem)</Label>
-              <Input type="text" id="sectionPaddingBottom" defaultValue={selectedElement.paddingBottom || "20px"} placeholder="e.g., 20px" className="text-xs" />
-            </div>
-            <div className="flex items-center space-x-2 mt-3">
-              <Switch id="sectionFullWidth" defaultChecked={selectedElement.fullWidth} />
-              <Label htmlFor="sectionFullWidth" className="text-xs">Full Width Section</Label>
-            </div>
-             <div className="space-y-2 mt-2">
-              <Label htmlFor="sectionMinHeight" className="text-xs">Min Height (e.g., 300px, auto)</Label>
-              <Input type="text" id="sectionMinHeight" placeholder="e.g., 300px" className="text-xs" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Options for background image, content alignment, width constraints, and advanced spacing would appear here.</p>
-          </>
-        );
-        case 'Columns':
-        return (
-          <>
-            <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.name || selectedElement.id}</strong></p>
-            <div className="space-y-2">
-              <Label htmlFor="columnCount" className="text-xs">Number of Columns</Label>
-              <Select defaultValue={selectedElement.columnCount?.toString() || "2"}>
-                <SelectTrigger id="columnCount" className="w-full text-xs bg-input">
-                    <SelectValue placeholder="Select columns" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="1">1 Column</SelectItem>
-                    <SelectItem value="2">2 Columns</SelectItem>
-                    <SelectItem value="3">3 Columns</SelectItem>
-                    <SelectItem value="4">4 Columns</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-             <div className="space-y-2 mt-2">
-              <Label htmlFor="columnGap" className="text-xs">Gap Between Columns (e.g., 16px, 1rem)</Label>
-              <Input type="text" id="columnGap" defaultValue={selectedElement.columnGap || "16px"} placeholder="e.g., 16px" className="text-xs" />
-            </div>
-            <div className="space-y-2 mt-2">
-              <Label htmlFor="responsiveLayoutMobile" className="text-xs">Mobile Layout</Label>
-               <Select defaultValue={selectedElement.responsiveLayoutMobile || "stack"}>
-                <SelectTrigger id="responsiveLayoutMobile" className="w-full text-xs bg-input">
-                    <SelectValue placeholder="Select mobile layout" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="stack">Stack Columns</SelectItem>
-                    <SelectItem value="2-col">Force 2 Columns</SelectItem>
-                    <SelectItem value="equal">Keep Equal Width</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Controls for individual column widths (e.g., 30%/70%), vertical alignment per column, and different responsive behaviors for tablet/desktop would be here.
-              Each column would act as a drop target for other components.
-            </p>
           </>
         );
       default:
         return (
           <>
-            <p className="text-sm text-muted-foreground mb-2">Editing properties for: <strong>{selectedElement.type} ({selectedElement.id})</strong></p>
-            <p className="text-xs text-muted-foreground">No specific property fields defined for this conceptual element type yet. General properties (e.g., margins, padding, visibility, advanced styling like custom CSS classes) could appear here.</p>
+            <p className="text-sm text-muted-foreground mb-2">Editing properties for: <strong>{selectedElement.type} (ID: {(selectedElement._id as unknown as string).slice(-6)})</strong></p>
+            <pre className="text-xs bg-muted p-2 rounded-md overflow-auto">{JSON.stringify(selectedElement.config, null, 2)}</pre>
+            <p className="text-xs text-muted-foreground mt-3">No specific UI for this element type yet. Add onChange handlers to inputs to enable editing.</p>
           </>
         );
     }
   };
 
-  const getElementIcon = (type: string) => {
-    switch (type) {
-      case 'Heading': return <Type className="w-5 h-5 mr-2 text-primary" />;
-      case 'Text': return <Type className="w-5 h-5 mr-2 text-primary" />;
-      case 'Image': return <ImageIcon className="w-5 h-5 mr-2 text-primary" />;
-      case 'Button': return <ButtonIconElement className="w-5 h-5 mr-2 text-primary" />;
-      case 'Section': return <Box className="w-5 h-5 mr-2 text-primary" />;
-      case 'Columns': return <ColumnsIcon className="w-5 h-5 mr-2 text-primary" />;
-      default: return <MousePointerSquareDashed className="w-5 h-5 mr-2 text-primary" />;
-    }
-  };
-
-  if (isLoadingWebsiteId) {
+  if (isLoadingWebsite) {
     return (
       <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -286,12 +304,12 @@ function EditorPageComponent() {
     );
   }
 
-  if (!websiteId && !isLoadingWebsiteId) {
+  if (!websiteId && !isLoadingWebsite) {
      return (
       <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center p-8">
         <Card className="max-w-md text-center">
             <CardHeader>
-                <CardTitle className="text-destructive">Error: Website Not Specified</CardTitle>
+                <CardTitle className="text-destructive flex items-center justify-center"><AlertTriangle className="mr-2"/>Error: Website Not Specified</CardTitle>
             </CardHeader>
             <CardContent>
                 <p className="text-muted-foreground">
@@ -306,14 +324,84 @@ function EditorPageComponent() {
     );
   }
 
+  const renderEditorSaveStatus = () => {
+    if (!websiteId) return null;
+    switch (editorSaveStatus) {
+      case 'saving':
+        return <div className="flex items-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 mr-1 animate-spin" />Saving...</div>;
+      case 'saved':
+        return <div className="flex items-center text-xs text-green-600"><CheckCircle className="h-4 w-4 mr-1" />Saved</div>;
+      case 'error':
+        return <div className="flex items-center text-xs text-destructive"><AlertCircle className="h-4 w-4 mr-1" />Error Saving</div>;
+      case 'unsaved_changes':
+        return <div className="flex items-center text-xs text-amber-600"><AlertCircle className="h-4 w-4 mr-1" />Unsaved Changes</div>;
+      default: // idle (usually after load, before changes)
+        return <div className="flex items-center text-xs text-muted-foreground"><CheckCircle className="h-4 w-4 mr-1" />Up to date</div>;
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-      <AppHeader currentDevice={currentDevice} onDeviceChange={setCurrentDevice} websiteId={websiteId} />
+      <AppHeader
+        currentDevice={currentDevice}
+        onDeviceChange={setCurrentDevice}
+        websiteId={websiteId}
+        getEditorContentForSave={getEditorContentForSave}
+        editorSaveStatus={editorSaveStatus} // Pass editor's save status to AppHeader
+        onOpenSaveTemplateModal={() => setIsSaveTemplateModalOpen(true)}
+        onOpenTemplateGalleryModal={() => setIsTemplateGalleryModalOpen(true)}
+      />
       <div className="flex flex-1 overflow-hidden">
         <ComponentLibrarySidebar />
         <main className="flex-1 flex flex-col p-1 md:p-4 overflow-hidden bg-muted/30">
-          <CanvasEditor devicePreview={currentDevice} />
+          {/* Editor-specific Save Button and Status */}
+           <div className="flex justify-end items-center p-2 border-b bg-card mb-2 gap-3">
+              {renderEditorSaveStatus()}
+              <Button 
+                size="sm" 
+                onClick={handleEditorSaveChanges} 
+                disabled={editorSaveStatus === 'saving' || editorSaveStatus === 'saved' || editorSaveStatus === 'idle'}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Save Site Changes
+              </Button>
+          </div>
+          <CanvasEditor 
+            devicePreview={currentDevice} 
+            pages={currentPages}
+            onElementSelect={handleElementSelect}
+            onDropComponent={(componentType, pageIndex, targetOrder) => {
+                // Placeholder for adding new component from sidebar
+                setCurrentPages(prevPages => {
+                    const newPages = [...prevPages];
+                    const pageToUpdate = newPages[pageIndex];
+                    if (pageToUpdate) {
+                        const newElement: IPageComponent = {
+                            _id: new mongoose.Types.ObjectId().toString(), // Client-side ID for new element
+                            type: componentType,
+                            config: { text: `New ${componentType}` }, // Default config
+                            order: targetOrder !== undefined ? targetOrder : pageToUpdate.elements.length,
+                            createdAt: new Date(),
+                            updatedAt: new Date(),
+                        };
+                        // Simple add to end or at specific order. Real reordering is more complex.
+                        if (targetOrder !== undefined) {
+                             pageToUpdate.elements.splice(targetOrder, 0, newElement);
+                             // Re-assign order for subsequent elements
+                             for(let i = targetOrder + 1; i < pageToUpdate.elements.length; i++) {
+                                pageToUpdate.elements[i].order = i;
+                             }
+                        } else {
+                            pageToUpdate.elements.push(newElement);
+                        }
+
+                    }
+                    return newPages;
+                });
+                setEditorSaveStatus('unsaved_changes');
+                toast({ title: "Component Added", description: `${componentType} added to page ${pageIndex + 1}. Remember to save.` });
+            }}
+          />
         </main>
         <aside className="w-80 bg-card border-l border-border p-4 shadow-sm flex flex-col overflow-y-auto">
           <Card className="flex-1">
@@ -321,7 +409,7 @@ function EditorPageComponent() {
               <CardTitle className="font-headline text-lg flex items-center">
                 {selectedElement ? (
                   <>
-                    {getElementIcon(selectedElement.type)}
+                    <MousePointerSquareDashed className="w-5 h-5 mr-2 text-primary" />
                     {selectedElement.type} Properties
                   </>
                 ) : (
@@ -334,88 +422,39 @@ function EditorPageComponent() {
             </CardHeader>
             <CardContent>
               {selectedElement ? (
-                <div className="space-y-4"> 
+                <div className="space-y-4">
                   {renderPropertyFields()}
+                  <Button variant="outline" size="sm" onClick={() => setSelectedElement(null)}>Deselect Element</Button>
                 </div>
               ) : (
                 <>
                 <p className="text-sm text-muted-foreground">
-                  Select an element on the canvas or from the Page Outline to edit its properties.
+                  Select an element on the canvas to edit its properties.
                   Current Website ID: {websiteId || "N/A"}
+                  <br/>
+                  Active Page: {currentPages[0]?.name || "Home (Default)"} (Page: 1/{currentPages.length})
                 </p>
-                <div className="mt-4 space-y-3">
-                    <div className="space-y-2">
-                        <Label htmlFor="pageTitle" className="text-xs">Page Title (SEO)</Label>
-                        <Input type="text" id="pageTitle" placeholder="Enter page title" className="text-xs" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="pageSlug" className="text-xs">Page Slug (URL)</Label>
-                        <Input type="text" id="pageSlug" placeholder="/my-awesome-page" className="text-xs" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="pageDescription" className="text-xs">Page Description (SEO)</Label>
-                        <Textarea id="pageDescription" placeholder="Enter meta description for SEO" className="text-xs" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="pageBgColor" className="text-xs">Page Background Color</Label>
-                        <Input type="color" id="pageBgColor" defaultValue="#FFFFFF" className="text-xs h-8 w-full" />
-                    </div>
-
-                    <Separator className="my-4" />
-                    <div>
-                      <h4 className="text-sm font-medium mb-2 flex items-center">
-                        <BarChart2 className="w-4 h-4 mr-2 text-muted-foreground" /> Analytics
-                      </h4>
-                       <div className="space-y-2">
-                        <Label htmlFor="analyticsTrackingId" className="text-xs">Tracking ID (e.g., Google Analytics G-XXXX)</Label>
-                        <Input type="text" id="analyticsTrackingId" placeholder="Enter your tracking ID" className="text-xs" />
-                         <p className="text-xs text-muted-foreground mt-1">This ID would be used by the publishing system to inject analytics scripts (e.g., gtag.js) into your site.</p>
-                      </div>
-                    </div>
-                     <p className="text-xs text-muted-foreground mt-4">Other page settings like custom CSS, header/footer scripts, and global font choices would go here.</p>
-                </div>
+                {/* Page settings UI */}
                 </>
               )}
-              
-              <div className="mt-6 border-t pt-4">
-                 <p className="text-xs text-muted-foreground mb-2">Conceptual Element Selection:</p>
-                {selectedElement ? (
-                    <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setSelectedElement(null)}>
-                        Deselect (Show Page Settings)
-                    </Button>
-                ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'heading-123', type: 'Heading', name: 'Hero Title', textContent: 'My Awesome Title', fontSize: '2.5rem', color: '#222222'})}>
-                            Select Sample Heading
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'img-456', type: 'Image', name: 'Banner Image', imageUrl: 'https://placehold.co/600x400.png', altText: 'Placeholder Banner'})}>
-                            Select Sample Image
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'btn-789', type: 'Button', name: 'CTA Button', buttonText: 'Learn More', linkUrl: '/about', color: 'hsl(var(--primary))'})}>
-                            Select Sample Button
-                        </Button>
-                         <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'text-012', type: 'Text', name: 'Intro Paragraph', textContent: 'This is a sample rich text block.'})}>
-                            Select Sample Text Block
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'section-ABC', type: 'Section', name: 'Hero Section', backgroundColor: '#F0F8FF', paddingTop: '40px', paddingBottom: '40px', fullWidth: true})}>
-                            Select Sample Section
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedElement({id: 'cols-DEF', type: 'Columns', name: 'Feature Columns', columnCount: 3, columnGap: '24px', responsiveLayoutMobile: 'stack'})}>
-                            Select Sample Columns
-                        </Button>
-                    </div>
-                )}
-                 <p className="text-xs text-muted-foreground mt-3">Undo/Redo actions would be available in the main toolbar.</p>
-              </div>
             </CardContent>
           </Card>
         </aside>
       </div>
+      {websiteId && <SaveTemplateModal 
+        isOpen={isSaveTemplateModalOpen} 
+        onOpenChange={setIsSaveTemplateModalOpen} 
+        currentDesignData={currentPages}
+      />}
+      <TemplateGalleryModal 
+        isOpen={isTemplateGalleryModalOpen} 
+        onOpenChange={setIsTemplateGalleryModalOpen} 
+        onApplyTemplate={handleApplyTemplate}
+      />
     </div>
   );
 }
 
-// Wrap the main component in Suspense for useSearchParams
 export default function EditorPage() {
   return (
     <Suspense fallback={
