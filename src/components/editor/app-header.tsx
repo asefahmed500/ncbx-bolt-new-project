@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -22,18 +23,19 @@ import { SaveTemplateModal } from "./save-template-modal";
 import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download, ZoomIn, ZoomOut, Loader2, CheckCircle, AlertCircle, Menu, CloudOff } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
-import { publishWebsite, unpublishWebsite, getWebsiteMetadata, saveWebsiteContent, type CreateWebsiteInput, type SaveWebsiteContentInput } from '@/actions/website'; // Import actions
-import type { IWebsite, WebsiteStatus } from '@/models/Website'; // Import IWebsite
+import { publishWebsite, unpublishWebsite, getWebsiteMetadata, saveWebsiteContent, type SaveWebsiteContentInput } from '@/actions/website';
+import type { IWebsite, IWebsiteVersion } from '@/models/Website'; // Ensure IWebsiteVersion might be part of a detailed website object in future
+import { STRIPE_PRICE_ID_PRO_MONTHLY } from '@/config/plans';
 
 export type DeviceType = 'desktop' | 'tablet' | 'mobile';
 
-interface AppHeaderProps {
-  currentDevice?: DeviceType;
-  onDeviceChange?: (device: DeviceType) => void;
-  websiteId?: string | null;
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+// Helper interface for potentially populated version data if editor passed it
+interface WebsiteWithPotentialVersion extends IWebsite {
+  currentVersion?: Partial<IWebsiteVersion>; // Or a more specific type for editor content
 }
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeaderProps) {
   const { data: session, status: sessionStatus } = useSession();
@@ -46,7 +48,7 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [isPublishing, setIsPublishing] = useState(false);
   const [isUnpublishing, setIsUnpublishing] = useState(false);
-  const [websiteData, setWebsiteData] = useState<IWebsite | null>(null);
+  const [websiteData, setWebsiteData] = useState<WebsiteWithPotentialVersion | null>(null);
   const [isLoadingWebsiteData, setIsLoadingWebsiteData] = useState(false);
 
   const isEditorPage = pathname === '/editor' && !!websiteId;
@@ -55,28 +57,37 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
     if (isEditorPage && websiteId) {
       setIsLoadingWebsiteData(true);
       try {
-        const result = await getWebsiteMetadata(websiteId);
+        const result = await getWebsiteMetadata(websiteId); // getWebsiteMetadata only returns IWebsite
         if (result.website) {
-          setWebsiteData(result.website);
-          if (saveStatus === 'idle') setSaveStatus('saved'); // If idle, mark as saved initially
+          setWebsiteData(result.website as WebsiteWithPotentialVersion);
+          // If loading for the first time and there's a published version, assume it's "saved" relative to that.
+          // If there's a currentVersionId, it implies some saved state.
+          if (saveStatus === 'idle' && (result.website.currentVersionId || result.website.publishedVersionId)) {
+            setSaveStatus('saved');
+          } else if (saveStatus === 'idle') {
+            setSaveStatus('idle'); // Fresh site, no saves yet
+          }
         } else if (result.error) {
           toast({ title: "Error fetching website data", description: result.error, variant: "destructive" });
           setWebsiteData(null);
+          setSaveStatus('error');
         }
       } catch (error: any) {
         toast({ title: "Error", description: `Failed to load website details: ${error.message}`, variant: "destructive" });
         setWebsiteData(null);
+        setSaveStatus('error');
       } finally {
         setIsLoadingWebsiteData(false);
       }
     } else {
-      setWebsiteData(null); // Clear data if not on editor page or no websiteId
+      setWebsiteData(null);
+      setSaveStatus('idle');
     }
-  }, [isEditorPage, websiteId, toast, saveStatus]); // Added saveStatus to dependencies
+  }, [isEditorPage, websiteId, toast, saveStatus]);
 
   useEffect(() => {
     fetchWebsiteData();
-  }, [fetchWebsiteData]); // fetchWebsiteData is memoized
+  }, [fetchWebsiteData]);
 
   useEffect(() => {
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -95,23 +106,21 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
     setSaveStatus('saving');
     toast({ title: "Saving Changes..." });
 
-    // Simulate gathering editor content
+    // Conceptual: In a real editor, 'pages' and 'globalSettings' would come from the editor's state.
+    // For now, we pass a minimal structure to ensure the backend action can create a new version.
+    // If websiteData.currentVersion was populated, we could use its content as a base.
     const conceptualEditorContent: SaveWebsiteContentInput = {
       websiteId: websiteId,
-      pages: websiteData?.currentVersionId // If we had actual pages, we'd use them
-        ? (websiteData as any).currentVersion?.pages || [{ name: "Home", slug: "/", elements: [] }]
-        : [{ name: "Home", slug: "/", elements: [] }],
-      globalSettings: (websiteData as any).currentVersion?.globalSettings || {},
+      pages: websiteData?.currentVersion?.pages || [{ name: "Home", slug: "/", elements: [], seoTitle: "Home Page", seoDescription: "Welcome" }],
+      globalSettings: websiteData?.currentVersion?.globalSettings || { siteName: websiteData?.name || "My Site"},
     };
     
     try {
-      // In a real editor, you'd get the actual content from the editor state.
-      // For now, we'll use a conceptual 'save' that doesn't change content but tests the action.
       const result = await saveWebsiteContent(conceptualEditorContent);
       if (result.success && result.website) {
         setSaveStatus('saved');
         toast({ title: "Changes Saved!", description: "Your website content has been updated." });
-        setWebsiteData(result.website); // Update local state with potentially new version ID
+        setWebsiteData(result.website as WebsiteWithPotentialVersion); // Update local state with potentially new version ID
       } else {
         setSaveStatus('error');
         toast({ title: "Save Failed", description: result.error || "Could not save changes.", variant: "destructive" });
@@ -137,7 +146,8 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
       const result = await publishWebsite({ websiteId });
       if (result.success && result.website) {
         toast({ title: "Website Published!", description: `"${result.website.name}" is now live.` });
-        setWebsiteData(result.website); // Update local state
+        setWebsiteData(result.website as WebsiteWithPotentialVersion); 
+        setSaveStatus('saved'); // Publishing also implies the current state is "saved" in terms of being publishable
       } else {
         toast({ title: "Publish Failed", description: result.error || "Unknown error.", variant: "destructive" });
       }
@@ -159,7 +169,7 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
       const result = await unpublishWebsite({ websiteId });
       if (result.success && result.website) {
         toast({ title: "Website Unpublished!", description: `"${result.website.name}" is no longer live.` });
-        setWebsiteData(result.website); // Update local state
+        setWebsiteData(result.website as WebsiteWithPotentialVersion);
       } else {
         toast({ title: "Unpublish Failed", description: result.error || "Unknown error.", variant: "destructive" });
       }
@@ -180,24 +190,21 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
   };
 
   const handlePreview = () => {
-    if (!websiteId) {
-      toast({ title: "Error", description: "No website selected to preview.", variant: "destructive" });
+    if (!websiteId || !websiteData) {
+      toast({ title: "Error", description: "No website selected or data loaded to preview.", variant: "destructive" });
       return;
     }
-    // Conceptual: Generate a shareable preview link based on currentVersionId or live if published.
-    // For now, it opens the presumed live link.
     const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || "notthedomain.com";
     const siteUrl = websiteData?.customDomain && websiteData?.domainStatus === 'verified'
       ? `https://${websiteData.customDomain}`
       : `https://${websiteData?.subdomain}.${baseUrl}`;
 
-    if (websiteData?.subdomain || websiteData?.customDomain) {
+    if (websiteData?.subdomain || (websiteData?.customDomain && websiteData?.domainStatus === 'verified')) {
       window.open(siteUrl, '_blank');
     } else {
-      toast({ title: "Cannot Preview", description: "Subdomain or custom domain not set.", variant: "destructive" });
+      toast({ title: "Cannot Preview", description: "Website needs to be published with a subdomain or verified custom domain.", variant: "destructive" });
     }
   };
-
 
   const handleSignOut = async () => {
     await clientSignOut({ callbackUrl: '/' });
@@ -231,7 +238,7 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
         return <div className="flex items-center text-xs text-green-600 mr-2"><CheckCircle className="h-4 w-4 mr-1" />Saved</div>;
       case 'error':
         return <div className="flex items-center text-xs text-destructive mr-2"><AlertCircle className="h-4 w-4 mr-1" />Error Saving</div>;
-      default: // idle (implies unsaved changes after initial load)
+      default: // idle 
         return <div className="flex items-center text-xs text-amber-600 mr-2"><AlertCircle className="h-4 w-4 mr-1" />Unsaved</div>;
     }
   };
@@ -367,23 +374,13 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
                       disabled={isPublishing || isLoadingWebsiteData || saveStatus !== 'saved'}
                     >
                       {isPublishing ? <Loader2 className="mr-1 md:mr-2 h-4 w-4 animate-spin" /> : <ArrowUpCircle className="mr-1 md:mr-2 h-4 w-4" />}
-                      <span className="hidden md:inline">{websiteData?.status === 'published' ? 'Republish' : 'Publish'}</span>
+                      <span className="hidden md:inline">Publish</span>
                     </Button>
                   )}
                   {websiteData?.status === 'published' && (
-                    <Button asChild variant="secondary" size="sm" className="hidden sm:flex items-center">
-                        <a 
-                          href={
-                            websiteData.customDomain && websiteData.domainStatus === 'verified'
-                            ? `https://${websiteData.customDomain}`
-                            : `https://${websiteData.subdomain}.${process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'notthedomain.com'}`
-                          } 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                        >
-                            <Eye className="mr-1 h-4 w-4 md:mr-2" />
-                            <span className="hidden md:inline">View Live</span>
-                        </a>
+                    <Button variant="secondary" size="sm" className="hidden sm:flex items-center" onClick={handlePreview} disabled={!websiteData?.subdomain && !websiteData?.customDomain}>
+                        <Eye className="mr-1 h-4 w-4 md:mr-2" />
+                        <span className="hidden md:inline">View Live</span>
                     </Button>
                   )}
                 </>
@@ -436,7 +433,7 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
                       <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)}><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setIsSaveTemplateModalOpen(true)} disabled={!websiteId}><Save className="mr-2 h-4 w-4" />Save As Template</DropdownMenuItem>
-                      <DropdownMenuItem onClick={handlePreview} disabled={!websiteId}><Eye className="mr-2 h-4 w-4" />Preview Site</DropdownMenuItem>
+                      <DropdownMenuItem onClick={handlePreview} disabled={!websiteId || !websiteData || (isLoadingWebsiteData && !websiteData?.subdomain && !websiteData?.customDomain) }><Eye className="mr-2 h-4 w-4" />Preview Site</DropdownMenuItem>
                       
                       {websiteData?.status === 'published' ? (
                         <DropdownMenuItem onClick={handleUnpublish} className="xs:hidden" disabled={isUnpublishing || isLoadingWebsiteData}>
@@ -446,7 +443,7 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
                       ) : (
                         <DropdownMenuItem onClick={handlePublish} className="xs:hidden" disabled={isPublishing || isLoadingWebsiteData || saveStatus !== 'saved'}>
                           {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowUpCircle className="mr-2 h-4 w-4" />}
-                          {websiteData?.status === 'published' ? 'Republish Site' : 'Publish Site'}
+                           Publish Site
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={handleExportCode} disabled={!websiteId}><Download className="mr-2 h-4 w-4" />Export Code</DropdownMenuItem>
@@ -511,6 +508,3 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
     </>
   );
 }
-
-// Placeholder for STRIPE_PRICE_ID_PRO_MONTHLY if not set by environment variables
-const STRIPE_PRICE_ID_PRO_MONTHLY = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY || 'price_YOUR_PRO_MONTHLY_ID_FROM_ENV_PLACEHOLDER';

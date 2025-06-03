@@ -16,10 +16,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Download, ListFilter, Eye, BarChartHorizontalBig } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Download, ListFilter, Eye, BarChartHorizontalBig, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Link from 'next/link';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -124,11 +125,11 @@ export default function AdminTemplatesPage() {
     }
   };
 
-  const updateUrlParams = (page: number, status: string, category: string) => {
+  const updateUrlParams = (page: number, currentStatus: string, currentCategory: string) => {
     const params = new URLSearchParams();
     params.set('page', page.toString());
-    if (status) params.set('status', status);
-    if (category) params.set('category', category);
+    if (currentStatus) params.set('status', currentStatus);
+    if (currentCategory) params.set('category', currentCategory);
     router.push(`/admin/templates?${params.toString()}`);
   };
 
@@ -230,7 +231,11 @@ export default function AdminTemplatesPage() {
                     <Button variant="outline" size="sm" onClick={() => handleExportTemplate(template._id as string, template.name)}>
                         <Download className="mr-1 h-3.5 w-3.5" /> Export
                     </Button>
-                    <Button variant="ghost" size="sm" disabled>Edit</Button> 
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/admin/templates/edit/${template._id}`} title="Edit Template (Conceptual)">
+                        <Edit className="mr-1 h-3.5 w-3.5" /> Edit
+                      </Link>
+                    </Button> 
                   </TableCell>
                 </TableRow>
               ))}

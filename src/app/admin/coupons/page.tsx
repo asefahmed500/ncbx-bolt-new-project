@@ -84,7 +84,6 @@ export default function AdminCouponsPage() {
       return `${coupon.discountValue}%`;
     }
     if (coupon.discountType === 'fixed_amount') {
-      // Assuming discountValue for fixed_amount is in cents
       return `$${(coupon.discountValue / 100).toFixed(2)}`;
     }
     return coupon.discountValue;
@@ -163,11 +162,13 @@ export default function AdminCouponsPage() {
                   </TableCell>
                   <TableCell>{new Date(coupon.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right space-x-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8" disabled>
+                    <Button asChild variant="outline" size="icon" className="h-8 w-8">
+                      <Link href={`/admin/coupons/edit/${coupon._id}`} title="Edit Coupon (Conceptual)">
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit Coupon</span>
+                      </Link>
                     </Button>
-                     <Button variant="destructive" size="icon" className="h-8 w-8" disabled>
+                     <Button variant="destructive" size="icon" className="h-8 w-8" disabled title="Delete Coupon (Conceptual)">
                         <Trash2 className="h-4 w-4" />
                         <span className="sr-only">Delete Coupon</span>
                     </Button>
