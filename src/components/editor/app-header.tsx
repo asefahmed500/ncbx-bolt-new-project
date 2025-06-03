@@ -1,9 +1,8 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from "next-auth/react";
-import { signOut as clientSignOut } from "next-auth/react"; 
+import { signOut as clientSignOut } from "next-auth/react";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,33 +19,64 @@ import { AppLogo } from "@/components/icons/app-logo";
 import { AiCopyModal } from "./ai-copy-modal";
 import { TemplateGalleryModal } from "./template-gallery-modal";
 import { SaveTemplateModal } from "./save-template-modal";
-import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download, ZoomIn, ZoomOut, Loader2, CheckCircle, AlertCircle, Menu } from "lucide-react";
+import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download, ZoomIn, ZoomOut, Loader2, CheckCircle, AlertCircle, Menu, CloudOff } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
-import { publishWebsite } from '@/actions/website'; // Import the server action
+import { publishWebsite, unpublishWebsite, getWebsiteMetadata, saveWebsiteContent, type CreateWebsiteInput, type SaveWebsiteContentInput } from '@/actions/website'; // Import actions
+import type { IWebsite, WebsiteStatus } from '@/models/Website'; // Import IWebsite
 
 export type DeviceType = 'desktop' | 'tablet' | 'mobile';
 
 interface AppHeaderProps {
   currentDevice?: DeviceType;
   onDeviceChange?: (device: DeviceType) => void;
-  websiteId?: string | null; // Make websiteId prop optional and accept null
+  websiteId?: string | null;
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeaderProps) {
-  const { data: session, status } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [isAiCopyModalOpen, setIsAiCopyModalOpen] = useState(false);
   const [isTemplateGalleryModalOpen, setIsTemplateGalleryModalOpen] = useState(false);
   const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState('light'); 
+  const [currentTheme, setCurrentTheme] = useState('light');
   const { toast } = useToast();
   const pathname = usePathname();
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved'); // Default to saved for non-editor pages
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
+  const [websiteData, setWebsiteData] = useState<IWebsite | null>(null);
+  const [isLoadingWebsiteData, setIsLoadingWebsiteData] = useState(false);
 
-  const isEditorPage = pathname === '/editor';
+  const isEditorPage = pathname === '/editor' && !!websiteId;
+
+  const fetchWebsiteData = useCallback(async () => {
+    if (isEditorPage && websiteId) {
+      setIsLoadingWebsiteData(true);
+      try {
+        const result = await getWebsiteMetadata(websiteId);
+        if (result.website) {
+          setWebsiteData(result.website);
+          if (saveStatus === 'idle') setSaveStatus('saved'); // If idle, mark as saved initially
+        } else if (result.error) {
+          toast({ title: "Error fetching website data", description: result.error, variant: "destructive" });
+          setWebsiteData(null);
+        }
+      } catch (error: any) {
+        toast({ title: "Error", description: `Failed to load website details: ${error.message}`, variant: "destructive" });
+        setWebsiteData(null);
+      } finally {
+        setIsLoadingWebsiteData(false);
+      }
+    } else {
+      setWebsiteData(null); // Clear data if not on editor page or no websiteId
+    }
+  }, [isEditorPage, websiteId, toast, saveStatus]); // Added saveStatus to dependencies
+
+  useEffect(() => {
+    fetchWebsiteData();
+  }, [fetchWebsiteData]); // fetchWebsiteData is memoized
 
   useEffect(() => {
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -60,58 +90,83 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
     }
   }, []);
 
-  useEffect(() => {
-    let saveInterval: NodeJS.Timeout | undefined;
-    if (isEditorPage) {
-      setSaveStatus('saved'); // Initial status for editor
-      saveInterval = setInterval(() => {
-        // Conceptual auto-save logic
-        setSaveStatus('saving');
-        // console.log("Conceptual auto-save triggered for websiteId:", websiteId);
-        setTimeout(() => {
-          setSaveStatus('saved'); 
-        }, 1500);
-      }, 30000); 
-    }
-    return () => {
-      if (saveInterval) clearInterval(saveInterval);
+  const handleSaveChanges = async () => {
+    if (!isEditorPage || !websiteId) return;
+    setSaveStatus('saving');
+    toast({ title: "Saving Changes..." });
+
+    // Simulate gathering editor content
+    const conceptualEditorContent: SaveWebsiteContentInput = {
+      websiteId: websiteId,
+      pages: websiteData?.currentVersionId // If we had actual pages, we'd use them
+        ? (websiteData as any).currentVersion?.pages || [{ name: "Home", slug: "/", elements: [] }]
+        : [{ name: "Home", slug: "/", elements: [] }],
+      globalSettings: (websiteData as any).currentVersion?.globalSettings || {},
     };
-  }, [isEditorPage, websiteId]);
+    
+    try {
+      // In a real editor, you'd get the actual content from the editor state.
+      // For now, we'll use a conceptual 'save' that doesn't change content but tests the action.
+      const result = await saveWebsiteContent(conceptualEditorContent);
+      if (result.success && result.website) {
+        setSaveStatus('saved');
+        toast({ title: "Changes Saved!", description: "Your website content has been updated." });
+        setWebsiteData(result.website); // Update local state with potentially new version ID
+      } else {
+        setSaveStatus('error');
+        toast({ title: "Save Failed", description: result.error || "Could not save changes.", variant: "destructive" });
+      }
+    } catch (error: any) {
+      setSaveStatus('error');
+      toast({ title: "Save Error", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+    }
+  };
 
   const handlePublish = async () => {
     if (!websiteId) {
-      toast({
-        title: "Error",
-        description: "No website is currently being edited to publish.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "No website selected.", variant: "destructive" });
+      return;
+    }
+    if (saveStatus !== 'saved') {
+      toast({ title: "Unsaved Changes", description: "Please save your changes before publishing.", variant: "destructive" });
       return;
     }
     setIsPublishing(true);
-    toast({ title: "Publishing...", description: "Your website is being published." });
+    toast({ title: "Publishing...", description: `Publishing website "${websiteData?.name || 'your site'}".` });
     try {
       const result = await publishWebsite({ websiteId });
       if (result.success && result.website) {
-        toast({
-          title: "Website Published!",
-          description: `"${result.website.name}" is now live.`,
-        });
-        // Optionally update local state if needed, e.g., a published status indicator
+        toast({ title: "Website Published!", description: `"${result.website.name}" is now live.` });
+        setWebsiteData(result.website); // Update local state
       } else {
-        toast({
-          title: "Publish Failed",
-          description: result.error || "An unknown error occurred.",
-          variant: "destructive",
-        });
+        toast({ title: "Publish Failed", description: result.error || "Unknown error.", variant: "destructive" });
       }
     } catch (error: any) {
-      toast({
-        title: "Publish Error",
-        description: error.message || "An unexpected error occurred during publishing.",
-        variant: "destructive",
-      });
+      toast({ title: "Publish Error", description: error.message, variant: "destructive" });
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!websiteId) {
+      toast({ title: "Error", description: "No website selected.", variant: "destructive" });
+      return;
+    }
+    setIsUnpublishing(true);
+    toast({ title: "Unpublishing...", description: `Taking website "${websiteData?.name || 'your site'}" offline.` });
+    try {
+      const result = await unpublishWebsite({ websiteId });
+      if (result.success && result.website) {
+        toast({ title: "Website Unpublished!", description: `"${result.website.name}" is no longer live.` });
+        setWebsiteData(result.website); // Update local state
+      } else {
+        toast({ title: "Unpublish Failed", description: result.error || "Unknown error.", variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Unpublish Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsUnpublishing(false);
     }
   };
 
@@ -121,10 +176,7 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
       return;
     }
     console.log("Exporting website code (conceptual) for websiteId:", websiteId);
-    toast({
-      title: "Export Code Initiated (Conceptual)",
-      description: "Website code download would begin here.",
-    });
+    toast({ title: "Export Code Initiated (Conceptual)", description: "Website code download would begin here." });
   };
 
   const handlePreview = () => {
@@ -132,13 +184,20 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
       toast({ title: "Error", description: "No website selected to preview.", variant: "destructive" });
       return;
     }
-    console.log("Generating website preview (conceptual) for websiteId:", websiteId);
-    toast({
-      title: "Preview Requested (Conceptual)",
-      description: "A shareable preview link would be generated.",
-    });
-    // Conceptual: window.open(`/preview/${websiteId}`, '_blank');
+    // Conceptual: Generate a shareable preview link based on currentVersionId or live if published.
+    // For now, it opens the presumed live link.
+    const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || "notthedomain.com";
+    const siteUrl = websiteData?.customDomain && websiteData?.domainStatus === 'verified'
+      ? `https://${websiteData.customDomain}`
+      : `https://${websiteData?.subdomain}.${baseUrl}`;
+
+    if (websiteData?.subdomain || websiteData?.customDomain) {
+      window.open(siteUrl, '_blank');
+    } else {
+      toast({ title: "Cannot Preview", description: "Subdomain or custom domain not set.", variant: "destructive" });
+    }
   };
+
 
   const handleSignOut = async () => {
     await clientSignOut({ callbackUrl: '/' });
@@ -163,41 +222,79 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
 
   const renderSaveStatus = () => {
     if (!isEditorPage) return null;
+    if (isLoadingWebsiteData && saveStatus === 'idle') return <div className="flex items-center text-xs text-muted-foreground mr-2"><Loader2 className="h-4 w-4 mr-1 animate-spin" />Loading...</div>;
+    
     switch (saveStatus) {
       case 'saving':
-        return (
-          <div className="flex items-center text-xs text-muted-foreground mr-2">
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            Saving...
-          </div>
-        );
+        return <div className="flex items-center text-xs text-muted-foreground mr-2"><Loader2 className="h-4 w-4 mr-1 animate-spin" />Saving...</div>;
       case 'saved':
-        return (
-          <div className="flex items-center text-xs text-green-600 mr-2">
-            <CheckCircle className="h-4 w-4 mr-1" />
-            Saved
-          </div>
-        );
+        return <div className="flex items-center text-xs text-green-600 mr-2"><CheckCircle className="h-4 w-4 mr-1" />Saved</div>;
       case 'error':
-        return (
-          <div className="flex items-center text-xs text-destructive mr-2">
-            <AlertCircle className="h-4 w-4 mr-1" />
-            Error saving
-          </div>
-        );
-      default: // idle
-        return <div className="flex items-center text-xs text-muted-foreground mr-2">Changes saved</div>;
+        return <div className="flex items-center text-xs text-destructive mr-2"><AlertCircle className="h-4 w-4 mr-1" />Error Saving</div>;
+      default: // idle (implies unsaved changes after initial load)
+        return <div className="flex items-center text-xs text-amber-600 mr-2"><AlertCircle className="h-4 w-4 mr-1" />Unsaved</div>;
     }
   };
+
+  const renderPublishStatus = () => {
+    if (!isEditorPage || !websiteData) return null;
+    let statusText = "Draft";
+    let statusColor = "text-amber-600";
+    let IconComponent = PencilRuler;
+
+    switch (websiteData.status) {
+      case 'published':
+        statusText = `Published`;
+        statusColor = "text-green-600";
+        IconComponent = Eye;
+        break;
+      case 'unpublished':
+        statusText = "Unpublished";
+        statusColor = "text-muted-foreground";
+        IconComponent = CloudOff;
+        break;
+      case 'error_publishing':
+        statusText = "Publish Error";
+        statusColor = "text-destructive";
+        IconComponent = AlertCircle;
+        break;
+      case 'draft':
+      default:
+        statusText = "Draft";
+        statusColor = "text-amber-600";
+        IconComponent = PencilRuler;
+        break;
+    }
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className={`flex items-center text-xs ${statusColor} mr-3`}>
+              <IconComponent className="h-4 w-4 mr-1" />
+              {statusText}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Status: {statusText}</p>
+            {websiteData.status === 'published' && websiteData.lastPublishedAt && (
+              <p className="text-xs">Last published: {new Date(websiteData.lastPublishedAt).toLocaleString()}</p>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+  
+  const isProPlanConfigured = STRIPE_PRICE_ID_PRO_MONTHLY && !STRIPE_PRICE_ID_PRO_MONTHLY.includes('_YOUR_');
 
   return (
     <>
       <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between shadow-sm sticky top-0 z-50 min-h-[60px]">
         <div className="flex items-center gap-4">
-          <Link href="/" aria-label="Go to homepage">
+          <Link href={sessionStatus === 'authenticated' ? "/dashboard" : "/"} aria-label="Go to homepage/dashboard">
             <AppLogo className="h-7" />
           </Link>
-          {!isEditorPage && status !== 'authenticated' && (
+          {!isEditorPage && sessionStatus !== 'authenticated' && (
              <nav className="hidden md:flex items-center gap-3 ml-6">
               {publicNavLinks.map(link => (
                 <Link key={link.href} href={link.href} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
@@ -214,13 +311,9 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
               <Tooltip><TooltipTrigger asChild><Button variant={currentDevice === 'desktop' ? 'secondary' : 'ghost'} size="icon" onClick={() => onDeviceChange('desktop')} aria-label="Desktop view"><Laptop className="h-5 w-5" /></Button></TooltipTrigger><TooltipContent><p>Desktop</p></TooltipContent></Tooltip>
               <Tooltip><TooltipTrigger asChild><Button variant={currentDevice === 'tablet' ? 'secondary' : 'ghost'} size="icon" onClick={() => onDeviceChange('tablet')} aria-label="Tablet view"><Tablet className="h-5 w-5" /></Button></TooltipTrigger><TooltipContent><p>Tablet</p></TooltipContent></Tooltip>
               <Tooltip><TooltipTrigger asChild><Button variant={currentDevice === 'mobile' ? 'secondary' : 'ghost'} size="icon" onClick={() => onDeviceChange('mobile')} aria-label="Mobile view"><Smartphone className="h-5 w-5" /></Button></TooltipTrigger><TooltipContent><p>Mobile</p></TooltipContent></Tooltip>
-            </TooltipProvider>
-            {isEditorPage && (
-              <TooltipProvider>
-                <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" disabled><ZoomOut className="h-5 w-5" /></Button></TooltipTrigger><TooltipContent><p>Zoom Out (Conceptual)</p></TooltipContent></Tooltip>
+                 <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" disabled><ZoomOut className="h-5 w-5" /></Button></TooltipTrigger><TooltipContent><p>Zoom Out (Conceptual)</p></TooltipContent></Tooltip>
                 <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" disabled><ZoomIn className="h-5 w-5" /></Button></TooltipTrigger><TooltipContent><p>Zoom In (Conceptual)</p></TooltipContent></Tooltip>
-              </TooltipProvider>
-            )}
+            </TooltipProvider>
           </div>
         )}
 
@@ -237,20 +330,63 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
           </TooltipProvider>
           
           {renderSaveStatus()}
+          {renderPublishStatus()}
 
-          {status === "authenticated" && session.user ? (
+          {sessionStatus === "authenticated" && session.user ? (
             <>
               {isEditorPage && (
-                 <Button 
-                    variant="default" 
-                    size="sm" 
-                    onClick={handlePublish} 
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground hidden xs:flex"
-                    disabled={isPublishing || !websiteId}
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSaveChanges}
+                    className="hidden xs:flex"
+                    disabled={saveStatus === 'saving' || isLoadingWebsiteData}
                   >
-                  {isPublishing ? <Loader2 className="mr-1 md:mr-2 h-4 w-4 animate-spin" /> : <ArrowUpCircle className="mr-1 md:mr-2 h-4 w-4" />}
-                  <span className="hidden md:inline">{isPublishing ? "Publishing..." : "Publish"}</span>
-                </Button>
+                    {saveStatus === 'saving' ? <Loader2 className="mr-1 md:mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-1 md:mr-2 h-4 w-4" />}
+                    <span className="hidden md:inline">Save Changes</span>
+                  </Button>
+
+                  {websiteData?.status === 'published' ? (
+                     <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleUnpublish} 
+                        className="hidden xs:flex"
+                        disabled={isUnpublishing || isLoadingWebsiteData}
+                      >
+                      {isUnpublishing ? <Loader2 className="mr-1 md:mr-2 h-4 w-4 animate-spin" /> : <CloudOff className="mr-1 md:mr-2 h-4 w-4" />}
+                      <span className="hidden md:inline">Unpublish</span>
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      onClick={handlePublish} 
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground hidden xs:flex"
+                      disabled={isPublishing || isLoadingWebsiteData || saveStatus !== 'saved'}
+                    >
+                      {isPublishing ? <Loader2 className="mr-1 md:mr-2 h-4 w-4 animate-spin" /> : <ArrowUpCircle className="mr-1 md:mr-2 h-4 w-4" />}
+                      <span className="hidden md:inline">{websiteData?.status === 'published' ? 'Republish' : 'Publish'}</span>
+                    </Button>
+                  )}
+                  {websiteData?.status === 'published' && (
+                    <Button asChild variant="secondary" size="sm" className="hidden sm:flex items-center">
+                        <a 
+                          href={
+                            websiteData.customDomain && websiteData.domainStatus === 'verified'
+                            ? `https://${websiteData.customDomain}`
+                            : `https://${websiteData.subdomain}.${process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'notthedomain.com'}`
+                          } 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                            <Eye className="mr-1 h-4 w-4 md:mr-2" />
+                            <span className="hidden md:inline">View Live</span>
+                        </a>
+                    </Button>
+                  )}
+                </>
               )}
               
               {!isEditorPage && (
@@ -259,7 +395,6 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
                     <Link href="/dashboard"><LayoutDashboard className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Dashboard</span></Link>
                   </Button>
                   <Button variant="ghost" size="sm" asChild className="hidden sm:flex items-center">
-                    {/* Ensure editor link includes websiteId if one is contextually available or last edited */}
                     <Link href={websiteId ? `/editor?websiteId=${websiteId}` : "/editor"}><PencilRuler className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Editor</span></Link>
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setIsTemplateGalleryModalOpen(true)} className="hidden sm:flex items-center">
@@ -275,7 +410,7 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={session.user?.avatarUrl || "https://placehold.co/100x100.png"} alt={session.user?.name || "User Avatar"} data-ai-hint="person avatar"/>
+                      <AvatarImage src={session.user?.avatarUrl || `https://placehold.co/100x100.png?text=${session.user?.name?.charAt(0) || 'U'}`} alt={session.user?.name || "User Avatar"} data-ai-hint="person avatar"/>
                       <AvatarFallback>{session.user?.name ? session.user.name.charAt(0).toUpperCase() : <User className="h-4 w-4" />}</AvatarFallback>
                     </Avatar>
                   </Button>
@@ -293,15 +428,27 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
                   
                   {isEditorPage ? (
                     <>
+                      <DropdownMenuItem onClick={handleSaveChanges} className="xs:hidden" disabled={saveStatus === 'saving' || isLoadingWebsiteData}>
+                        {saveStatus === 'saving' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Changes
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setIsTemplateGalleryModalOpen(true)}><LayoutGrid className="mr-2 h-4 w-4" />Load Template</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)}><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setIsSaveTemplateModalOpen(true)} disabled={!websiteId}><Save className="mr-2 h-4 w-4" />Save As Template</DropdownMenuItem>
                       <DropdownMenuItem onClick={handlePreview} disabled={!websiteId}><Eye className="mr-2 h-4 w-4" />Preview Site</DropdownMenuItem>
-                      <DropdownMenuItem onClick={handlePublish} className="xs:hidden" disabled={isPublishing || !websiteId}>
-                        {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowUpCircle className="mr-2 h-4 w-4" />}
-                        {isPublishing ? "Publishing..." : "Publish Site"}
-                      </DropdownMenuItem> 
+                      
+                      {websiteData?.status === 'published' ? (
+                        <DropdownMenuItem onClick={handleUnpublish} className="xs:hidden" disabled={isUnpublishing || isLoadingWebsiteData}>
+                          {isUnpublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudOff className="mr-2 h-4 w-4" />}
+                          Unpublish Site
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onClick={handlePublish} className="xs:hidden" disabled={isPublishing || isLoadingWebsiteData || saveStatus !== 'saved'}>
+                          {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowUpCircle className="mr-2 h-4 w-4" />}
+                          {websiteData?.status === 'published' ? 'Republish Site' : 'Publish Site'}
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={handleExportCode} disabled={!websiteId}><Download className="mr-2 h-4 w-4" />Export Code</DropdownMenuItem>
                     </>
                   ) : (
@@ -315,15 +462,14 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild><Link href="/dashboard/profile"><User className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
                   {session.user?.role === 'admin' && <DropdownMenuItem asChild><Link href="/admin/dashboard"><ShieldCheckIcon className="mr-2 h-4 w-4" />Admin Panel</Link></DropdownMenuItem>}
-                  {/* Settings link should be generic, actual settings page can be specific if needed */}
-                  <DropdownMenuItem asChild><Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href={isEditorPage && websiteId ? `/dashboard/websites/${websiteId}/settings` : "/dashboard/settings"}><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
                   <DropdownMenuItem asChild><Link href="/#support"><HelpCircle className="mr-2 h-4 w-4" />Support</Link></DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}><LogOut className="mr-2 h-4 w-4" />Log out</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
-          ) : status === "loading" ? (
+          ) : sessionStatus === "loading" ? (
             <div className="flex items-center gap-2">
               <div className="h-8 w-20 rounded-md bg-muted animate-pulse" /> 
               <div className="h-8 w-20 rounded-md bg-muted animate-pulse hidden md:block" />
@@ -334,7 +480,7 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
                 <Button asChild variant="ghost" size="sm"><Link href="/login"><LogIn className="mr-1 md:mr-2 h-4 w-4" /> Login</Link></Button>
                 <Button asChild size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground"><Link href="/register"><UserPlus className="mr-1 md:mr-2 h-4 w-4" /> Register</Link></Button>
               </div>
-              <div className="md:hidden"> {/* Mobile menu for unauthenticated users */}
+              <div className="md:hidden"> 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                      <Button variant="ghost" size="icon" aria-label="Open menu"><Menu className="h-5 w-5" /></Button>
@@ -355,7 +501,7 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
           )}
         </div>
       </header>
-      {status === "authenticated" && (
+      {sessionStatus === "authenticated" && (
         <>
           <AiCopyModal isOpen={isAiCopyModalOpen} onOpenChange={setIsAiCopyModalOpen} />
           <TemplateGalleryModal isOpen={isTemplateGalleryModalOpen} onOpenChange={setIsTemplateGalleryModalOpen} />
@@ -365,3 +511,6 @@ export function AppHeader({ currentDevice, onDeviceChange, websiteId }: AppHeade
     </>
   );
 }
+
+// Placeholder for STRIPE_PRICE_ID_PRO_MONTHLY if not set by environment variables
+const STRIPE_PRICE_ID_PRO_MONTHLY = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY || 'price_YOUR_PRO_MONTHLY_ID_FROM_ENV_PLACEHOLDER';
