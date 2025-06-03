@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, Settings2 as SettingsIcon, BarChart2, Tag, ArrowUpCircle, ExternalLink, PlusSquare, Edit3, Globe, Trash2, Link2, CheckCircle, AlertCircle, FileText, AlertTriangle, XCircle } from "lucide-react";
 import { createStripeCheckoutSession, createOneTimePaymentIntent, createStripeCustomerPortalSession } from '@/actions/stripe';
-import { getUserWebsites, deleteWebsite as deleteWebsiteAction, type IWebsite, type DomainConnectionStatus } from '@/actions/website'; 
+import { getUserWebsites, deleteWebsite as deleteWebsiteAction } from '@/actions/website'; 
+import type { IWebsite, DomainConnectionStatus } from '@/models/Website';
 import { useToast } from '@/hooks/use-toast';
 import { STRIPE_PRICE_ID_PRO_MONTHLY, getPlanById, type AppPlan } from '@/config/plans';
 import Link from 'next/link';
@@ -19,7 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { loadStripe, type Stripe as StripeType } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY && !process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.includes("YOUR_STRIPE_PUBLISHABLE_KEY")
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
@@ -83,7 +84,6 @@ function OneTimePaymentForm({ couponCode, setCouponCode, paymentAmount, setPayme
         successMessage += ` Discount of $${(discountApplied/100).toFixed(2)} applied.`;
       }
       toast({ title: "Payment Successful!", description: successMessage });
-      // Optionally reset form or redirect
       setPaymentAmount("10.00");
       setCouponCode("");
       cardElement.clear();
@@ -183,6 +183,14 @@ export default function DashboardPage() {
     if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.includes('YOUR_STRIPE_PUBLISHABLE_KEY')) {
       setIsStripePublishableKeyMissing(true);
       console.warn("Stripe Publishable Key is missing or is a placeholder. Payment form will not work.");
+      if (stripePromise === null) { // Explicitly check if stripePromise remained null
+        toast({
+            title: "Stripe Configuration Incomplete",
+            description: "The Stripe Publishable Key is missing or invalid. Payment features will be disabled. Admin: please check your .env file.",
+            variant: "destructive",
+            duration: 10000,
+        });
+      }
     } else {
       setIsStripePublishableKeyMissing(false);
     }
@@ -202,9 +210,11 @@ export default function DashboardPage() {
             title: "Subscription Updated!",
             description: "Your subscription details may take a moment to refresh.",
         });
+        // Update session or re-fetch user data here if needed to reflect new subscription immediately
+        updateSession();
         router.replace('/dashboard', undefined); 
     }
-  }, [session, status, router, toast]);
+  }, [session, status, router, toast, updateSession]);
 
   const fetchWebsites = async () => {
     setIsLoadingWebsites(true);
@@ -263,7 +273,7 @@ export default function DashboardPage() {
       toast({ title: "Error Deleting Website", description: result.error, variant: "destructive" });
     } else if (result.success) {
       toast({ title: "Website Deleted", description: "The website has been successfully deleted." });
-      fetchWebsites(); // Refresh the list
+      fetchWebsites(); 
     }
     setDeletingWebsiteId(null);
   };
@@ -328,7 +338,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Websites List Section */}
       <section className="mb-10">
         <h2 className="text-2xl font-semibold font-headline mb-4 flex items-center"><ListChecks className="mr-3 h-6 w-6 text-primary" />My Websites</h2>
         {isLoadingWebsites ? (
@@ -484,7 +493,7 @@ export default function DashboardPage() {
               <p>Storage: 100MB / {currentPlan?.id === 'pro' ? '5GB' : currentPlan?.id === 'enterprise' ? '20GB' : '1GB'} (Placeholder)</p>
             </div>
             {!isActiveSubscription && currentPlan?.id !== 'enterprise' && (
-              <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleSubscribeToPro} disabled={!isProPlanConfigured}>
+              <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleSubscribeToPro} disabled={!isProPlanConfigured || isStripePublishableKeyMissing}>
                 <ArrowUpCircle className="mr-2 h-4 w-4" />
                 Upgrade Plan to Increase Limits
               </Button>
@@ -546,3 +555,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
