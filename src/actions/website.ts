@@ -91,7 +91,8 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
     const planLimits = session.user.subscriptionLimits; 
     const userWebsitesCount = await Website.countDocuments({ userId });
     if (planLimits && planLimits.websites !== Infinity && userWebsitesCount >= planLimits.websites) {
-      return { error: "Website creation limit reached for your current plan." };
+      console.warn(`[CreateWebsite] User ${userId} reached website limit. Current: ${userWebsitesCount}, Limit: ${planLimits.websites}`);
+      return { error: `Website creation limit of ${planLimits.websites} reached for your current plan. Please upgrade to create more websites.` };
     }
 
     if (!subdomain) {
@@ -621,4 +622,5 @@ export async function getPublishedSiteDataByHost(host: string): Promise<GetPubli
 
   return { website: website as IWebsite, publishedVersion: publishedVersion as IWebsiteVersion };
 }
+
 

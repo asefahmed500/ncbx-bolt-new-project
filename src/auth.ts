@@ -50,6 +50,7 @@ export const authOptions: NextAuthConfig = {
           const connectionState = mongoose.connection.readyState;
           if (connectionState !== mongoose.ConnectionStates.connected) {
               console.error("[Auth][Authorize] Database not connected despite dbConnect() completing! State:", mongoose.ConnectionStates[connectionState]);
+              console.error("[Auth][Authorize] HINT: Check your MONGODB_URI for correctness (including database name), cluster status (e.g., not paused in Atlas), and IP access list if applicable.");
               return null;
           }
 
@@ -81,7 +82,9 @@ export const authOptions: NextAuthConfig = {
 
           if (!user.isActive) {
             console.log(`[Auth][Authorize] User ${normalizedEmail} is inactive.`);
-            return null;
+            // Consider throwing a specific error or returning an object that middleware can interpret
+            // For now, null will lead to "Invalid credentials" on client
+            return null; 
           }
 
           if (!user.password || typeof user.password !== 'string') { 
@@ -99,14 +102,30 @@ export const authOptions: NextAuthConfig = {
           try {
             currentSubscription = await Subscription.findOne({
               userId: user._id,
-            }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
+              // Optionally filter by active status here if Stripe webhooks are perfect
+              // stripeSubscriptionStatus: { $in: ['active', 'trialing'] } 
+            }).sort({ stripeCurrentPeriodEnd: -1 }).lean(); // Get the latest one if multiple (should ideally not happen for same user)
           } catch (subError) {
             console.error(`[Auth][Authorize] Error fetching subscription for user ${user._id}:`, subError);
+            // Decide if this should block login. For now, assume user can log in but might have Free plan.
           }
 
           let planDetails: AppPlan | undefined;
+          let subscriptionStatusForSession: string | null = null;
+
           if (currentSubscription && currentSubscription.stripePriceId) {
              planDetails = getPlanByStripePriceId(currentSubscription.stripePriceId);
+             subscriptionStatusForSession = currentSubscription.stripeSubscriptionStatus as string;
+             // If planDetails is undefined here, it means the stripePriceId from DB doesn't match any known plan.
+             // This could happen if plans change in Stripe but not in app config. Default to free.
+             if (!planDetails) {
+                console.warn(`[Auth][Authorize] No matching plan found in PLANS_CONFIG for stripePriceId: ${currentSubscription.stripePriceId}. User ${user._id} will default to free plan limits.`);
+                planDetails = getPlanById('free');
+             }
+          } else {
+            // No active-like subscription found, default to free plan
+            planDetails = getPlanById('free');
+            // Subscription status is null if no relevant subscription record
           }
 
 
@@ -118,9 +137,9 @@ export const authOptions: NextAuthConfig = {
             avatarUrl: user.avatarUrl,
             isActive: user.isActive,
             purchasedTemplateIds: user.purchasedTemplateIds?.map(id => id.toString()) || [],
-            subscriptionStatus: currentSubscription?.stripeSubscriptionStatus || null,
+            subscriptionStatus: subscriptionStatusForSession,
             subscriptionPlanId: planDetails?.id || 'free',
-            subscriptionLimits: planDetails?.limits || getPlanById('free')?.limits,
+            subscriptionLimits: planDetails?.limits,
           };
           console.log(`[Auth][Authorize] SUCCESS: Authorizing user: ${normalizedEmail}. Returning user object:`, JSON.stringify(userToReturn));
           return userToReturn;
@@ -180,12 +199,28 @@ export const authOptions: NextAuthConfig = {
         }
 
         if (trigger === "update" && session) {
-            if (session.name) token.name = session.name;
-            if (session.avatarUrl) token.avatarUrl = session.avatarUrl;
-            // If session update needs to refresh subscription status from DB:
-            // const Subscription = (await import('@/models/Subscription')).default;
-            // const dbSub = await Subscription.findOne({ userId: token.id, ... }).sort(...);
-            // if (dbSub) { /* update token.subscriptionStatus etc. */ }
+            if (session.name !== undefined) token.name = session.name; // Allow clearing name by passing empty string
+            if (session.avatarUrl !== undefined) token.avatarUrl = session.avatarUrl; // Allow clearing avatar by passing empty string
+            
+            // If session update needs to refresh subscription status from DB (e.g., after a webhook update):
+            // This is an example, actual implementation might differ based on how you trigger updates.
+            // For instance, after a successful purchase/upgrade via webhook, you might want to force an update.
+            if (session.refreshSubscription) { // Custom property you might add to session in an update call
+                const SubscriptionModel = (await import('@/models/Subscription')).default;
+                const dbSub = await SubscriptionModel.findOne({ userId: token.id }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
+                let planDetails;
+                if (dbSub) {
+                    planDetails = getPlanByStripePriceId(dbSub.stripePriceId);
+                    token.subscriptionStatus = dbSub.stripeSubscriptionStatus as string;
+                    token.subscriptionPlanId = planDetails?.id || 'free';
+                    token.subscriptionLimits = planDetails?.limits || getPlanById('free')?.limits;
+                } else {
+                    planDetails = getPlanById('free');
+                    token.subscriptionStatus = null;
+                    token.subscriptionPlanId = 'free';
+                    token.subscriptionLimits = planDetails?.limits;
+                }
+            }
             // console.log("[Auth][JWT Callback] Token updated via 'update' trigger:", JSON.stringify(token));
         }
         return token;
@@ -235,7 +270,7 @@ declare module "next-auth" {
       id: string;
       name?: string | null;
       email?: string | null;
-      image?: string | null;
+      image?: string | null; // Default NextAuth property, can be ignored if avatarUrl is used
       role: 'user' | 'admin';
       avatarUrl?: string;
       isActive: boolean;
@@ -245,9 +280,10 @@ declare module "next-auth" {
       subscriptionLimits?: PlanLimit;
       projectsUsed?: number; // Added for consistency if needed directly on session.user from token
     };
+    refreshSubscription?: boolean; // Custom property for triggering subscription refresh
   }
 
-  interface User { 
+  interface User { // This is the User object returned by the authorize callback
     id: string;
     role: 'user' | 'admin';
     avatarUrl?: string;
