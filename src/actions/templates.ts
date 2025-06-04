@@ -3,14 +3,46 @@
 
 import dbConnect from "@/lib/dbConnect";
 import Template, { type ITemplate, type TemplateStatus } from "@/models/Template";
-import TemplateReview, { type ITemplateReview } from "@/models/TemplateReview"; // Import TemplateReview model
+import TemplateReview, { type ITemplateReview } from "@/models/TemplateReview";
 import User from "@/models/User"; 
 import { z } from "zod";
 import { auth } from "@/auth"; 
 import type { IPageComponent } from "@/models/PageComponent";
 import mongoose from "mongoose";
 
-// Zod schema for input validation (basic for now)
+// Helper to deeply serialize an object, converting ObjectIds and other non-plain types
+const serializeObject = (obj: any): any => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (obj instanceof mongoose.Types.ObjectId) {
+    return obj.toString();
+  }
+  
+  if (obj instanceof Date) {
+    return obj.toISOString(); // Or pass as Date, Next.js serializes it
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(serializeObject);
+  }
+  
+  const plainObject: { [key: string]: any } = {};
+  const source = typeof obj.toObject === 'function' ? obj.toObject() : obj;
+
+  for (const key in source) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      plainObject[key] = serializeObject(source[key]);
+    }
+  }
+  if (source._id && source._id instanceof mongoose.Types.ObjectId) {
+    plainObject._id = source._id.toString();
+  }
+  return plainObject;
+};
+
+
 const CreateTemplateInputSchema = z.object({
   name: z.string().min(3, "Template name must be at least 3 characters long.").max(100),
   description: z.string().max(500).optional(),
@@ -81,7 +113,7 @@ export async function createTemplate(input: CreateTemplateInput): Promise<Create
     const savedTemplate = await newTemplate.save();
 
     console.log(`[CreateTemplate Action] Template "${savedTemplate.name}" submitted by user ${userId}. ID: ${savedTemplate._id}`);
-    return { success: "Template submitted successfully for approval.", template: savedTemplate.toObject() };
+    return { success: "Template submitted successfully for approval.", template: serializeObject(savedTemplate) };
 
   } catch (error: any) {
     console.error("[CreateTemplate Action] Error creating template:", error);
@@ -94,9 +126,6 @@ export async function createTemplate(input: CreateTemplateInput): Promise<Create
     return { error: `An unexpected error occurred: ${error.message || "Could not save template."}` };
   }
 }
-
-
-// --- Template Review Management ---
 
 const SubmitTemplateReviewInputSchema = z.object({
   templateId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
@@ -133,23 +162,14 @@ export async function submitTemplateReview(input: SubmitTemplateReviewInput): Pr
 
     await dbConnect();
 
-    // Check if the template exists
     const templateExists = await Template.findById(templateId);
     if (!templateExists) {
       return { error: "Template not found." };
     }
 
-    // Check if the user has already reviewed this template
     const existingReview = await TemplateReview.findOne({ templateId, userId });
     if (existingReview) {
-      // Optionally, allow updating existing review, or return error
       return { error: "You have already reviewed this template." };
-      // To allow updates:
-      // existingReview.rating = rating;
-      // existingReview.comment = comment;
-      // existingReview.isApproved = false; // Reset approval status if updated
-      // const updatedReview = await existingReview.save();
-      // return { success: "Review updated successfully.", review: updatedReview.toObject() };
     }
 
     const newReview = new TemplateReview({
@@ -157,17 +177,17 @@ export async function submitTemplateReview(input: SubmitTemplateReviewInput): Pr
       userId,
       rating,
       comment,
-      isApproved: false, // Default to not approved, requires admin moderation
+      isApproved: false, 
     });
 
     const savedReview = await newReview.save();
 
     console.log(`[SubmitTemplateReview Action] Review submitted for template ${templateId} by user ${userId}. Review ID: ${savedReview._id}`);
-    return { success: "Review submitted successfully. It will be visible after approval.", review: savedReview.toObject() };
+    return { success: "Review submitted successfully. It will be visible after approval.", review: serializeObject(savedReview) };
 
   } catch (error: any) {
     console.error("[SubmitTemplateReview Action] Error submitting review:", error);
-    if (error.code === 11000) { // Duplicate key error (e.g., if unique index on templateId+userId is violated)
+    if (error.code === 11000) { 
       return { error: "You might have already submitted a review for this template." };
     }
     if (error instanceof z.ZodError) {

@@ -14,14 +14,51 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import mongoose from "mongoose";
 
-// Define an extended user type for admin view
-export interface IUserForAdmin extends IUser {
+// Helper to deeply serialize an object, converting ObjectIds and other non-plain types
+const serializeObject = (obj: any): any => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (obj instanceof mongoose.Types.ObjectId) {
+    return obj.toString();
+  }
+
+  if (obj instanceof Date) {
+    return obj.toISOString(); // Or pass as Date, Next.js serializes it
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(serializeObject);
+  }
+
+  const plainObject: { [key: string]: any } = {};
+  // Prefer .toObject() if it's a Mongoose document, then spread
+  const source = typeof obj.toObject === 'function' ? obj.toObject() : obj;
+
+  for (const key in source) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      plainObject[key] = serializeObject(source[key]);
+    }
+  }
+  // Ensure _id is serialized if it's an ObjectId at the top level of a lean object
+  if (source._id && source._id instanceof mongoose.Types.ObjectId) {
+    plainObject._id = source._id.toString();
+  }
+
+  return plainObject;
+};
+
+
+export interface IUserForAdmin extends Omit<IUser, '_id' | 'userId' | 'createdAt' | 'updatedAt'> {
+  _id: string;
+  userId?: string; // if populated
   websiteCount: number;
   subscriptionPlanName?: string;
   subscriptionStatus?: string;
+  createdAt: string;
+  updatedAt: string;
 }
-
-// --- User Management ---
 
 interface GetUsersResult {
   users?: IUserForAdmin[];
@@ -82,10 +119,11 @@ export async function getUsersForAdmin(
              subscriptionStatus = 'Cancelled';
            }
         }
+        
+        const plainUser = serializeObject(user) as Omit<IUser, '_id'> & { _id: string };
 
         return {
-          ...(user as IUser),
-          _id: user._id,
+          ...plainUser,
           websiteCount,
           subscriptionPlanName,
           subscriptionStatus,
@@ -103,7 +141,7 @@ export async function getUsersForAdmin(
 export async function updateUserStatus(
   userId: string,
   isActive: boolean
-): Promise<{ success?: string; error?: string; user?: IUser }> {
+): Promise<{ success?: string; error?: string; user?: IUserForAdmin }> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
     return { error: "Unauthorized" };
@@ -129,15 +167,13 @@ export async function updateUserStatus(
     );
     return {
       success: `User status updated to ${isActive ? "active" : "suspended"}.`,
-      user: user.toObject(),
+      user: serializeObject(user) as IUserForAdmin,
     };
   } catch (error: any) {
     console.error("[AdminAction_UpdateUserStatus] Error updating user status:", error);
     return { error: "Failed to update user status: " + error.message };
   }
 }
-
-// --- Coupon Management ---
 
 const CreateCouponInputSchema = z.object({
   code: z.string().min(3, "Code must be at least 3 characters").toUpperCase(),
@@ -210,7 +246,7 @@ export async function createCoupon(input: CreateCouponInput): Promise<CreateCoup
     const savedCoupon = await newCoupon.save();
 
     console.log(`[AdminAction_CreateCoupon] Coupon "${savedCoupon.code}" created by admin ${session.user.id}.`);
-    return { success: "Coupon created successfully.", coupon: savedCoupon.toObject() };
+    return { success: "Coupon created successfully.", coupon: serializeObject(savedCoupon) };
 
   } catch (error: any) {
     console.error("[AdminAction_CreateCoupon] Error creating coupon:", error);
@@ -242,13 +278,13 @@ export async function getCouponsForAdmin(
   try {
     await dbConnect();
     const skip = (page - 1) * limit;
-    const coupons = await Coupon.find({})
+    const couponsFromDB = await Coupon.find({})
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();
     const totalCoupons = await Coupon.countDocuments({});
-    return { coupons: coupons as ICoupon[], totalCoupons };
+    return { coupons: serializeObject(couponsFromDB), totalCoupons };
   } catch (error: any) {
     console.error("[AdminAction_GetCoupons] Error fetching coupons:", error);
     return { error: "Failed to fetch coupons: " + error.message };
@@ -269,7 +305,7 @@ export async function getCouponByIdForAdmin(couponId: string): Promise<{ coupon?
     if (!coupon) {
       return { error: "Coupon not found." };
     }
-    return { coupon: coupon as ICoupon };
+    return { coupon: serializeObject(coupon) };
   } catch (error: any) {
     console.error(`[AdminAction_GetCouponById] Error fetching coupon ${couponId}:`, error);
     return { error: "Failed to fetch coupon: " + error.message };
@@ -339,7 +375,7 @@ export async function updateCouponByAdmin(input: UpdateCouponInput): Promise<Upd
     const updatedCoupon = await coupon.save();
 
     console.log(`[AdminAction_UpdateCoupon] Coupon "${updatedCoupon.code}" (ID: ${couponId}) updated by admin ${session.user.id}.`);
-    return { success: "Coupon updated successfully.", coupon: updatedCoupon.toObject() };
+    return { success: "Coupon updated successfully.", coupon: serializeObject(updatedCoupon) };
 
   } catch (error: any) {
     console.error("[AdminAction_UpdateCoupon] Error updating coupon:", error);
@@ -374,7 +410,6 @@ export async function deleteCouponByAdmin(couponId: string): Promise<{ success?:
 }
 
 
-// --- Moderation Queue ---
 interface GetModerationQueueItemsResult {
   items?: IModerationQueueItem[];
   totalItems?: number;
@@ -403,7 +438,7 @@ export async function getModerationQueueItems(
     }
 
     const skip = (page - 1) * limit;
-    const items = await ModerationQueueItem.find(query)
+    const itemsFromDB = await ModerationQueueItem.find(query)
       .populate('userId', 'name email')
       .populate('reporterId', 'name email')
       .sort({ createdAt: -1 })
@@ -412,7 +447,7 @@ export async function getModerationQueueItems(
       .lean();
     const totalItems = await ModerationQueueItem.countDocuments(query);
 
-    return { items: items as IModerationQueueItem[], totalItems };
+    return { items: serializeObject(itemsFromDB), totalItems };
   } catch (error: any) {
     console.error("[AdminAction_GetModerationQueueItems] Error fetching moderation items:", error);
     return { error: "Failed to fetch moderation items: " + error.message };
@@ -457,13 +492,12 @@ export async function processModerationItemByAdmin(input: ProcessModerationItemI
       return { error: "Moderation item not found." };
     }
 
-    // Determine the new status based on the action
     let newStatus: IModerationQueueItem['status'];
     switch (action) {
       case 'approve': newStatus = 'approved'; break;
       case 'reject': newStatus = 'rejected'; break;
       case 'escalate': newStatus = 'escalated'; break;
-      default: return { error: "Invalid action." }; // Should be caught by Zod anyway
+      default: return { error: "Invalid action." };
     }
     item.status = newStatus;
     item.moderatedBy = new mongoose.Types.ObjectId(adminUserId);
@@ -484,7 +518,6 @@ export async function processModerationItemByAdmin(input: ProcessModerationItemI
        if(template) {
            if(action === 'approve') template.status = 'approved' as TemplateStatus;
            else if (action === 'reject') template.status = 'rejected' as TemplateStatus;
-           // 'escalated' action on item does not change template status from pending_approval here
            await template.save();
            console.log(`[AdminAction_ProcessModeration] Template ${template._id} status updated to: ${template.status}.`);
        }
@@ -492,7 +525,7 @@ export async function processModerationItemByAdmin(input: ProcessModerationItemI
 
     const updatedItem = await item.save();
     console.log(`[AdminAction_ProcessModeration] Item ${itemId} processed by admin ${adminUserId}. Action: ${action}, New Status: ${newStatus}.`);
-    return { success: `Moderation item status set to ${newStatus}.`, item: updatedItem.toObject() };
+    return { success: `Moderation item status set to ${newStatus}.`, item: serializeObject(updatedItem) };
 
   } catch (error: any) {
     console.error("[AdminAction_ProcessModeration] Error processing item:", error);
@@ -500,8 +533,6 @@ export async function processModerationItemByAdmin(input: ProcessModerationItemI
   }
 }
 
-
-// --- Template Management (Admin) ---
 interface GetTemplatesResult {
   templates?: ITemplate[];
   totalTemplates?: number;
@@ -535,7 +566,7 @@ export async function getTemplatesForAdmin(
     }
 
     const skip = (page - 1) * limit;
-    const templates = await Template.find(query)
+    const templatesFromDB = await Template.find(query)
       .populate('createdByUserId', 'name email')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -543,7 +574,7 @@ export async function getTemplatesForAdmin(
       .lean();
     const totalTemplates = await Template.countDocuments(query);
 
-    return { templates: templates as ITemplate[], totalTemplates };
+    return { templates: serializeObject(templatesFromDB), totalTemplates };
   } catch (error: any) {
     console.error("[AdminAction_GetTemplatesForAdmin] Error fetching templates:", error);
     return { error: "Failed to fetch templates: " + error.message };
@@ -589,7 +620,7 @@ export async function updateTemplateStatusByAdmin(input: UpdateTemplateStatusInp
     const updatedTemplate = await template.save();
 
     console.log(`[AdminAction_UpdateTemplateStatus] Template ${templateId} status updated to "${status}" by admin ${session.user.id}.`);
-    return { success: `Template status updated to "${status}".`, template: updatedTemplate.toObject() };
+    return { success: `Template status updated to "${status}".`, template: serializeObject(updatedTemplate) };
 
   } catch (error: any) {
     console.error("[AdminAction_UpdateTemplateStatus] Error updating template status:", error);
@@ -606,7 +637,6 @@ const UpdateTemplateMetadataInputSchema = z.object({
   price: z.number().min(0).optional(),
   previewImageUrl: z.string().url("Invalid URL for preview image.").optional().or(z.literal('')),
   liveDemoUrl: z.string().url("Invalid URL for live demo.").optional().or(z.literal('')),
-  // status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']).optional(), // Status handled by separate action
 });
 export type UpdateTemplateMetadataInput = z.infer<typeof UpdateTemplateMetadataInputSchema>;
 
@@ -643,33 +673,29 @@ export async function updateTemplateMetadataByAdmin(
 
     const updateFields = parsedData.data;
 
-    // Handle specific logic for price and isPremium
     if (updateFields.isPremium !== undefined) {
       template.isPremium = updateFields.isPremium;
       if (!template.isPremium) {
-        template.price = undefined; // Remove price if not premium
+        template.price = undefined;
       } else if (updateFields.price !== undefined) {
         template.price = updateFields.price;
       } else if (template.isPremium && template.price === undefined) {
-        template.price = 0; // Default price to 0 if marked premium and no price given
+        template.price = 0;
       }
     } else if (updateFields.price !== undefined && template.isPremium) {
       template.price = updateFields.price;
     }
 
-
-    // Apply other updates
     if (updateFields.name) template.name = updateFields.name;
     if (updateFields.description) template.description = updateFields.description;
     if (updateFields.category) template.category = updateFields.category;
     if (updateFields.tags) template.tags = updateFields.tags;
     if (updateFields.previewImageUrl !== undefined) template.previewImageUrl = updateFields.previewImageUrl || undefined;
     if (updateFields.liveDemoUrl !== undefined) template.liveDemoUrl = updateFields.liveDemoUrl || undefined;
-    // Note: 'status' is handled by updateTemplateStatusByAdmin
 
     const updatedTemplate = await template.save();
     console.log(`[AdminAction_UpdateTemplateMeta] Template ${templateId} metadata updated by admin ${session.user.id}.`);
-    return { success: "Template metadata updated successfully.", template: updatedTemplate.toObject() };
+    return { success: "Template metadata updated successfully.", template: serializeObject(updatedTemplate) };
 
   } catch (error: any) {
     console.error(`[AdminAction_UpdateTemplateMeta] Error updating template ${templateId}:`, error);
@@ -700,7 +726,7 @@ export async function getTemplateDataForExport(templateId: string): Promise<GetT
     if (!template) {
       return { error: "Template not found." };
     }
-    return { template: template as ITemplate };
+    return { template: serializeObject(template) };
   } catch (error: any) {
     console.error(`[AdminAction_GetTemplateDataForExport] Error fetching template ${templateId}:`, error);
     return { error: `Failed to fetch template data: ${error.message}` };
@@ -726,6 +752,4 @@ export async function getDistinctTemplateCategories(): Promise<DistinctCategorie
     return { error: "Failed to fetch categories: " + error.message };
   }
 }
-    
-
     

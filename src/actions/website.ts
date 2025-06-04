@@ -4,12 +4,49 @@
 import dbConnect from "@/lib/dbConnect";
 import Website, { type IWebsite, type WebsiteStatus, type DomainConnectionStatus } from "@/models/Website";
 import WebsiteVersion, { type IWebsiteVersion, type IWebsiteVersionPage } from "@/models/WebsiteVersion"; 
-import User from "@/models/User"; // Needed for checking user plan limits, if any
-import Template from "@/models/Template"; // Needed if creating from template
+import User from "@/models/User";
+import Template from "@/models/Template";
 import { auth } from "@/auth";
 import mongoose from "mongoose";
 import { z } from "zod";
 import type { IPageComponent } from "@/models/PageComponent";
+
+// Helper to deeply serialize an object, converting ObjectIds and other non-plain types
+const serializeObject = (obj: any): any => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (obj instanceof mongoose.Types.ObjectId) {
+    return obj.toString();
+  }
+  
+  if (obj instanceof Date) {
+    return obj.toISOString(); // Or pass as Date, Next.js serializes it
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(serializeObject);
+  }
+  
+  const plainObject: { [key: string]: any } = {};
+  // Prefer .toObject() if it's a Mongoose document, then spread
+  const source = typeof obj.toObject === 'function' ? obj.toObject() : obj;
+
+  for (const key in source) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      plainObject[key] = serializeObject(source[key]);
+    }
+  }
+  // Ensure _id is serialized if it's an ObjectId at the top level of a lean object
+  // or if it's from a Mongoose document that hasn't had ._id explicitly stringified.
+  if (source._id && source._id instanceof mongoose.Types.ObjectId) {
+    plainObject._id = source._id.toString();
+  }
+
+  return plainObject;
+};
+
 
 interface WebsiteActionInput {
   websiteId: string;
@@ -21,14 +58,13 @@ interface WebsiteActionResult {
   website?: IWebsite; 
 }
 
-// --- Schema for Creating a new Website ---
 const CreateWebsiteInputSchema = z.object({
   name: z.string().min(3, "Website name must be at least 3 characters.").max(100),
   subdomain: z.string()
     .min(3, "Subdomain must be at least 3 characters.")
     .max(63)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Subdomain must be lowercase alphanumeric with hyphens.")
-    .optional(), // If not provided, we can attempt to generate one
+    .optional(),
   templateId: z.string().optional().refine(val => !val || mongoose.Types.ObjectId.isValid(val), {
     message: "Invalid Template ID format.",
   }),
@@ -43,19 +79,17 @@ interface CreateWebsiteResult {
 
 async function generateUniqueSubdomain(baseName: string): Promise<string> {
   let subdomain = baseName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').substring(0, 63);
-  if (subdomain.length < 3) subdomain = `site-${subdomain}`; // Ensure min length
+  if (subdomain.length < 3) subdomain = `site-${subdomain}`;
 
   let existing = await Website.findOne({ subdomain });
   let attempt = 0;
   while (existing) {
     attempt++;
     const newSubdomain = `${subdomain}-${attempt}`;
-    if (newSubdomain.length > 63) { // Prevent overly long subdomains
-        // Fallback to a more random approach if suffixing makes it too long
+    if (newSubdomain.length > 63) {
         subdomain = `site-${Date.now().toString(36).slice(-6)}`;
         existing = await Website.findOne({ subdomain }); 
-        if (!existing) return subdomain; // If this random one is unique, use it
-        // If even random one clashes (highly unlikely), this loop will continue, could add max attempts
+        if (!existing) return subdomain;
     } else {
         subdomain = newSubdomain;
         existing = await Website.findOne({ subdomain });
@@ -108,7 +142,7 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
       _id: new mongoose.Types.ObjectId().toString(),
       name: "Home",
       slug: "/",
-      elements: [] // Start with a blank page if no template
+      elements: [] 
     }];
     let globalSettings = {};
 
@@ -128,7 +162,6 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
           seoTitle: p.seoTitle,
           seoDescription: p.seoDescription,
         }));
-        // globalSettings = template.globalSettings || {}; 
       } else {
         console.warn(`[CreateWebsite] Template ${templateId} not found or not approved. Creating blank website.`);
       }
@@ -156,7 +189,7 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
     const finalWebsite = await savedWebsite.save();
 
     console.log(`[CreateWebsite] Website "${name}" created for user ${userId} with subdomain ${subdomain}. Initial version ID: ${savedVersion._id}`);
-    return { success: "Website created successfully.", website: finalWebsite.toObject() as IWebsite };
+    return { success: "Website created successfully.", website: serializeObject(finalWebsite) };
 
   } catch (error: any) {
     console.error(`[CreateWebsite] Error creating website for user ${userId}:`, error);
@@ -167,19 +200,17 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
   }
 }
 
-
-// --- Schema for Saving Website Content ---
 const PageComponentConfigSchema = z.record(z.any()); 
 
 const PageComponentInputSchema = z.object({
-  _id: z.string().optional(), // Allow _id, but make it optional as it might be new
+  _id: z.string().optional(),
   type: z.string().min(1, "Component type is required."),
   config: PageComponentConfigSchema,
   order: z.number().int(),
 });
 
 const PageInputSchema = z.object({
-  _id: z.string().optional(), // Allow _id for existing pages
+  _id: z.string().optional(),
   name: z.string().min(1, "Page name is required."),
   slug: z.string().min(1, "Page slug is required.")
     .regex(/^(?:[a-z0-9]+(?:-[a-z0-9]+)*|\/)$/, "Slug must be lowercase alphanumeric with hyphens, or a single '/' for home."),
@@ -236,11 +267,11 @@ export async function saveWebsiteContent(input: SaveWebsiteContentInput): Promis
       websiteId: website._id,
       versionNumber: Date.now(), 
       pages: pages.map(p => ({
-        _id: p._id || new mongoose.Types.ObjectId().toString(), // Ensure pages have an ID for React keys if not provided
+        _id: p._id || new mongoose.Types.ObjectId().toString(),
         name: p.name,
         slug: p.slug,
         elements: p.elements?.map(el => ({
-            _id: el._id || new mongoose.Types.ObjectId().toString(), // Ensure elements have IDs
+            _id: el._id || new mongoose.Types.ObjectId().toString(),
             type: el.type,
             config: el.config,
             order: el.order,
@@ -254,13 +285,13 @@ export async function saveWebsiteContent(input: SaveWebsiteContentInput): Promis
 
     const savedVersion = await newVersion.save();
     website.currentVersionId = savedVersion._id;
-    const updatedWebsite = await website.save();
+    const updatedWebsiteDoc = await website.save();
     
     console.log(`[SaveWebsiteContent] Content saved for website ${websiteId}. New version ID: ${savedVersion._id}`);
     return {
       success: "Website content saved successfully.",
       versionId: savedVersion._id.toString(),
-      website: updatedWebsite.toObject() as IWebsite,
+      website: serializeObject(updatedWebsiteDoc),
     };
 
   } catch (error: any) {
@@ -272,8 +303,6 @@ export async function saveWebsiteContent(input: SaveWebsiteContentInput): Promis
   }
 }
 
-
-// --- Publish/Unpublish Actions ---
 export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise<WebsiteActionResult> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -301,16 +330,14 @@ export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise
       return { error: "No current version available to publish. Please save a version of your website first." };
     }
 
-    console.log(`[WebsiteAction_Publish] Attempting to publish website ${websiteId}, version ${website.currentVersionId}...`);
-
     website.status = 'published' as WebsiteStatus;
     website.lastPublishedAt = new Date();
     website.publishedVersionId = website.currentVersionId; 
     
-    const updatedWebsite = await website.save();
+    const updatedWebsiteDoc = await website.save();
 
     console.log(`[WebsiteAction_Publish] Website ${websiteId}, version ${website.publishedVersionId} marked as published.`);
-    return { success: "Website published successfully.", website: updatedWebsite.toObject() as IWebsite };
+    return { success: "Website published successfully.", website: serializeObject(updatedWebsiteDoc) };
 
   } catch (error: any) {
     console.error(`[WebsiteAction_Publish] Error publishing website ${websiteId}:`, error);
@@ -345,14 +372,12 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
     if (website.userId.toString() !== userId && session.user.role !== 'admin') {
       return { error: "Unauthorized to unpublish this website." };
     }
-
-    console.log(`[WebsiteAction_Unpublish] Attempting to unpublish website ${websiteId}...`);
     
     website.status = 'unpublished' as WebsiteStatus;
-    const updatedWebsite = await website.save();
+    const updatedWebsiteDoc = await website.save();
 
     console.log(`[WebsiteAction_Unpublish] Website ${websiteId} marked as unpublished.`);
-    return { success: "Website unpublished successfully.", website: updatedWebsite.toObject() as IWebsite };
+    return { success: "Website unpublished successfully.", website: serializeObject(updatedWebsiteDoc) };
 
   } catch (error: any) {
     console.error(`[WebsiteAction_Unpublish] Error unpublishing website ${websiteId}:`, error);
@@ -360,7 +385,6 @@ export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promi
   }
 }
 
-// --- Delete Website ---
 export async function deleteWebsite({ websiteId }: WebsiteActionInput): Promise<Omit<WebsiteActionResult, 'website'>> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -384,8 +408,6 @@ export async function deleteWebsite({ websiteId }: WebsiteActionInput): Promise<
       return { error: "Unauthorized to delete this website." };
     }
 
-    console.log(`[WebsiteAction_Delete] Attempting to delete website ${websiteId} and its versions...`);
-
     const deletionResult = await WebsiteVersion.deleteMany({ websiteId: website._id });
     console.log(`[WebsiteAction_Delete] Deleted ${deletionResult.deletedCount} versions for website ${websiteId}.`);
 
@@ -400,8 +422,6 @@ export async function deleteWebsite({ websiteId }: WebsiteActionInput): Promise<
   }
 }
 
-
-// --- Get User Websites ---
 interface GetUserWebsitesResult {
   websites?: IWebsite[]; 
   error?: string;
@@ -415,15 +435,14 @@ export async function getUserWebsites(): Promise<GetUserWebsitesResult> {
 
   try {
     await dbConnect();
-    const websites = await Website.find({ userId }).sort({ createdAt: -1 }).lean();
-    return { websites: websites as IWebsite[] };
+    const websitesFromDB = await Website.find({ userId }).sort({ createdAt: -1 }).lean();
+    return { websites: serializeObject(websitesFromDB) };
   } catch (error: any) {
     console.error(`[WebsiteAction_GetUserWebsites] Error fetching websites for user ${userId}:`, error);
     return { error: "Failed to fetch user websites." };
   }
 }
 
-// --- Custom Domain Management ---
 const SetCustomDomainInputSchema = z.object({
   websiteId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
     message: "Invalid Website ID format.",
@@ -480,12 +499,12 @@ export async function setCustomDomain(input: { websiteId: string, domainName: st
     website.domainStatus = 'pending_verification' as DomainConnectionStatus;
     website.dnsInstructions = instructions;
     
-    const updatedWebsite = await website.save();
+    const updatedWebsiteDoc = await website.save();
 
     console.log(`[WebsiteAction_SetCustomDomain] Custom domain "${normalizedDomainName}" set for website ${websiteId}. Status: pending_verification.`);
     return { 
       success: `Custom domain "${normalizedDomainName}" has been set. Please configure your DNS records.`, 
-      website: updatedWebsite.toObject() as IWebsite,
+      website: serializeObject(updatedWebsiteDoc),
       dnsInstructions: instructions,
     };
 
@@ -498,7 +517,6 @@ export async function setCustomDomain(input: { websiteId: string, domainName: st
   }
 }
 
-// --- Get Website by ID (for editor or detailed view) ---
 interface GetWebsiteEditorDataResult {
   website?: IWebsite; 
   currentVersion?: IWebsiteVersion; 
@@ -517,27 +535,27 @@ export async function getWebsiteEditorData(websiteId: string): Promise<GetWebsit
 
   try {
     await dbConnect();
-    const website = await Website.findById(websiteId).lean();
-    if (!website) {
+    const websiteDoc = await Website.findById(websiteId).lean();
+    if (!websiteDoc) {
       return { error: "Website not found." };
     }
 
-    if (website.userId.toString() !== userId && session.user.role !== 'admin') {
+    if (websiteDoc.userId.toString() !== userId && session.user.role !== 'admin') {
       return { error: "Unauthorized to view this website." };
     }
 
-    let currentVersion: IWebsiteVersion | null = null;
-    if (website.currentVersionId) {
-      currentVersion = await WebsiteVersion.findById(website.currentVersionId).lean();
+    let currentVersionDoc: IWebsiteVersion | null = null;
+    if (websiteDoc.currentVersionId) {
+      currentVersionDoc = await WebsiteVersion.findById(websiteDoc.currentVersionId).lean();
     }
 
-    if (website.currentVersionId && !currentVersion) {
-      console.warn(`[getWebsiteEditorData] Website ${websiteId} has currentVersionId ${website.currentVersionId} but version document not found.`);
+    if (websiteDoc.currentVersionId && !currentVersionDoc) {
+      console.warn(`[getWebsiteEditorData] Website ${websiteId} has currentVersionId ${websiteDoc.currentVersionId} but version document not found.`);
     }
     
     return { 
-      website: website as IWebsite, 
-      currentVersion: currentVersion ? currentVersion as IWebsiteVersion : undefined 
+      website: serializeObject(websiteDoc), 
+      currentVersion: currentVersionDoc ? serializeObject(currentVersionDoc) : undefined 
     };
   } catch (error: any) {
     console.error(`[WebsiteAction_GetWebsiteById] Error fetching website editor data for ${websiteId}:`, error);
@@ -556,19 +574,19 @@ export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteM
   }
   try {
     await dbConnect();
-    const website = await Website.findById(websiteId)
+    const websiteDoc = await Website.findById(websiteId)
       .select('name customDomain subdomain status lastPublishedAt createdAt currentVersionId publishedVersionId userId domainStatus') 
       .lean();
-    if (!website) {
+    if (!websiteDoc) {
       return { error: "Website not found." };
     }
-    if (website.status !== 'published') {
-        const websiteOwnerId = website.userId ? website.userId.toString() : null;
+    if (websiteDoc.status !== 'published') {
+        const websiteOwnerId = websiteDoc.userId ? websiteDoc.userId.toString() : null;
         if (!session || !websiteOwnerId || (session.user.id.toString() !== websiteOwnerId && session.user.role !== 'admin')) {
             return { error: "Website not found or not publicly available." };
         }
     }
-    return { website: website as IWebsite };
+    return { website: serializeObject(websiteDoc) };
   } catch (error: any)
 {
     console.error(`[WebsiteAction_GetWebsiteMetadata] Error fetching website metadata ${websiteId}:`, error);
@@ -576,8 +594,6 @@ export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteM
   }
 }
 
-
-// --- Get Published Site Data by Hostname ---
 interface GetPublishedSiteDataResult {
   website?: IWebsite;
   publishedVersion?: IWebsiteVersion;
@@ -593,34 +609,30 @@ export async function getPublishedSiteDataByHost(host: string): Promise<GetPubli
     return { error: "Application base domain not configured." };
   }
 
-  let website: IWebsite | null = null;
+  let websiteDoc: IWebsite | null = null;
 
-  // Check if it's a subdomain of our app
   if (host.endsWith(`.${appBaseDomain}`)) {
     const subdomain = host.substring(0, host.length - (appBaseDomain.length + 1));
-    if (subdomain && subdomain !== 'www') { // Add common exclusions like 'www' if your app itself is at www.appBaseDomain
-      website = await Website.findOne({ subdomain, status: 'published' }).lean();
+    if (subdomain && subdomain !== 'www') { 
+      websiteDoc = await Website.findOne({ subdomain, status: 'published' }).lean();
     }
   } else {
-    // If not a subdomain, assume it's a custom domain
-    website = await Website.findOne({ customDomain: host, status: 'published', domainStatus: 'verified' }).lean();
+    websiteDoc = await Website.findOne({ customDomain: host, status: 'published', domainStatus: 'verified' }).lean();
   }
 
-  if (!website) {
+  if (!websiteDoc) {
     return { error: "Site not found or not published." };
   }
 
-  if (!website.publishedVersionId) {
+  if (!websiteDoc.publishedVersionId) {
     return { error: "Site is published but has no published version." };
   }
 
-  const publishedVersion = await WebsiteVersion.findById(website.publishedVersionId).lean();
+  const publishedVersionDoc = await WebsiteVersion.findById(websiteDoc.publishedVersionId).lean();
 
-  if (!publishedVersion) {
+  if (!publishedVersionDoc) {
     return { error: "Published version content not found." };
   }
 
-  return { website: website as IWebsite, publishedVersion: publishedVersion as IWebsiteVersion };
+  return { website: serializeObject(websiteDoc), publishedVersion: serializeObject(publishedVersionDoc) };
 }
-
-

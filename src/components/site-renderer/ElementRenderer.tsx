@@ -6,6 +6,10 @@ import HeadingRenderer from './components/HeadingRenderer';
 import TextRenderer from './components/TextRenderer';
 import ImageRenderer from './components/ImageRenderer';
 import ButtonRenderer from './components/ButtonRenderer';
+import NavbarRenderer from './components/NavbarRenderer';
+import HeroRenderer from './components/HeroRenderer';
+import CardSectionRenderer from './components/CardSectionRenderer';
+import FooterRenderer from './components/FooterRenderer';
 // Import other renderers as they are created
 // import VideoRenderer from './components/VideoRenderer';
 // import SectionRenderer from './components/SectionRenderer';
@@ -26,6 +30,14 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
       return <ImageRenderer config={element.config} />;
     case 'button':
       return <ButtonRenderer config={element.config} />;
+    case 'navbar':
+      return <NavbarRenderer config={element.config} />;
+    case 'hero':
+      return <HeroRenderer config={element.config} />;
+    case 'card_section':
+      return <CardSectionRenderer config={element.config} />;
+    case 'footer':
+      return <FooterRenderer config={element.config} />;
     // case 'video':
     //   return <VideoRenderer config={element.config} />;
     // case 'section':
@@ -36,9 +48,9 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
       return (
         <div className="my-2 p-3 border border-dashed border-neutral-300 bg-neutral-50 rounded">
           <p className="text-xs text-neutral-500">
-            Unsupported element type: <strong>{element.type}</strong>
+            Unsupported/Placeholder element: <strong>{element.type}</strong>
           </p>
-          <pre className="mt-1 text-xs bg-neutral-100 p-1 overflow-auto">
+          <pre className="mt-1 text-xs bg-neutral-100 p-1 overflow-auto max-h-32">
             {JSON.stringify(element.config, null, 2)}
           </pre>
         </div>

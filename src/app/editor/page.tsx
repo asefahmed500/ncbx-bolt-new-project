@@ -3,17 +3,15 @@
 
 import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AppHeader, type DeviceType } from '@/components/editor/app-header';
+import { AppHeader, type DeviceType, type EditorSaveStatus } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Type, Image as ImageIconLucide, Square as ButtonIconElement, BarChart2, UploadCloud, Crop, Sparkles, Box, Columns as ColumnsIcon, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Settings, MousePointerSquareDashed, Type, Image as ImageIconLucide, Square as ButtonIconElement, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getWebsiteEditorData, saveWebsiteContent, type SaveWebsiteContentInput } from '@/actions/website';
@@ -24,6 +22,7 @@ import { SaveTemplateModal } from '@/components/editor/save-template-modal';
 import { TemplateGalleryModal } from '@/components/editor/template-gallery-modal';
 import mongoose from 'mongoose';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { getComponentConfig } from '@/components/editor/componentRegistry'; // For default configs
 
 
 interface SelectedElementData extends IPageComponent {
@@ -39,9 +38,6 @@ const defaultInitialPage: IWebsiteVersionPage = {
   seoTitle: "Home Page",
   seoDescription: "Welcome to your new site!",
 };
-
-type EditorSaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unsaved_changes';
-
 
 function EditorPageComponent() {
   const searchParams = useSearchParams();
@@ -73,18 +69,36 @@ function EditorPageComponent() {
         setWebsiteData(null);
         setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
         setActivePageIndex(0);
-      } else if (result.website) {
+        setSelectedElement(null);
+      } else if (result.website && result.currentVersion) {
         setWebsiteData(result.website);
-        if (result.currentVersion && result.currentVersion.pages && result.currentVersion.pages.length > 0) {
-          setCurrentPages(result.currentVersion.pages.map(p => ({...p, _id: p._id || new mongoose.Types.ObjectId().toString() } as IWebsiteVersionPage)));
-        } else {
-          setCurrentPages([{ ...defaultInitialPage, _id: new mongoose.Types.ObjectId().toString() }]);
-        }
+        // Ensure all IDs are strings, especially for nested elements
+        const sanitizedPages = result.currentVersion.pages.map(p => ({
+          ...p,
+          _id: (p._id || new mongoose.Types.ObjectId()).toString(),
+          elements: p.elements.map(el => ({
+            ...el,
+            _id: (el._id || new mongoose.Types.ObjectId()).toString(),
+          }))
+        })) as IWebsiteVersionPage[];
+        
+        setCurrentPages(sanitizedPages.length > 0 ? sanitizedPages : [JSON.parse(JSON.stringify(defaultInitialPage))]);
         setActivePageIndex(0);
+        setSelectedElement(null);
         setEditorSaveStatus('saved'); 
+      } else if (result.website) { // Website exists but no version (e.g. newly created)
+        setWebsiteData(result.website);
+        setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+        setActivePageIndex(0);
+        setSelectedElement(null);
+        setEditorSaveStatus('unsaved_changes'); // Needs initial save
       }
     } catch (err: any) {
       toast({ title: "Error", description: `Failed to load website: ${err.message}`, variant: "destructive" });
+      setWebsiteData(null);
+      setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+      setActivePageIndex(0);
+      setSelectedElement(null);
     } finally {
       setIsLoadingWebsite(false);
     }
@@ -92,17 +106,23 @@ function EditorPageComponent() {
 
   useEffect(() => {
     if (websiteIdFromQuery) {
-      setWebsiteId(websiteIdFromQuery);
-      loadWebsiteData(websiteIdFromQuery);
+      if (websiteId !== websiteIdFromQuery) { // Load only if ID changes or is set initially
+        setWebsiteId(websiteIdFromQuery);
+        loadWebsiteData(websiteIdFromQuery);
+      }
     } else {
       setIsLoadingWebsite(false); 
+      setWebsiteData(null);
+      setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+      setActivePageIndex(0);
+      setSelectedElement(null);
     }
-  }, [websiteIdFromQuery, loadWebsiteData]);
+  }, [websiteIdFromQuery, websiteId, loadWebsiteData]);
 
   const handleElementSelect = useCallback((elementId: string, pageIndex: number) => {
     const page = currentPages[pageIndex];
     if (page) {
-      const elementIndex = page.elements.findIndex(el => (el._id as unknown as string) === elementId);
+      const elementIndex = page.elements.findIndex(el => (el._id as string) === elementId);
       if (elementIndex !== -1) {
         setSelectedElement({ ...page.elements[elementIndex], pageIndex, elementIndex });
       } else {
@@ -113,20 +133,19 @@ function EditorPageComponent() {
   
   const handlePropertyChange = (propertyName: string, value: any, isPageSetting: boolean = false) => {
     setCurrentPages(prevPages => {
-      const newPages = JSON.parse(JSON.stringify(prevPages)); // Deep clone
+      const newPages = prevPages.map(p => ({ ...p, elements: p.elements.map(el => ({...el})) })); // Deep clone
       if (isPageSetting && newPages[activePageIndex]) {
-        newPages[activePageIndex][propertyName as keyof IWebsiteVersionPage] = value;
+        (newPages[activePageIndex] as any)[propertyName] = value;
       } else if (selectedElement && newPages[selectedElement.pageIndex]) {
         const pageToUpdate = newPages[selectedElement.pageIndex];
         const elementToUpdate = pageToUpdate.elements[selectedElement.elementIndex];
         if (elementToUpdate) {
-          if (selectedElement.type === 'image' && propertyName === 'src') {
-            // For images, ensure the src is updated and also clear any potential AI hint if src is manually changed
-            elementToUpdate.config = { ...elementToUpdate.config, src: value, dataAiHint: undefined };
-          } else {
-            elementToUpdate.config = { ...elementToUpdate.config, [propertyName]: value };
-          }
-          setSelectedElement(prevSel => prevSel ? {...prevSel, config: elementToUpdate.config} : null);
+          elementToUpdate.config = { ...elementToUpdate.config, [propertyName]: value };
+          // Update selectedElement state immediately for inspector to reflect change
+          setSelectedElement(prevSel => prevSel ? {
+            ...prevSel,
+            config: { ...prevSel.config, [propertyName]: value }
+          } : null);
         }
       }
       return newPages;
@@ -136,11 +155,11 @@ function EditorPageComponent() {
   
   const getEditorContentForSave = useCallback((): SaveWebsiteContentInput['pages'] => {
     return currentPages.map(page => ({
-        _id: page._id as string,
+        _id: page._id as string, // Ensure _id is passed if it exists
         name: page.name,
         slug: page.slug,
         elements: page.elements.map(el => ({ 
-            _id: el._id as string, 
+            _id: el._id as string, // Ensure _id is passed if it exists
             type: el.type, 
             config: el.config, 
             order: el.order 
@@ -185,11 +204,8 @@ function EditorPageComponent() {
         setEditorSaveStatus('saved');
         setWebsiteData(result.website); 
         if (result.versionId && result.website.currentVersionId?.toString() === result.versionId) {
-            const savedVersion = await getWebsiteEditorData(websiteId);
-            if(savedVersion.currentVersion?.pages) {
-                 setCurrentPages(savedVersion.currentVersion.pages.map(p => ({...p, _id: p._id || new mongoose.Types.ObjectId().toString() } as IWebsiteVersionPage)));
-                 setActivePageIndex(prev => Math.min(prev, savedVersion.currentVersion!.pages.length -1)); // Ensure active page index is valid
-            }
+            // Reload data to get the freshest version with correct IDs from DB
+            await loadWebsiteData(websiteId);
         }
         toast({ title: "Changes Saved!", description: "Your website content has been updated." });
       } else {
@@ -204,9 +220,9 @@ function EditorPageComponent() {
 
   const handleAddPage = () => {
     const newPageName = `Page ${currentPages.length + 1}`;
-    const newPageSlug = `/page-${currentPages.length + 1}`;
+    const newPageSlug = `/page-${currentPages.length + 1}`; // Ensure slug starts with /
     const newPage: IWebsiteVersionPage = {
-      _id: new mongoose.Types.ObjectId().toString(),
+      _id: new mongoose.Types.ObjectId().toString(), // Generate client-side ID
       name: newPageName,
       slug: newPageSlug,
       elements: [],
@@ -214,7 +230,8 @@ function EditorPageComponent() {
       seoDescription: `Description for ${newPageName}`,
     };
     setCurrentPages(prev => [...prev, newPage]);
-    setActivePageIndex(currentPages.length); // Switch to the new page
+    setActivePageIndex(currentPages.length); 
+    setSelectedElement(null);
     setEditorSaveStatus('unsaved_changes');
     toast({ title: "Page Added", description: `"${newPageName}" created.`});
   };
@@ -227,12 +244,12 @@ function EditorPageComponent() {
     }
     const pageName = currentPages[pageToDeleteIndex].name;
     setCurrentPages(prev => prev.filter((_, index) => index !== pageToDeleteIndex));
-    setActivePageIndex(prev => Math.max(0, prev - (pageToDeleteIndex <= prev ? 1 : 0)));
+    setActivePageIndex(prev => Math.max(0, Math.min(pageToDeleteIndex -1, prev - (pageToDeleteIndex <= prev ? 1 : 0), currentPages.length - 2 )));
+    setSelectedElement(null);
     setEditorSaveStatus('unsaved_changes');
     toast({ title: "Page Deleted", description: `"${pageName}" has been removed.`});
     setPageToDeleteIndex(null);
   };
-
 
   const renderPropertyFields = () => {
     const activePage = currentPages[activePageIndex];
@@ -274,10 +291,17 @@ function EditorPageComponent() {
                 <Input type="url" id="imageUrl" value={currentElementConfig?.src || ""} placeholder="https://placehold.co/600x400.png" className="text-xs" onChange={(e) => handlePropertyChange('src', e.target.value)} />
               </div>
               {currentElementConfig?.src && (<div className="mt-2"><img src={currentElementConfig.src as string} alt={currentElementConfig?.alt as string || 'Preview'} className="rounded-md max-w-full h-auto border" data-ai-hint={currentElementConfig.dataAiHint as string || 'placeholder image'}/></div>)}
-              <Button variant="outline" size="sm" className="w-full mt-2 text-xs" disabled><UploadCloud className="mr-2 h-3.5 w-3.5" /> Upload Image (Conceptual)</Button>
               <div className="space-y-2 mt-2">
                 <Label htmlFor="altText" className="text-xs">Alt Text</Label>
                 <Input type="text" id="altText" value={currentElementConfig?.alt || ""} placeholder="Descriptive text" className="text-xs" onChange={(e) => handlePropertyChange('alt', e.target.value)}/>
+              </div>
+              <div className="space-y-2 mt-2">
+                  <Label htmlFor="imgWidth" className="text-xs">Width (e.g. 100%, 300px)</Label>
+                  <Input type="text" id="imgWidth" value={currentElementConfig?.width || "100%"} placeholder="100%" className="text-xs" onChange={(e) => handlePropertyChange('width', e.target.value)} />
+              </div>
+              <div className="space-y-2 mt-2">
+                  <Label htmlFor="imgHeight" className="text-xs">Height (e.g. auto, 200px)</Label>
+                  <Input type="text" id="imgHeight" value={currentElementConfig?.height || "auto"} placeholder="auto" className="text-xs" onChange={(e) => handlePropertyChange('height', e.target.value)} />
               </div>
             </>
           );
@@ -289,18 +313,43 @@ function EditorPageComponent() {
                 <Label htmlFor="buttonText" className="text-xs">Button Text</Label>
                 <Input type="text" id="buttonText" value={currentElementConfig?.text || ""} placeholder="Click Me" className="text-xs" onChange={(e) => handlePropertyChange('text', e.target.value)} />
               </div>
-              {/* Other button props like link, style etc. would go here */}
+              <div className="space-y-2 mt-2">
+                <Label htmlFor="buttonLink" className="text-xs">Link URL</Label>
+                <Input type="url" id="buttonLink" value={currentElementConfig?.link || "#"} placeholder="#" className="text-xs" onChange={(e) => handlePropertyChange('link', e.target.value)} />
+              </div>
+              <div className="space-y-2 mt-2">
+                <Label htmlFor="buttonStyle" className="text-xs">Style</Label>
+                 <Select value={currentElementConfig?.style || "primary"} onValueChange={(value) => handlePropertyChange('style', value)}>
+                  <SelectTrigger id="buttonStyle" className="w-full text-xs bg-input"><SelectValue placeholder="Select style" /></SelectTrigger>
+                  <SelectContent><SelectItem value="primary">Primary</SelectItem><SelectItem value="secondary">Secondary</SelectItem><SelectItem value="outline">Outline</SelectItem></SelectContent>
+                </Select>
+              </div>
             </>
           );
+        case 'navbar':
+        case 'hero':
+        case 'footer':
+        case 'card_section':
+            return (
+                 <>
+                    <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.type}</strong></p>
+                    <p className="text-xs text-muted-foreground">Configuration for {selectedElement.label} is conceptual. Properties will appear here.</p>
+                    <Textarea className="text-xs mt-2" rows={5} value={JSON.stringify(currentElementConfig, null, 2)} onChange={(e) => {
+                        try { handlePropertyChange('config', JSON.parse(e.target.value)) } catch (err) {/* ignore parse error */}
+                    }}/>
+                 </>
+            );
         default:
           return (
             <>
               <p className="text-sm text-muted-foreground mb-2">Editing: <strong>{selectedElement.type}</strong></p>
-              <pre className="text-xs bg-muted p-2 rounded-md overflow-auto">{JSON.stringify(currentElementConfig, null, 2)}</pre>
+              <Textarea className="text-xs bg-muted p-2 rounded-md overflow-auto" rows={8} value={JSON.stringify(currentElementConfig, null, 2)} onChange={(e) => {
+                  try { handlePropertyChange('config', JSON.parse(e.target.value)) } catch (err) {/* ignore parse error */}
+              }}/>
             </>
           );
       }
-    } else if (activePage) { // Page settings
+    } else if (activePage) { 
       return (
         <>
           <p className="text-sm text-muted-foreground mb-3">Page Settings: <strong>{activePage.name}</strong></p>
@@ -369,13 +418,7 @@ function EditorPageComponent() {
                     {page.name}
                     {currentPages.length > 1 && (
                         <AlertDialogTrigger
-                            onClick={(e) => {
-                                e.stopPropagation(); // Prevent tab selection
-                                setPageToDeleteIndex(index);
-                            }}
-                            // Apply minimal styling to make it look like an icon button.
-                            // Using className prop for Shadcn's AlertDialogTrigger.
-                            // The trigger will render a <button> by default.
+                            onClick={(e) => { e.stopPropagation(); setPageToDeleteIndex(index); }}
                             className="ml-1.5 p-0.5 rounded hover:bg-destructive/10 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                             aria-label={`Delete page ${page.name}`}
                         >
@@ -397,15 +440,21 @@ function EditorPageComponent() {
                     const newPages = JSON.parse(JSON.stringify(prevPages));
                     const pageToUpdate = newPages[activePageIndex];
                     if (pageToUpdate) {
-                        const newElement: IPageComponent = { _id: new mongoose.Types.ObjectId().toString(), type: componentType, config: { text: `New ${componentType}` }, order: targetOrder !== undefined ? targetOrder : pageToUpdate.elements.length, createdAt: new Date(), updatedAt: new Date() };
+                        const componentConf = getComponentConfig(componentType);
+                        const newElement: IPageComponent = { 
+                            _id: new mongoose.Types.ObjectId().toString(), 
+                            type: componentType, 
+                            config: componentConf?.defaultConfig || { text: `New ${componentType}` }, 
+                            order: targetOrder !== undefined ? targetOrder : pageToUpdate.elements.length 
+                        };
                         if (targetOrder !== undefined) {
                              pageToUpdate.elements.splice(targetOrder, 0, newElement);
-                             for(let i = targetOrder + 1; i < pageToUpdate.elements.length; i++) pageToUpdate.elements[i].order = i;
+                             for(let i = targetOrder; i < pageToUpdate.elements.length; i++) pageToUpdate.elements[i].order = i; // Re-order subsequent elements
                         } else { pageToUpdate.elements.push(newElement); }
                     } return newPages;
                 });
                 setEditorSaveStatus('unsaved_changes');
-                toast({ title: "Component Added", description: `${componentType} added to page ${activePageIndex + 1}.` });
+                toast({ title: "Component Added", description: `${componentType} added to page ${currentEditorPage?.name || activePageIndex + 1}.` });
             }} />
         </main>
         <aside className="w-80 bg-card border-l border-border p-4 shadow-sm flex flex-col overflow-y-auto">
@@ -440,4 +489,3 @@ declare module '@/models/Website' {
   
 import mongoose from 'mongoose';
   
-
