@@ -58,4 +58,3 @@ const NavbarRenderer: React.FC<NavbarRendererProps> = ({ config }) => {
 };
 
 export default NavbarRenderer;
-```
