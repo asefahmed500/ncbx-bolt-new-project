@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { IPageComponent } from '@/models/PageComponent';
@@ -41,14 +40,14 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
     // case 'video':
     //   return <VideoRenderer config={element.config} />;
     // case 'section':
-    //   return <SectionRenderer config={element.config} elements={element.config?.children || []} />; // Assuming sections can have children
+    //   return <SectionRenderer config={element.config} elements={element.config?.children || []} />; 
     // case 'columns':
-    //   return <ColumnsRenderer config={element.config} columnsData={element.config?.columns || []} />; // Assuming columns config
+    //   return <ColumnsRenderer config={element.config} columnsData={element.config?.columns || []} />; 
     default:
       return (
         <div className="my-2 p-3 border border-dashed border-neutral-300 bg-neutral-50 rounded">
           <p className="text-xs text-neutral-500">
-            Unsupported/Placeholder element: <strong>{element.type}</strong>
+            Render for: <strong>{element.type}</strong> (Not fully implemented)
           </p>
           <pre className="mt-1 text-xs bg-neutral-100 p-1 overflow-auto max-h-32">
             {JSON.stringify(element.config, null, 2)}

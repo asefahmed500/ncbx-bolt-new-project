@@ -1,4 +1,3 @@
-
 import type { LucideIcon } from 'lucide-react';
 import { 
   Type, 
@@ -14,7 +13,7 @@ import {
   MapPin, 
   ListChecks,
   PanelTop, // For Navbar
-  AppWindow, // For Hero Section (or Zap, Sparkles, etc.)
+  AppWindow, // For Hero Section
   PanelBottom, // For Footer
   LayoutGrid // For Card Section
 } from "lucide-react";
@@ -24,7 +23,7 @@ export interface ComponentConfig {
   label: string;
   icon: LucideIcon;
   description: string;
-  defaultConfig?: Record<string, any>; // Added default config for new components
+  defaultConfig?: Record<string, any>;
 }
 
 export const componentRegistry: Record<string, ComponentConfig> = {
@@ -61,14 +60,14 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Navigation Bar",
     icon: PanelTop,
     description: "Site header with logo and links.",
-    defaultConfig: { brandText: "MySite", links: [{ text: "Home", href: "/" }, { text: "About", href: "/about" }] },
+    defaultConfig: { brandText: "MySite", links: [{ text: "Home", href: "/" }, { text: "About", href: "/about" }], backgroundColor: "bg-neutral-100", textColor: "text-neutral-800" },
   },
   hero: {
     id: "hero",
     label: "Hero Section",
     icon: AppWindow,
     description: "Prominent section with a title, subtitle, and CTA.",
-    defaultConfig: { title: "Welcome to Our Site!", subtitle: "Amazing things happen here.", buttonText: "Learn More", buttonLink: "#", backgroundImage: "https://placehold.co/1200x600.png", dataAiHint: "abstract background" },
+    defaultConfig: { title: "Welcome to Our Site!", subtitle: "Amazing things happen here.", buttonText: "Learn More", buttonLink: "#", backgroundImage: "https://placehold.co/1200x600.png", dataAiHint: "abstract background", backgroundColor: "bg-primary/10", textColor: "text-neutral-800", textAlign: "text-center" },
   },
   card_section: {
     id: "card_section",
@@ -78,10 +77,12 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     defaultConfig: {
       title: "Featured Cards",
       cards: [
-        { title: "Card 1", description: "Description for card 1", image: "https://placehold.co/300x200.png", dataAiHint: "feature item" },
-        { title: "Card 2", description: "Description for card 2", image: "https://placehold.co/300x200.png", dataAiHint: "product service" },
-        { title: "Card 3", description: "Description for card 3", image: "https://placehold.co/300x200.png", dataAiHint: "information block" },
-      ]
+        { title: "Card 1", description: "Description for card 1", image: "https://placehold.co/300x200.png", dataAiHint: "feature item", link: "#" },
+        { title: "Card 2", description: "Description for card 2", image: "https://placehold.co/300x200.png", dataAiHint: "product service", link: "#" },
+        { title: "Card 3", description: "Description for card 3", image: "https://placehold.co/300x200.png", dataAiHint: "information block", link: "#" },
+      ],
+      backgroundColor: "bg-muted/30",
+      textColor: "text-neutral-800",
     },
   },
   footer: {
@@ -89,7 +90,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Footer Section",
     icon: PanelBottom,
     description: "Site footer with copyright and links.",
-    defaultConfig: { copyrightText: `© ${new Date().getFullYear()} MySite. All rights reserved.`, links: [{ text: "Privacy", href: "/privacy" }, { text: "Terms", href: "/terms" }] },
+    defaultConfig: { copyrightText: `© ${new Date().getFullYear()} MySite. All rights reserved.`, links: [{ text: "Privacy", href: "/privacy" }, { text: "Terms", href: "/terms" }], backgroundColor: "bg-neutral-800", textColor: "text-neutral-300" },
   },
   video: { 
     id: "video", 
@@ -110,7 +111,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Columns Layout", 
     icon: Columns, 
     description: "Arrange content in responsive columns.",
-    defaultConfig: { count: 2, gap: "16px", layout: ["1fr", "1fr"] }, // Columns typically contain other elements
+    defaultConfig: { count: 2, gap: "16px", layout: ["1fr", "1fr"] },
   },
   divider: { 
     id: "divider", 
@@ -119,7 +120,6 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     description: "Add a visual horizontal separator.",
     defaultConfig: { style: "solid", color: "#cccccc", height: "1px", marginY: "16px" },
   },
-  // The following are more complex and might need more thought on defaultConfig for usability
   form: { 
     id: "form", 
     label: "Form Container", 
@@ -146,7 +146,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Map Embed", 
     icon: MapPin, 
     description: "Embed maps (e.g., Google Maps).",
-    defaultConfig: { provider: "google", embedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.521106361757!2d106.8166656147691!3d-6.194420095514903!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f5d2e764b12d%3A0x3d2c6eff0b6c2e6d!2sNational%20Monument!5e0!3m2!1sen!2sid!4v1620987473405!5m2!1sen!2sid", height: "400px" }
+    defaultConfig: { provider: "google", embedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.521106361757!2d106.8166656147691!3d-6.194420095514903!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f5d2e764b12d%3A0x3d2c6eff0b6c2e6d!2sNational%20Monument!5e0!3m2!1sen!2sid!4v1620987473405!5m2!1sen!2sid!4v1620987473405!5m2!1sen!2sid", height: "400px" }
   },
   customCode: { 
     id: "customCode", 

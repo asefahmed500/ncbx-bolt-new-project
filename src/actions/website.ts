@@ -1,4 +1,3 @@
-
 "use server";
 
 import dbConnect from "@/lib/dbConnect";
@@ -13,7 +12,7 @@ import type { IPageComponent } from "@/models/PageComponent";
 
 // Helper to deeply serialize an object, converting ObjectIds and other non-plain types
 const serializeObject = (obj: any): any => {
-  if (obj === null || obj === undefined || typeof obj !== 'object') {
+  if (obj === null || obj === undefined) {
     return obj;
   }
 
@@ -22,29 +21,53 @@ const serializeObject = (obj: any): any => {
   }
   
   if (obj instanceof Date) {
-    return obj.toISOString(); // Or pass as Date, Next.js serializes it
+    return obj.toISOString(); 
   }
 
   if (Array.isArray(obj)) {
     return obj.map(serializeObject);
   }
   
-  const plainObject: { [key: string]: any } = {};
-  // Prefer .toObject() if it's a Mongoose document, then spread
-  const source = typeof obj.toObject === 'function' ? obj.toObject() : obj;
+  if (typeof obj === 'object') {
+    const plainObject: { [key: string]: any } = {};
+    const source = typeof obj.toObject === 'function' ? obj.toObject({ transform: false, virtuals: false }) : obj;
 
-  for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
-      plainObject[key] = serializeObject(source[key]);
+    for (const key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        plainObject[key] = serializeObject(source[key]);
+      }
     }
-  }
-  // Ensure _id is serialized if it's an ObjectId at the top level of a lean object
-  // or if it's from a Mongoose document that hasn't had ._id explicitly stringified.
-  if (source._id && source._id instanceof mongoose.Types.ObjectId) {
-    plainObject._id = source._id.toString();
+    
+    if (source._id && source._id instanceof mongoose.Types.ObjectId) plainObject._id = source._id.toString();
+    if (source.userId && source.userId instanceof mongoose.Types.ObjectId) plainObject.userId = source.userId.toString();
+    if (source.templateId && source.templateId instanceof mongoose.Types.ObjectId) plainObject.templateId = source.templateId.toString();
+    if (source.currentVersionId && source.currentVersionId instanceof mongoose.Types.ObjectId) plainObject.currentVersionId = source.currentVersionId.toString();
+    if (source.publishedVersionId && source.publishedVersionId instanceof mongoose.Types.ObjectId) plainObject.publishedVersionId = source.publishedVersionId.toString();
+    if (source.websiteId && source.websiteId instanceof mongoose.Types.ObjectId) plainObject.websiteId = source.websiteId.toString();
+    if (source.createdByUserId && source.createdByUserId instanceof mongoose.Types.ObjectId) plainObject.createdByUserId = source.createdByUserId.toString();
+
+    // For IWebsiteVersionPage / IWebsiteVersion specific nested serialization
+    if (source.pages && Array.isArray(source.pages)) {
+      plainObject.pages = source.pages.map((page: any) => {
+        const plainPage = serializeObject(page); // Serialize the page object itself
+        if (page.elements && Array.isArray(page.elements)) {
+          plainPage.elements = page.elements.map((el: any) => serializeObject(el)); // Serialize each element
+        }
+        return plainPage;
+      });
+    }
+     // For IPageComponent serialization
+    if (source.elements && Array.isArray(source.elements)) {
+        plainObject.elements = source.elements.map((el: any) => serializeObject(el));
+    }
+    if (source.config && typeof source.config === 'object') { // config might be mixed
+        plainObject.config = serializeObject(source.config);
+    }
+
+    return plainObject;
   }
 
-  return plainObject;
+  return obj;
 };
 
 
@@ -78,25 +101,21 @@ interface CreateWebsiteResult {
 }
 
 async function generateUniqueSubdomain(baseName: string): Promise<string> {
-  let subdomain = baseName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').substring(0, 63);
-  if (subdomain.length < 3) subdomain = `site-${subdomain}`;
+  let subdomain = baseName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').substring(0, 55); // Shorter base for suffixes
+  if (subdomain.length < 3) subdomain = `site-${Date.now().toString(36).slice(-4)}`; // Ensure base is somewhat unique if name is too short
 
-  let existing = await Website.findOne({ subdomain });
+  let tempSubdomain = subdomain;
+  let existing = await Website.findOne({ subdomain: tempSubdomain });
   let attempt = 0;
   while (existing) {
     attempt++;
-    const newSubdomain = `${subdomain}-${attempt}`;
-    if (newSubdomain.length > 63) {
-        subdomain = `site-${Date.now().toString(36).slice(-6)}`;
-        existing = await Website.findOne({ subdomain }); 
-        if (!existing) return subdomain;
-    } else {
-        subdomain = newSubdomain;
-        existing = await Website.findOne({ subdomain });
-    }
-    if (attempt > 10) throw new Error("Failed to generate a unique subdomain after multiple attempts.");
+    const suffix = Date.now().toString(36).slice(-2) + attempt.toString(36); // More entropy
+    tempSubdomain = `${subdomain.substring(0, 63 - suffix.length -1)}-${suffix}`; // Ensure total length <= 63
+    if (tempSubdomain.length > 63) tempSubdomain = tempSubdomain.substring(0, 63); // Final trim
+    existing = await Website.findOne({ subdomain: tempSubdomain });
+    if (attempt > 20) throw new Error("Failed to generate a unique subdomain after multiple attempts.");
   }
-  return subdomain;
+  return tempSubdomain;
 }
 
 export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWebsiteResult> {
@@ -142,19 +161,21 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
       _id: new mongoose.Types.ObjectId().toString(),
       name: "Home",
       slug: "/",
-      elements: [] 
+      elements: [],
+      seoTitle: "Home Page",
+      seoDescription: "Welcome to your new website!"
     }];
     let globalSettings = {};
 
     if (templateId) {
-      const template = await Template.findById(templateId);
+      const template = await Template.findById(templateId).lean(); // Use lean for plain object
       if (template && template.status === 'approved') {
         initialPages = template.pages.map(p => ({
-          _id: new mongoose.Types.ObjectId().toString(),
+          _id: new mongoose.Types.ObjectId().toString(), // New ID for this instance
           name: p.name,
           slug: p.slug,
           elements: p.elements.map(el => ({ 
-            _id: new mongoose.Types.ObjectId().toString(),
+            _id: new mongoose.Types.ObjectId().toString(), // New ID for this instance
             type: el.type,
             config: el.config,
             order: el.order,
@@ -203,14 +224,14 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
 const PageComponentConfigSchema = z.record(z.any()); 
 
 const PageComponentInputSchema = z.object({
-  _id: z.string().optional(),
+  _id: z.string().optional(), // Allow string for client-side IDs
   type: z.string().min(1, "Component type is required."),
   config: PageComponentConfigSchema,
   order: z.number().int(),
 });
 
 const PageInputSchema = z.object({
-  _id: z.string().optional(),
+  _id: z.string().optional(), // Allow string for client-side IDs
   name: z.string().min(1, "Page name is required."),
   slug: z.string().min(1, "Page slug is required.")
     .regex(/^(?:[a-z0-9]+(?:-[a-z0-9]+)*|\/)$/, "Slug must be lowercase alphanumeric with hyphens, or a single '/' for home."),
@@ -267,11 +288,11 @@ export async function saveWebsiteContent(input: SaveWebsiteContentInput): Promis
       websiteId: website._id,
       versionNumber: Date.now(), 
       pages: pages.map(p => ({
-        _id: p._id || new mongoose.Types.ObjectId().toString(),
+        _id: p._id || new mongoose.Types.ObjectId().toString(), // Use existing string ID or generate new if not present
         name: p.name,
         slug: p.slug,
         elements: p.elements?.map(el => ({
-            _id: el._id || new mongoose.Types.ObjectId().toString(),
+            _id: el._id || new mongoose.Types.ObjectId().toString(), // Use existing string ID or generate new
             type: el.type,
             config: el.config,
             order: el.order,
@@ -580,9 +601,10 @@ export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteM
     if (!websiteDoc) {
       return { error: "Website not found." };
     }
+    // Allow owner or admin to see metadata even if not published
     if (websiteDoc.status !== 'published') {
         const websiteOwnerId = websiteDoc.userId ? websiteDoc.userId.toString() : null;
-        if (!session || !websiteOwnerId || (session.user.id.toString() !== websiteOwnerId && session.user.role !== 'admin')) {
+        if (!session || !session.user || !websiteOwnerId || (session.user.id.toString() !== websiteOwnerId && session.user.role !== 'admin')) {
             return { error: "Website not found or not publicly available." };
         }
     }
@@ -613,10 +635,11 @@ export async function getPublishedSiteDataByHost(host: string): Promise<GetPubli
 
   if (host.endsWith(`.${appBaseDomain}`)) {
     const subdomain = host.substring(0, host.length - (appBaseDomain.length + 1));
-    if (subdomain && subdomain !== 'www') { 
+    if (subdomain && subdomain !== 'www') { // Exclude www from being a user subdomain on the base domain
       websiteDoc = await Website.findOne({ subdomain, status: 'published' }).lean();
     }
   } else {
+    // This handles custom domains
     websiteDoc = await Website.findOne({ customDomain: host, status: 'published', domainStatus: 'verified' }).lean();
   }
 

@@ -1,4 +1,3 @@
-
 "use server";
 
 import dbConnect from "@/lib/dbConnect";
@@ -9,7 +8,7 @@ import mongoose from "mongoose";
 
 // Helper to deeply serialize an object, converting ObjectIds and other non-plain types
 const serializeObject = (obj: any): any => {
-  if (obj === null || obj === undefined || typeof obj !== 'object') {
+  if (obj === null || obj === undefined) {
     return obj;
   }
 
@@ -18,31 +17,35 @@ const serializeObject = (obj: any): any => {
   }
   
   if (obj instanceof Date) {
-    return obj.toISOString(); // Or pass as Date, Next.js serializes it
+    return obj.toISOString();
   }
 
   if (Array.isArray(obj)) {
     return obj.map(serializeObject);
   }
   
-  const plainObject: { [key: string]: any } = {};
-  const source = typeof obj.toObject === 'function' ? obj.toObject() : obj;
+  if (typeof obj === 'object') {
+    const plainObject: { [key: string]: any } = {};
+    const source = typeof obj.toObject === 'function' ? obj.toObject({ transform: false, virtuals: false }) : obj;
 
-  for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
-      plainObject[key] = serializeObject(source[key]);
+    for (const key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        plainObject[key] = serializeObject(source[key]);
+      }
     }
+    if (source._id && source._id instanceof mongoose.Types.ObjectId) plainObject._id = source._id.toString();
+    if (source.purchasedTemplateIds && Array.isArray(source.purchasedTemplateIds)) {
+      plainObject.purchasedTemplateIds = source.purchasedTemplateIds.map((id: any) => id instanceof mongoose.Types.ObjectId ? id.toString() : id);
+    }
+    return plainObject;
   }
-  if (source._id && source._id instanceof mongoose.Types.ObjectId) {
-    plainObject._id = source._id.toString();
-  }
-  return plainObject;
+  return obj;
 };
 
 
 const UpdateUserProfileInputSchema = z.object({
   name: z.string().min(1, "Name cannot be empty.").max(100, "Name is too long.").optional(),
-  avatarUrl: z.string().url("Invalid URL format for avatar.").optional(),
+  avatarUrl: z.string().url("Invalid URL format for avatar.").optional().or(z.literal('')), // Allow empty string to clear
 });
 
 export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileInputSchema>;
@@ -50,7 +53,7 @@ export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileInputSchema
 interface UpdateUserProfileResult {
   success?: string;
   error?: string;
-  user?: IUser; // This should be the plain object version
+  user?: IUser; 
 }
 
 export async function updateUserProfile(input: UpdateUserProfileInput): Promise<UpdateUserProfileResult> {
@@ -68,7 +71,7 @@ export async function updateUserProfile(input: UpdateUserProfileInput): Promise<
 
   const { name, avatarUrl } = parsedInput.data;
 
-  if (!name && !avatarUrl) {
+  if (name === undefined && avatarUrl === undefined) { // Check if fields were actually provided
     return { error: "No fields provided for update." };
   }
 
@@ -80,11 +83,18 @@ export async function updateUserProfile(input: UpdateUserProfileInput): Promise<
       return { error: "User not found." };
     }
 
-    if (name) {
+    let changed = false;
+    if (name !== undefined && user.name !== name) {
       user.name = name;
+      changed = true;
     }
-    if (avatarUrl) {
+    if (avatarUrl !== undefined && user.avatarUrl !== avatarUrl) {
       user.avatarUrl = avatarUrl;
+      changed = true;
+    }
+    
+    if (!changed) {
+        return { success: "No changes detected.", user: serializeObject(user) };
     }
 
     const updatedUser = await user.save();

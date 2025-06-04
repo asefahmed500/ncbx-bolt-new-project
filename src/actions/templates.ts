@@ -1,4 +1,3 @@
-
 "use server";
 
 import dbConnect from "@/lib/dbConnect";
@@ -12,7 +11,7 @@ import mongoose from "mongoose";
 
 // Helper to deeply serialize an object, converting ObjectIds and other non-plain types
 const serializeObject = (obj: any): any => {
-  if (obj === null || obj === undefined || typeof obj !== 'object') {
+  if (obj === null || obj === undefined) {
     return obj;
   }
 
@@ -21,25 +20,40 @@ const serializeObject = (obj: any): any => {
   }
   
   if (obj instanceof Date) {
-    return obj.toISOString(); // Or pass as Date, Next.js serializes it
+    return obj.toISOString();
   }
 
   if (Array.isArray(obj)) {
     return obj.map(serializeObject);
   }
   
-  const plainObject: { [key: string]: any } = {};
-  const source = typeof obj.toObject === 'function' ? obj.toObject() : obj;
+  if (typeof obj === 'object') {
+    const plainObject: { [key: string]: any } = {};
+    const source = typeof obj.toObject === 'function' ? obj.toObject({ transform: false, virtuals: false }) : obj;
 
-  for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
-      plainObject[key] = serializeObject(source[key]);
+    for (const key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        plainObject[key] = serializeObject(source[key]);
+      }
     }
+    if (source._id && source._id instanceof mongoose.Types.ObjectId) plainObject._id = source._id.toString();
+    if (source.userId && source.userId instanceof mongoose.Types.ObjectId) plainObject.userId = source.userId.toString();
+    if (source.templateId && source.templateId instanceof mongoose.Types.ObjectId) plainObject.templateId = source.templateId.toString();
+    if (source.createdByUserId && source.createdByUserId instanceof mongoose.Types.ObjectId) plainObject.createdByUserId = source.createdByUserId.toString();
+    
+    // For ITemplate specific nested serialization
+    if (source.pages && Array.isArray(source.pages)) {
+      plainObject.pages = source.pages.map((page: any) => {
+        const plainPage = serializeObject(page);
+        if (page.elements && Array.isArray(page.elements)) {
+          plainPage.elements = page.elements.map((el: any) => serializeObject(el));
+        }
+        return plainPage;
+      });
+    }
+    return plainObject;
   }
-  if (source._id && source._id instanceof mongoose.Types.ObjectId) {
-    plainObject._id = source._id.toString();
-  }
-  return plainObject;
+  return obj;
 };
 
 
@@ -53,7 +67,9 @@ const CreateTemplateInputSchema = z.object({
         type: z.string(),
         config: z.record(z.any()),
         order: z.number()
-    })).optional()
+    })).optional(),
+    seoTitle: z.string().optional(),
+    seoDescription: z.string().optional(),
   })).min(1, "Template must have at least one page."),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),
@@ -97,6 +113,8 @@ export async function createTemplate(input: CreateTemplateInput): Promise<Create
         name: p.name,
         slug: p.slug,
         elements: p.elements || [], 
+        seoTitle: p.seoTitle,
+        seoDescription: p.seoDescription,
       })),
       category,
       tags,

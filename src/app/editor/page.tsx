@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, Suspense, useCallback } from 'react';
@@ -15,14 +14,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getWebsiteEditorData, saveWebsiteContent, type SaveWebsiteContentInput } from '@/actions/website';
-import type { IWebsite, IWebsiteVersion, IWebsiteVersionPage, IPageComponent } from '@/models/Website';
+import type { IWebsite, IWebsiteVersion, IWebsiteVersionPage } from '@/models/Website'; // Removed IPageComponent from here
+import type { IPageComponent } from '@/models/PageComponent'; // Use the dedicated model
 import type { ITemplate } from '@/models/Template';
 import { useToast } from '@/hooks/use-toast';
 import { SaveTemplateModal } from '@/components/editor/save-template-modal';
 import { TemplateGalleryModal } from '@/components/editor/template-gallery-modal';
 import mongoose from 'mongoose';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { getComponentConfig } from '@/components/editor/componentRegistry'; // For default configs
+import { getComponentConfig } from '@/components/editor/componentRegistry';
 
 
 interface SelectedElementData extends IPageComponent {
@@ -72,7 +72,6 @@ function EditorPageComponent() {
         setSelectedElement(null);
       } else if (result.website && result.currentVersion) {
         setWebsiteData(result.website);
-        // Ensure all IDs are strings, especially for nested elements
         const sanitizedPages = result.currentVersion.pages.map(p => ({
           ...p,
           _id: (p._id || new mongoose.Types.ObjectId()).toString(),
@@ -86,12 +85,12 @@ function EditorPageComponent() {
         setActivePageIndex(0);
         setSelectedElement(null);
         setEditorSaveStatus('saved'); 
-      } else if (result.website) { // Website exists but no version (e.g. newly created)
+      } else if (result.website) { 
         setWebsiteData(result.website);
         setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
         setActivePageIndex(0);
         setSelectedElement(null);
-        setEditorSaveStatus('unsaved_changes'); // Needs initial save
+        setEditorSaveStatus('unsaved_changes'); 
       }
     } catch (err: any) {
       toast({ title: "Error", description: `Failed to load website: ${err.message}`, variant: "destructive" });
@@ -106,7 +105,7 @@ function EditorPageComponent() {
 
   useEffect(() => {
     if (websiteIdFromQuery) {
-      if (websiteId !== websiteIdFromQuery) { // Load only if ID changes or is set initially
+      if (websiteId !== websiteIdFromQuery) { 
         setWebsiteId(websiteIdFromQuery);
         loadWebsiteData(websiteIdFromQuery);
       }
@@ -124,7 +123,7 @@ function EditorPageComponent() {
     if (page) {
       const elementIndex = page.elements.findIndex(el => (el._id as string) === elementId);
       if (elementIndex !== -1) {
-        setSelectedElement({ ...page.elements[elementIndex], pageIndex, elementIndex });
+        setSelectedElement({ ...(page.elements[elementIndex] as IPageComponent), pageIndex, elementIndex });
       } else {
         setSelectedElement(null);
       }
@@ -133,18 +132,22 @@ function EditorPageComponent() {
   
   const handlePropertyChange = (propertyName: string, value: any, isPageSetting: boolean = false) => {
     setCurrentPages(prevPages => {
-      const newPages = prevPages.map(p => ({ ...p, elements: p.elements.map(el => ({...el})) })); // Deep clone
+      const newPages = JSON.parse(JSON.stringify(prevPages)); // Deep clone for immutability
       if (isPageSetting && newPages[activePageIndex]) {
         (newPages[activePageIndex] as any)[propertyName] = value;
       } else if (selectedElement && newPages[selectedElement.pageIndex]) {
         const pageToUpdate = newPages[selectedElement.pageIndex];
         const elementToUpdate = pageToUpdate.elements[selectedElement.elementIndex];
         if (elementToUpdate) {
-          elementToUpdate.config = { ...elementToUpdate.config, [propertyName]: value };
+          if (propertyName === 'config' && typeof value === 'object') { // Handle full config object update
+            elementToUpdate.config = { ...elementToUpdate.config, ...value };
+          } else { // Handle individual config property update
+            elementToUpdate.config = { ...elementToUpdate.config, [propertyName]: value };
+          }
           // Update selectedElement state immediately for inspector to reflect change
           setSelectedElement(prevSel => prevSel ? {
             ...prevSel,
-            config: { ...prevSel.config, [propertyName]: value }
+            config: { ...elementToUpdate.config }
           } : null);
         }
       }
@@ -155,14 +158,15 @@ function EditorPageComponent() {
   
   const getEditorContentForSave = useCallback((): SaveWebsiteContentInput['pages'] => {
     return currentPages.map(page => ({
-        _id: page._id as string, // Ensure _id is passed if it exists
+        _id: page._id as string, 
         name: page.name,
         slug: page.slug,
         elements: page.elements.map(el => ({ 
-            _id: el._id as string, // Ensure _id is passed if it exists
+            _id: el._id as string, 
             type: el.type, 
             config: el.config, 
-            order: el.order 
+            order: el.order,
+            label: el.label, 
         })),
         seoTitle: page.seoTitle,
         seoDescription: page.seoDescription,
@@ -196,6 +200,7 @@ function EditorPageComponent() {
     const contentToSave: SaveWebsiteContentInput = {
       websiteId: websiteId,
       pages: getEditorContentForSave(),
+      // globalSettings: {} // Add global settings if implemented
     };
 
     try {
@@ -204,8 +209,7 @@ function EditorPageComponent() {
         setEditorSaveStatus('saved');
         setWebsiteData(result.website); 
         if (result.versionId && result.website.currentVersionId?.toString() === result.versionId) {
-            // Reload data to get the freshest version with correct IDs from DB
-            await loadWebsiteData(websiteId);
+            await loadWebsiteData(websiteId); // Reload to get DB-assigned IDs for pages/elements if necessary
         }
         toast({ title: "Changes Saved!", description: "Your website content has been updated." });
       } else {
@@ -220,9 +224,9 @@ function EditorPageComponent() {
 
   const handleAddPage = () => {
     const newPageName = `Page ${currentPages.length + 1}`;
-    const newPageSlug = `/page-${currentPages.length + 1}`; // Ensure slug starts with /
+    const newPageSlug = `/page-${currentPages.length + 1}`; 
     const newPage: IWebsiteVersionPage = {
-      _id: new mongoose.Types.ObjectId().toString(), // Generate client-side ID
+      _id: new mongoose.Types.ObjectId().toString(),
       name: newPageName,
       slug: newPageSlug,
       elements: [],
@@ -243,8 +247,17 @@ function EditorPageComponent() {
       return;
     }
     const pageName = currentPages[pageToDeleteIndex].name;
-    setCurrentPages(prev => prev.filter((_, index) => index !== pageToDeleteIndex));
-    setActivePageIndex(prev => Math.max(0, Math.min(pageToDeleteIndex -1, prev - (pageToDeleteIndex <= prev ? 1 : 0), currentPages.length - 2 )));
+    const newPages = currentPages.filter((_, index) => index !== pageToDeleteIndex);
+    setCurrentPages(newPages);
+    
+    // Adjust activePageIndex
+    if (activePageIndex === pageToDeleteIndex) {
+      setActivePageIndex(Math.max(0, pageToDeleteIndex -1));
+    } else if (activePageIndex > pageToDeleteIndex) {
+      setActivePageIndex(activePageIndex - 1);
+    }
+    // else activePageIndex remains the same
+
     setSelectedElement(null);
     setEditorSaveStatus('unsaved_changes');
     toast({ title: "Page Deleted", description: `"${pageName}" has been removed.`});
@@ -255,100 +268,85 @@ function EditorPageComponent() {
     const activePage = currentPages[activePageIndex];
 
     if (selectedElement && activePage && activePage.elements[selectedElement.elementIndex]) {
-      const currentElementConfig = selectedElement.config;
-      switch (selectedElement.type) {
-        case 'heading':
-          return (
-            <>
-              <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{currentElementConfig?.text || 'Heading'}</strong></p>
-              <div className="space-y-2">
-                <Label htmlFor="textContent" className="text-xs">Text Content</Label>
-                <Textarea id="textContent" value={currentElementConfig?.text || ""} placeholder="Enter heading text" className="text-xs" onChange={(e) => handlePropertyChange('text', e.target.value)} />
-              </div>
-              <div className="space-y-2 mt-2">
-                <Label htmlFor="fontSize" className="text-xs">Font Size (e.g., 2rem, 24px)</Label>
-                <Input type="text" id="fontSize" value={currentElementConfig?.fontSize || ""} placeholder="e.g., 2rem" className="text-xs" onChange={(e) => handlePropertyChange('fontSize', e.target.value)} />
-              </div>
-              <div className="space-y-2 mt-2">
-                <Label htmlFor="color" className="text-xs">Text Color</Label>
-                <Input type="color" id="color" value={currentElementConfig?.color || "#333333"} className="text-xs h-8 w-full" onChange={(e) => handlePropertyChange('color', e.target.value)} />
-              </div>
-              <div className="space-y-2 mt-2">
-                <Label htmlFor="headingLevel" className="text-xs">Level (H1-H6)</Label>
-                <Select value={currentElementConfig?.level || "h2"} onValueChange={(value) => handlePropertyChange('level', value)}>
-                  <SelectTrigger id="headingLevel" className="w-full text-xs bg-input"><SelectValue placeholder="Select level" /></SelectTrigger>
-                  <SelectContent><SelectItem value="h1">H1</SelectItem><SelectItem value="h2">H2</SelectItem><SelectItem value="h3">H3</SelectItem><SelectItem value="h4">H4</SelectItem><SelectItem value="h5">H5</SelectItem><SelectItem value="h6">H6</SelectItem></SelectContent>
-                </Select>
-              </div>
-            </>
-          );
-        case 'image':
-          return (
-            <>
-              <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{currentElementConfig?.alt || 'Image'}</strong></p>
-              <div className="space-y-2">
-                <Label htmlFor="imageUrl" className="text-xs">Image Source URL</Label>
-                <Input type="url" id="imageUrl" value={currentElementConfig?.src || ""} placeholder="https://placehold.co/600x400.png" className="text-xs" onChange={(e) => handlePropertyChange('src', e.target.value)} />
-              </div>
-              {currentElementConfig?.src && (<div className="mt-2"><img src={currentElementConfig.src as string} alt={currentElementConfig?.alt as string || 'Preview'} className="rounded-md max-w-full h-auto border" data-ai-hint={currentElementConfig.dataAiHint as string || 'placeholder image'}/></div>)}
-              <div className="space-y-2 mt-2">
-                <Label htmlFor="altText" className="text-xs">Alt Text</Label>
-                <Input type="text" id="altText" value={currentElementConfig?.alt || ""} placeholder="Descriptive text" className="text-xs" onChange={(e) => handlePropertyChange('alt', e.target.value)}/>
-              </div>
-              <div className="space-y-2 mt-2">
-                  <Label htmlFor="imgWidth" className="text-xs">Width (e.g. 100%, 300px)</Label>
-                  <Input type="text" id="imgWidth" value={currentElementConfig?.width || "100%"} placeholder="100%" className="text-xs" onChange={(e) => handlePropertyChange('width', e.target.value)} />
-              </div>
-              <div className="space-y-2 mt-2">
-                  <Label htmlFor="imgHeight" className="text-xs">Height (e.g. auto, 200px)</Label>
-                  <Input type="text" id="imgHeight" value={currentElementConfig?.height || "auto"} placeholder="auto" className="text-xs" onChange={(e) => handlePropertyChange('height', e.target.value)} />
-              </div>
-            </>
-          );
-        case 'button':
-          return (
-            <>
-              <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{currentElementConfig?.text || 'Button'}</strong></p>
-              <div className="space-y-2">
-                <Label htmlFor="buttonText" className="text-xs">Button Text</Label>
-                <Input type="text" id="buttonText" value={currentElementConfig?.text || ""} placeholder="Click Me" className="text-xs" onChange={(e) => handlePropertyChange('text', e.target.value)} />
-              </div>
-              <div className="space-y-2 mt-2">
-                <Label htmlFor="buttonLink" className="text-xs">Link URL</Label>
-                <Input type="url" id="buttonLink" value={currentElementConfig?.link || "#"} placeholder="#" className="text-xs" onChange={(e) => handlePropertyChange('link', e.target.value)} />
-              </div>
-              <div className="space-y-2 mt-2">
-                <Label htmlFor="buttonStyle" className="text-xs">Style</Label>
-                 <Select value={currentElementConfig?.style || "primary"} onValueChange={(value) => handlePropertyChange('style', value)}>
-                  <SelectTrigger id="buttonStyle" className="w-full text-xs bg-input"><SelectValue placeholder="Select style" /></SelectTrigger>
-                  <SelectContent><SelectItem value="primary">Primary</SelectItem><SelectItem value="secondary">Secondary</SelectItem><SelectItem value="outline">Outline</SelectItem></SelectContent>
-                </Select>
-              </div>
-            </>
-          );
-        case 'navbar':
-        case 'hero':
-        case 'footer':
-        case 'card_section':
+      const currentElementConfig = selectedElement.config || {};
+      const componentMeta = getComponentConfig(selectedElement.type);
+
+      return (
+        <>
+          <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{componentMeta?.label || selectedElement.type}</strong> ({selectedElement.config?.text || selectedElement.config?.alt || selectedElement.config?.title || 'Element'})</p>
+          {Object.entries(componentMeta?.defaultConfig || {}).map(([key, defaultValue]) => {
+            const currentValue = currentElementConfig[key] !== undefined ? currentElementConfig[key] : defaultValue;
+            
+            // Basic input types based on defaultValue type or key name
+            if (key === 'text' || key === 'htmlContent' || key === 'subtitle' || key === 'description' || key === 'copyrightText') {
+              return (
+                <div key={key} className="space-y-1 mt-2">
+                  <Label htmlFor={`prop-${key}`} className="text-xs capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
+                  <Textarea id={`prop-${key}`} value={currentValue || ""} placeholder={`Enter ${key}`} className="text-xs" onChange={(e) => handlePropertyChange(key, e.target.value)} />
+                </div>
+              );
+            } else if (key === 'src' || key === 'link' || key === 'buttonLink' || key === 'backgroundImage' || key === 'liveDemoUrl' || key === 'previewImageUrl') {
+              return (
+                <div key={key} className="space-y-1 mt-2">
+                  <Label htmlFor={`prop-${key}`} className="text-xs capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
+                  <Input type="url" id={`prop-${key}`} value={currentValue || ""} placeholder="https://example.com" className="text-xs" onChange={(e) => handlePropertyChange(key, e.target.value)} />
+                   {key === 'src' && currentValue && (<div className="mt-1"><img src={currentValue as string} alt={'Preview'} className="rounded-md max-w-full h-auto border" data-ai-hint={currentElementConfig.dataAiHint as string || 'placeholder image'}/></div>)}
+                </div>
+              );
+            } else if (key === 'color' || key === 'backgroundColor') {
+                return (
+                  <div key={key} className="space-y-1 mt-2">
+                    <Label htmlFor={`prop-${key}`} className="text-xs capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
+                    <Input type="color" id={`prop-${key}`} value={currentValue || "#000000"} className="text-xs h-8 w-full" onChange={(e) => handlePropertyChange(key, e.target.value)} />
+                  </div>
+                );
+            } else if (key === 'level' && selectedElement.type === 'heading') {
+               return (
+                <div key={key} className="space-y-1 mt-2">
+                  <Label htmlFor="headingLevel" className="text-xs">Level (H1-H6)</Label>
+                  <Select value={currentValue || "h2"} onValueChange={(value) => handlePropertyChange(key, value)}>
+                    <SelectTrigger id="headingLevel" className="w-full text-xs bg-input"><SelectValue placeholder="Select level" /></SelectTrigger>
+                    <SelectContent><SelectItem value="h1">H1</SelectItem><SelectItem value="h2">H2</SelectItem><SelectItem value="h3">H3</SelectItem><SelectItem value="h4">H4</SelectItem><SelectItem value="h5">H5</SelectItem><SelectItem value="h6">H6</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              );
+            } else if (key === 'style' && selectedElement.type === 'button') {
+               return (
+                <div key={key} className="space-y-1 mt-2">
+                  <Label htmlFor="buttonStyle" className="text-xs">Style</Label>
+                   <Select value={currentValue || "primary"} onValueChange={(value) => handlePropertyChange(key, value)}>
+                    <SelectTrigger id="buttonStyle" className="w-full text-xs bg-input"><SelectValue placeholder="Select style" /></SelectTrigger>
+                    <SelectContent><SelectItem value="primary">Primary</SelectItem><SelectItem value="secondary">Secondary</SelectItem><SelectItem value="outline">Outline</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              );
+            } else if (typeof defaultValue === 'boolean') {
+              // This part is conceptual as we don't have a Switch component in the base Textarea/Input handling
+              // A real implementation would use a <Switch /> component from shadcn/ui
+              return (
+                <div key={key} className="space-y-1 mt-2 flex items-center">
+                  <Label htmlFor={`prop-${key}`} className="text-xs capitalize mr-2">{key.replace(/([A-Z])/g, ' $1')}</Label>
+                  <Input type="checkbox" id={`prop-${key}`} checked={!!currentValue} className="text-xs scale-75" onChange={(e) => handlePropertyChange(key, e.target.checked)} />
+                </div>
+              );
+            } else if (Array.isArray(defaultValue) || (typeof defaultValue === 'object' && defaultValue !== null)) {
+              return (
+                  <div key={key} className="space-y-1 mt-2">
+                    <Label htmlFor={`prop-${key}`} className="text-xs capitalize">{key.replace(/([A-Z])/g, ' $1')} (JSON)</Label>
+                    <Textarea id={`prop-${key}`} value={JSON.stringify(currentValue, null, 2) || ""} placeholder={`Enter JSON for ${key}`} className="text-xs h-24" onChange={(e) => { try { handlePropertyChange(key, JSON.parse(e.target.value)); } catch (err) { /* Ignore parse error on live typing */ } }} />
+                  </div>
+              );
+            }
+            // Default input for other string/number types
             return (
-                 <>
-                    <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{selectedElement.type}</strong></p>
-                    <p className="text-xs text-muted-foreground">Configuration for {selectedElement.label} is conceptual. Properties will appear here.</p>
-                    <Textarea className="text-xs mt-2" rows={5} value={JSON.stringify(currentElementConfig, null, 2)} onChange={(e) => {
-                        try { handlePropertyChange('config', JSON.parse(e.target.value)) } catch (err) {/* ignore parse error */}
-                    }}/>
-                 </>
+              <div key={key} className="space-y-1 mt-2">
+                <Label htmlFor={`prop-${key}`} className="text-xs capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
+                <Input type={typeof defaultValue === 'number' ? 'number' : 'text'} id={`prop-${key}`} value={currentValue || ""} placeholder={`Enter ${key}`} className="text-xs" onChange={(e) => handlePropertyChange(key, typeof defaultValue === 'number' ? parseFloat(e.target.value) : e.target.value)} />
+              </div>
             );
-        default:
-          return (
-            <>
-              <p className="text-sm text-muted-foreground mb-2">Editing: <strong>{selectedElement.type}</strong></p>
-              <Textarea className="text-xs bg-muted p-2 rounded-md overflow-auto" rows={8} value={JSON.stringify(currentElementConfig, null, 2)} onChange={(e) => {
-                  try { handlePropertyChange('config', JSON.parse(e.target.value)) } catch (err) {/* ignore parse error */}
-              }}/>
-            </>
-          );
-      }
+          })}
+        </>
+      );
     } else if (activePage) { 
       return (
         <>
@@ -417,12 +415,17 @@ function EditorPageComponent() {
                   <TabsTrigger key={page._id as string || index} value={index.toString()} className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none rounded-t-md border-b-2 border-transparent data-[state=active]:border-primary">
                     {page.name}
                     {currentPages.length > 1 && (
-                        <AlertDialogTrigger
-                            onClick={(e) => { e.stopPropagation(); setPageToDeleteIndex(index); }}
-                            className="ml-1.5 p-0.5 rounded hover:bg-destructive/10 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-                            aria-label={`Delete page ${page.name}`}
-                        >
+                         <AlertDialogTrigger
+                            asChild
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToDeleteIndex(index); }} // Prevent tab activation
+                         >
+                            <button
+                                className="ml-1.5 p-0.5 rounded hover:bg-destructive/10 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+                                aria-label={`Delete page ${page.name}`}
+                                title={`Delete page ${page.name}`}
+                            >
                                 <Trash2 className="h-3 w-3 text-destructive"/>
+                            </button>
                         </AlertDialogTrigger>
                     )}
                   </TabsTrigger>
@@ -444,25 +447,26 @@ function EditorPageComponent() {
                         const newElement: IPageComponent = { 
                             _id: new mongoose.Types.ObjectId().toString(), 
                             type: componentType, 
+                            label: componentConf?.label,
                             config: componentConf?.defaultConfig || { text: `New ${componentType}` }, 
                             order: targetOrder !== undefined ? targetOrder : pageToUpdate.elements.length 
                         };
                         if (targetOrder !== undefined) {
                              pageToUpdate.elements.splice(targetOrder, 0, newElement);
-                             for(let i = targetOrder; i < pageToUpdate.elements.length; i++) pageToUpdate.elements[i].order = i; // Re-order subsequent elements
+                             for(let i = targetOrder; i < pageToUpdate.elements.length; i++) pageToUpdate.elements[i].order = i; 
                         } else { pageToUpdate.elements.push(newElement); }
                     } return newPages;
                 });
                 setEditorSaveStatus('unsaved_changes');
-                toast({ title: "Component Added", description: `${componentType} added to page ${currentEditorPage?.name || activePageIndex + 1}.` });
+                toast({ title: "Component Added", description: `${getComponentConfig(componentType)?.label || componentType} added to page ${currentEditorPage?.name || activePageIndex + 1}.` });
             }} />
         </main>
         <aside className="w-80 bg-card border-l border-border p-4 shadow-sm flex flex-col overflow-y-auto">
-          <Card className="flex-1"><CardHeader><CardTitle className="font-headline text-lg flex items-center">{selectedElement ? <><MousePointerSquareDashed className="w-5 h-5 mr-2 text-primary" />{selectedElement.type} Properties</> : <><Settings className="w-5 h-5 mr-2 text-primary" />Page Settings</>}</CardTitle></CardHeader>
+          <Card className="flex-1"><CardHeader><CardTitle className="font-headline text-lg flex items-center">{selectedElement ? <><MousePointerSquareDashed className="w-5 h-5 mr-2 text-primary" />{(getComponentConfig(selectedElement.type)?.label || selectedElement.type)} Properties</> : <><Settings className="w-5 h-5 mr-2 text-primary" />Page Settings</>}</CardTitle></CardHeader>
             <CardContent><div className="space-y-4">{renderPropertyFields()}</div>{selectedElement && <Button variant="outline" size="sm" onClick={() => setSelectedElement(null)} className="mt-4">Deselect Element</Button>}</CardContent></Card>
         </aside>
       </div>
-      {websiteId && <SaveTemplateModal isOpen={isSaveTemplateModalOpen} onOpenChange={setIsSaveTemplateModalOpen} currentDesignData={currentPages}/>}
+      {websiteId && <SaveTemplateModal isOpen={isSaveTemplateModalOpen} onOpenChange={setIsSaveTemplateModalOpen} currentDesignData={getEditorContentForSave()}/>}
       <TemplateGalleryModal isOpen={isTemplateGalleryModalOpen} onOpenChange={setIsTemplateGalleryModalOpen} onApplyTemplate={handleApplyTemplate}/>
       <AlertDialog open={pageToDeleteIndex !== null} onOpenChange={(open) => !open && setPageToDeleteIndex(null)}>
           <AlertDialogContent>
@@ -477,15 +481,3 @@ function EditorPageComponent() {
 export default function EditorPage() {
   return (<Suspense fallback={<div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="mt-4 text-muted-foreground">Loading editor...</p></div>}><EditorPageComponent /></Suspense>);
 }
-
-declare module '@/models/Website' {
-    interface IPageComponent {
-      _id?: string | import('mongoose').Types.ObjectId;
-    }
-    interface IWebsiteVersionPage {
-      _id?: string | import('mongoose').Types.ObjectId;
-    }
-  }
-  
-import mongoose from 'mongoose';
-  

@@ -1,4 +1,3 @@
-
 "use server";
 
 import dbConnect from "@/lib/dbConnect";
@@ -16,7 +15,7 @@ import mongoose from "mongoose";
 
 // Helper to deeply serialize an object, converting ObjectIds and other non-plain types
 const serializeObject = (obj: any): any => {
-  if (obj === null || obj === undefined || typeof obj !== 'object') {
+  if (obj === null || obj === undefined) {
     return obj;
   }
 
@@ -25,37 +24,49 @@ const serializeObject = (obj: any): any => {
   }
 
   if (obj instanceof Date) {
-    return obj.toISOString(); // Or pass as Date, Next.js serializes it
+    return obj.toISOString();
   }
 
   if (Array.isArray(obj)) {
     return obj.map(serializeObject);
   }
 
-  const plainObject: { [key: string]: any } = {};
-  // Prefer .toObject() if it's a Mongoose document, then spread
-  const source = typeof obj.toObject === 'function' ? obj.toObject() : obj;
+  if (typeof obj === 'object') {
+    const plainObject: { [key: string]: any } = {};
+    const source = typeof obj.toObject === 'function' ? obj.toObject({ transform: false, virtuals: false }) : obj;
 
-  for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
-      plainObject[key] = serializeObject(source[key]);
+    for (const key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        plainObject[key] = serializeObject(source[key]);
+      }
     }
-  }
-  // Ensure _id is serialized if it's an ObjectId at the top level of a lean object
-  if (source._id && source._id instanceof mongoose.Types.ObjectId) {
-    plainObject._id = source._id.toString();
+    // Ensure _id is serialized if it's an ObjectId at the top level
+    if (source._id && source._id instanceof mongoose.Types.ObjectId) {
+      plainObject._id = source._id.toString();
+    }
+     // Ensure other common ObjectId fields are serialized if present
+    if (source.userId && source.userId instanceof mongoose.Types.ObjectId) plainObject.userId = source.userId.toString();
+    if (source.templateId && source.templateId instanceof mongoose.Types.ObjectId) plainObject.templateId = source.templateId.toString();
+    if (source.contentId && source.contentId instanceof mongoose.Types.ObjectId) plainObject.contentId = source.contentId.toString();
+    if (source.reporterId && source.reporterId instanceof mongoose.Types.ObjectId) plainObject.reporterId = source.reporterId.toString();
+    if (source.moderatedBy && source.moderatedBy instanceof mongoose.Types.ObjectId) plainObject.moderatedBy = source.moderatedBy.toString();
+    if (source.createdByUserId && source.createdByUserId instanceof mongoose.Types.ObjectId) plainObject.createdByUserId = source.createdByUserId.toString();
+
+
+    return plainObject;
   }
 
-  return plainObject;
+  return obj;
 };
 
 
-export interface IUserForAdmin extends Omit<IUser, '_id' | 'userId' | 'createdAt' | 'updatedAt'> {
+export interface IUserForAdmin extends Omit<IUser, '_id' | 'userId' | 'createdAt' | 'updatedAt' | 'purchasedTemplateIds'> {
   _id: string;
   userId?: string; // if populated
   websiteCount: number;
   subscriptionPlanName?: string;
   subscriptionStatus?: string;
+  purchasedTemplateIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -113,21 +124,20 @@ export async function getUsersForAdmin(
            const userHasStripeId = !!user.stripeCustomerId;
            if (!userHasStripeId) {
              subscriptionPlanName = 'Free';
-             subscriptionStatus = 'Active';
+             subscriptionStatus = 'Active'; // Or "N/A" if free isn't explicitly active
            } else {
-             subscriptionPlanName = 'Free';
-             subscriptionStatus = 'Cancelled';
+             // Has Stripe ID but no active subscription in our DB
+             subscriptionPlanName = 'Free'; // Or 'Cancelled' / 'Previous Subscriber'
+             subscriptionStatus = 'Cancelled'; // Or 'Inactive'
            }
         }
         
-        const plainUser = serializeObject(user) as Omit<IUser, '_id'> & { _id: string };
-
-        return {
-          ...plainUser,
+        return serializeObject({
+          ...user,
           websiteCount,
           subscriptionPlanName,
           subscriptionStatus,
-        };
+        }) as IUserForAdmin;
       })
     );
 
@@ -161,13 +171,18 @@ export async function updateUserStatus(
 
     user.isActive = isActive;
     await user.save();
+    
+    // Refetch the enriched user data for consistency with getUsersForAdmin display
+    const usersResult = await getUsersForAdmin(user.email || undefined, 1, 1);
+    const updatedUserForAdmin = usersResult.users && usersResult.users.length > 0 ? usersResult.users[0] : undefined;
+
 
     console.log(
       `[AdminAction_UpdateUserStatus] User ${userId} status updated to ${isActive ? "active" : "suspended"}.`
     );
     return {
       success: `User status updated to ${isActive ? "active" : "suspended"}.`,
-      user: serializeObject(user) as IUserForAdmin,
+      user: updatedUserForAdmin,
     };
   } catch (error: any) {
     console.error("[AdminAction_UpdateUserStatus] Error updating user status:", error);
@@ -680,7 +695,7 @@ export async function updateTemplateMetadataByAdmin(
       } else if (updateFields.price !== undefined) {
         template.price = updateFields.price;
       } else if (template.isPremium && template.price === undefined) {
-        template.price = 0;
+        template.price = 0; // Default to 0 if marked premium and no price given
       }
     } else if (updateFields.price !== undefined && template.isPremium) {
       template.price = updateFields.price;
@@ -746,7 +761,7 @@ export async function getDistinctTemplateCategories(): Promise<DistinctCategorie
   try {
     await dbConnect();
     const categories = await Template.distinct('category').where({ status: 'approved' }).exec();
-    return { categories: categories.filter(cat => cat && typeof cat === 'string' && cat.trim() !== '') as string[] };
+    return { categories: categories.filter(cat => cat && typeof cat === 'string' && cat.trim() !== '').map(String) };
   } catch (error: any) {
     console.error("[AdminAction_GetDistinctCategories] Error fetching categories:", error);
     return { error: "Failed to fetch categories: " + error.message };

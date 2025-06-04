@@ -1,6 +1,5 @@
-
 import type { IPageComponent } from '@/models/PageComponent';
-import NextImage from 'next/image';
+import Image from 'next/image'; // Using next/image for card images
 
 interface CardConfig {
   title: string;
@@ -17,12 +16,12 @@ interface CardSectionRendererProps {
 const CardSectionRenderer: React.FC<CardSectionRendererProps> = ({ config }) => {
   const sectionTitle = config?.title || 'Featured Content';
   const cards: CardConfig[] = config?.cards || [
-    { title: "Card 1", description: "Placeholder description for card 1.", image: "https://placehold.co/300x200.png", dataAiHint: "feature item" },
-    { title: "Card 2", description: "Placeholder description for card 2.", image: "https://placehold.co/300x200.png", dataAiHint: "product service" },
-    { title: "Card 3", description: "Placeholder description for card 3.", image: "https://placehold.co/300x200.png", dataAiHint: "information block" },
+    { title: "Card 1", description: "Placeholder description for card 1.", image: "https://placehold.co/300x200.png?text=Card+1", dataAiHint: "feature item", link: "#" },
+    { title: "Card 2", description: "Placeholder description for card 2.", image: "https://placehold.co/300x200.png?text=Card+2", dataAiHint: "product service", link: "#" },
+    { title: "Card 3", description: "Placeholder description for card 3.", image: "https://placehold.co/300x200.png?text=Card+3", dataAiHint: "information block", link: "#" },
   ];
-  const backgroundColor = config?.backgroundColor || 'bg-muted/30'; // Tailwind class
-  const textColor = config?.textColor || 'text-neutral-800'; // Tailwind class
+  const backgroundColor = config?.backgroundColor || 'bg-muted/30';
+  const textColor = config?.textColor || 'text-neutral-800';
 
   return (
     <section className={`py-16 md:py-24 ${backgroundColor} ${textColor}`}>
@@ -33,12 +32,12 @@ const CardSectionRenderer: React.FC<CardSectionRendererProps> = ({ config }) => 
             <div key={index} className="bg-card rounded-lg shadow-lg overflow-hidden flex flex-col border border-border">
               {card.image && (
                 <div className="relative w-full h-48">
-                  <NextImage
+                  <Image
                     src={card.image}
                     alt={card.title}
                     layout="fill"
                     objectFit="cover"
-                    data-ai-hint={card.dataAiHint || card.title}
+                    data-ai-hint={card.dataAiHint || card.title.toLowerCase().replace(/\s+/g, ' ')}
                   />
                 </div>
               )}
@@ -46,7 +45,7 @@ const CardSectionRenderer: React.FC<CardSectionRendererProps> = ({ config }) => 
                 <h3 className="text-xl font-semibold font-headline mb-2 text-card-foreground">{card.title}</h3>
                 <p className="text-muted-foreground text-sm flex-grow">{card.description}</p>
                 {card.link && (
-                  <a href={card.link} className="mt-4 inline-block text-primary hover:underline">
+                  <a href={card.link} className="mt-4 inline-block text-primary hover:underline font-medium">
                     Learn More &rarr;
                   </a>
                 )}
