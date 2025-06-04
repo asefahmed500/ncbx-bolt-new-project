@@ -4,6 +4,7 @@ import { PageComponentSchema, type IPageComponent } from './PageComponent'; // A
 
 // Interface for a page snapshot within a WebsiteVersion
 export interface IWebsiteVersionPage {
+  _id?: string | mongoose.Types.ObjectId; // Ensure _id is part of the interface
   name: string;
   slug: string;
   elements: IPageComponent[];
@@ -13,12 +14,14 @@ export interface IWebsiteVersionPage {
 
 // Schema for a page snapshot within a WebsiteVersion
 const WebsiteVersionPageSchema = new Schema<IWebsiteVersionPage>({
+  _id: { type: Schema.Types.ObjectId, auto: true }, // Explicitly define _id, auto: true is default for top-level
   name: { type: String, required: true, trim: true },
   slug: { type: String, required: true, trim: true },
   elements: [PageComponentSchema], // Embeds the actual component data
   seoTitle: { type: String, trim: true },
   seoDescription: { type: String, trim: true },
-}, { _id: false });
+}); // Removed { _id: false }. Mongoose defaults to creating _id for subdocuments.
+    // Explicitly adding _id definition for clarity and to ensure it's handled as an ObjectId if a string is passed.
 
 export interface IWebsiteVersion extends Document {
   websiteId: mongoose.Schema.Types.ObjectId;
@@ -31,6 +34,7 @@ export interface IWebsiteVersion extends Document {
     primaryColor?: string;
     secondaryColor?: string;
     fontFamily?: string;
+    siteName?: string;
   };
   createdAt: Date;
   createdByUserId?: mongoose.Schema.Types.ObjectId; // User who triggered this version save
