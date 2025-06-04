@@ -181,11 +181,23 @@ export default function LandingPage() {
         href="https://bolt.new" 
         target="_blank" 
         rel="noopener noreferrer"
-        className="fixed bottom-5 right-5 bg-card text-foreground text-xs font-semibold px-4 py-2 rounded-lg shadow-lg z-50 border border-border hover:shadow-xl transition-shadow hover:bg-muted flex items-center gap-2"
+        className="fixed bottom-5 right-5 bg-card text-foreground text-xs font-semibold px-3 py-2 rounded-lg shadow-lg z-50 border border-border hover:shadow-xl transition-shadow hover:bg-muted flex items-center gap-2"
         title="This project was built using Bolt.new"
       >
-        {/* Placeholder for Bolt SVG/Image - using text for now */}
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="m12 2-7 10 7 10 7-10-7-10z"></path><path d="m12 22 7-10-7-10-7 10 7 10z"></path></svg>
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          width="16" 
+          height="16" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2.5" // Made stroke slightly thicker for visibility
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className="text-primary" // Use primary color for the bolt
+        >
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
         Built on Bolt.new
       </a>
     </div>
