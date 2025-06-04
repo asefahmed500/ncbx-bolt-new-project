@@ -1,24 +1,31 @@
 
 "use client";
 
-import { useState } from 'react';
 import type { DeviceType } from './app-header';
 import { useToast } from "@/hooks/use-toast";
 import { LayoutGrid, Package, Image as ImageIconLucide, Type as TypeIcon, Square as ButtonIcon } from 'lucide-react';
-import type { IWebsiteVersionPage, IPageComponent } from '@/models/Website'; 
-import Image from 'next/image'; // For displaying image previews
+import type { IWebsiteVersionPage } from '@/models/WebsiteVersion'; 
+import type { IPageComponent } from '@/models/PageComponent';
+import Image from 'next/image'; 
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableItem } from './SortableItem';
+import { useDroppable } from '@dnd-kit/core';
 
 interface CanvasEditorProps {
   devicePreview: DeviceType;
   page: IWebsiteVersionPage; 
   pageIndex: number;
   onElementSelect: (elementId: string, pageIndex: number) => void;
-  onDropComponent: (componentType: string, targetOrder?: number) => void;
+  // onDropComponent: (componentType: string, targetOrder?: number) => void; // Removed for now, handled by DndContext in parent
 }
 
-export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, onDropComponent }: CanvasEditorProps) {
+export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect }: CanvasEditorProps) {
   const { toast } = useToast();
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  // const [isDraggingOver, setIsDraggingOver] = useState(false); // DndContext in parent handles this now
+
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'canvas-drop-area', // Unique ID for the canvas drop zone
+  });
 
   const getCanvasWidth = () => {
     switch (devicePreview) {
@@ -28,49 +35,7 @@ export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, 
     }
   };
 
-  const handleDragEnterCanvas = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    if (event.dataTransfer.types.includes('application/json')) {
-      setIsDraggingOver(true);
-      event.dataTransfer.dropEffect = "copy";
-    } else {
-      event.dataTransfer.dropEffect = "none";
-    }
-  };
-
-  const handleDragLeaveCanvas = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    if (!event.currentTarget.contains(event.relatedTarget as Node)) {
-        setIsDraggingOver(false);
-    }
-  };
-
-  const handleDragOverCanvas = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault(); 
-    if (event.dataTransfer.types.includes('application/json')) {
-      event.dataTransfer.dropEffect = "copy";
-      if (!isDraggingOver) setIsDraggingOver(true);
-    } else {
-      event.dataTransfer.dropEffect = "none";
-    }
-  };
-
-  const handleDropOnCanvas = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setIsDraggingOver(false);
-    const dataString = event.dataTransfer.getData('application/json');
-    if (dataString) {
-      try {
-        const componentData = JSON.parse(dataString); 
-        onDropComponent(componentData.type, page.elements.length || 0); 
-      } catch (error) {
-        console.error("Failed to parse dropped data:", error);
-        toast({ title: "Drop Error", description: "Could not read component data.", variant: "destructive" });
-      }
-    }
-  };
-
-  const elementsToRender: IPageComponent[] = page ? page.elements : [];
+  const elementsToRender: IPageComponent[] = page?.elements || [];
 
   const renderElementPlaceholder = (element: IPageComponent, index: number) => {
     let Icon = Package;
@@ -93,7 +58,7 @@ export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, 
       <div
         key={(element._id as unknown as string) || `el-${index}`} 
         onClick={() => onElementSelect((element._id as unknown as string), pageIndex)} 
-        className="p-3 border border-dashed border-muted-foreground/30 rounded-md hover:border-primary hover:bg-primary/5 cursor-pointer transition-all bg-white dark:bg-neutral-800"
+        className="p-3 border border-dashed border-muted-foreground/30 rounded-md hover:border-primary hover:bg-primary/5 cursor-pointer transition-all bg-card dark:bg-neutral-800 my-1" // Use bg-card for consistency
         style={{ order: element.order }} 
       >
         <div className="flex items-center text-xs text-muted-foreground">
@@ -120,50 +85,55 @@ export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, 
 
   return (
     <div 
-      className="flex-1 bg-muted/50 p-6 rounded-lg shadow-inner flex justify-center items-start overflow-auto"
-      onDragEnter={handleDragEnterCanvas}
-      onDragLeave={handleDragLeaveCanvas}
-      onDragOver={handleDragOverCanvas}
-      onDrop={handleDropOnCanvas}
+      ref={setNodeRef} // Make the canvas itself a droppable area
+      className="flex-1 bg-muted/50 p-1 md:p-2 lg:p-4 rounded-lg shadow-inner flex justify-center items-start overflow-auto"
     >
       <div 
         className="bg-background shadow-lg transition-all duration-200 ease-in-out mx-auto relative"
         style={{ 
           width: getCanvasWidth(), 
-          height: devicePreview === 'desktop' ? 'calc(100% - 0rem)' : '812px', 
-          minHeight: '400px',
-          border: isDraggingOver ? '2px solid hsl(var(--primary))' : '2px dashed hsl(var(--border) / 0.5)',
+          minHeight: devicePreview === 'desktop' ? 'calc(100% - 0rem)' : '812px', 
+          border: isOver ? '2px solid hsl(var(--primary))' : '2px dashed hsl(var(--border) / 0.5)',
           padding: '20px', 
           boxSizing: 'border-box',
-          opacity: isDraggingOver ? 0.85 : 1,
+          opacity: isOver ? 0.85 : 1,
           backgroundImage: 'radial-gradient(hsl(var(--border) / 0.2) 1px, transparent 1px)',
           backgroundSize: '15px 15px',
         }}
         aria-label={`Website canvas preview for ${devicePreview}`}
       >
-        {elementsToRender.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground pointer-events-none select-none">
-            <LayoutGrid className="w-16 h-16 mb-4 text-muted-foreground/50" />
-            <p className="text-lg font-medium">Canvas Editor ({page.name})</p>
-            <p className="text-sm">Drag components here to build your page.</p>
-            {isDraggingOver && <p className="text-xs mt-2 text-primary font-semibold">Release to drop component</p>}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {elementsToRender.map(renderElementPlaceholder)}
-            {isDraggingOver && (
-                <div className="p-3 border-2 border-dashed border-primary rounded-md bg-primary/10 text-center text-xs text-primary font-semibold">
-                    Drop here to add component
-                </div>
-            )}
-          </div>
-        )}
+        <SortableContext 
+            items={elementsToRender.map(el => el._id as string)} 
+            strategy={verticalListSortingStrategy}
+        >
+          {elementsToRender.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground pointer-events-none select-none min-h-[300px]">
+              <LayoutGrid className="w-16 h-16 mb-4 text-muted-foreground/50" />
+              <p className="text-lg font-medium">Canvas Editor ({page?.name || 'Page'})</p>
+              <p className="text-sm">Drag components here to build your page.</p>
+              {isOver && <p className="text-xs mt-2 text-primary font-semibold">Release to drop component</p>}
+            </div>
+          ) : (
+            <div className="space-y-0"> {/* Reduced space for tighter packing */}
+              {elementsToRender.map((element, index) => (
+                <SortableItem key={element._id as string} id={element._id as string} className="canvas-element">
+                  {renderElementPlaceholder(element, index)}
+                </SortableItem>
+              ))}
+              {isOver && (
+                  <div className="p-3 mt-1 border-2 border-dashed border-primary rounded-md bg-primary/10 text-center text-xs text-primary font-semibold">
+                      Drop here to add component
+                  </div>
+              )}
+            </div>
+          )}
+        </SortableContext>
       </div>
     </div>
   );
 }
 
-declare module '@/models/Website' {
+declare module '@/models/WebsiteVersion' { // Changed from Website
   interface IPageComponent {
     _id?: string | import('mongoose').Types.ObjectId; 
     createdAt?: Date;
@@ -173,4 +143,3 @@ declare module '@/models/Website' {
     _id?: string | import('mongoose').Types.ObjectId;
   }
 }
-

@@ -185,7 +185,7 @@ export default function LandingPage() {
         title="This project was built using Bolt.new"
       >
         <Image 
-          src="/bolt-logo-badge.png" 
+          src="/bolt.jpg" 
           alt="Bolt.new Logo" 
           width={20}  // Adjust width as needed
           height={20} // Adjust height as needed
