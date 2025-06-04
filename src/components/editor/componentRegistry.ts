@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 import {
   Type,
@@ -15,7 +16,7 @@ import {
   PanelTop, // For Navbar
   AppWindow, // For Hero Section
   PanelBottom, // For Footer
-  LayoutGrid, // For Card Section
+  LayoutGrid as CardSectionIcon, // Renamed to avoid conflict
   Sparkles, // Features
   MessageSquareText, // Testimonials
   BadgeDollarSign, // Pricing
@@ -75,6 +76,8 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     description: "Responsive top navigation bar.",
     defaultConfig: {
       brandText: "MySite",
+      brandLink: "/", // Added brandLink
+      navigationId: null, // To store ID of a global Navigation entity
       links: [{ text: "Home", href: "/", type: "internal" }, { text: "About", href: "/about", type: "internal" }],
       backgroundColor: "bg-neutral-100", textColor: "text-neutral-800"
     },
@@ -97,7 +100,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
   card_section: {
     id: "card_section",
     label: "Card Section",
-    icon: LayoutGrid,
+    icon: CardSectionIcon,
     description: "Display content in a series of cards.",
     defaultConfig: {
       title: "Featured Cards",
@@ -271,21 +274,21 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "About Section",
     icon: Info,
     description: "Company/about info section.",
-    defaultConfig: { title: "About Us", content: "<p>We are a team dedicated to excellence.</p>" }
+    defaultConfig: { title: "About Us", content: "<p>We are a team dedicated to excellence.</p>", elements: [] }
   },
   section: {
     id: "section",
     label: "Section / Container",
     icon: Box,
     description: "Group content into distinct sections.",
-    defaultConfig: { backgroundColor: "#FFFFFF", paddingTop: "20px", paddingBottom: "20px" },
+    defaultConfig: { backgroundColor: "#FFFFFF", paddingTop: "20px", paddingBottom: "20px", elements: [] },
   },
   columns: {
     id: "columns",
     label: "Columns Layout",
     icon: Columns,
     description: "Arrange content in responsive columns.",
-    defaultConfig: { count: 2, gap: "16px", layout: ["1fr", "1fr"] },
+    defaultConfig: { count: 2, gap: "16px", layout: ["1fr", "1fr"], elements: [[],[]] }, // elements per column
   },
   divider: {
     id: "divider",
@@ -299,19 +302,19 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Form Container",
     icon: ListChecks,
     description: "Group form input fields for submissions.",
-    defaultConfig: { submitUrl: "/api/submit-form", buttonText: "Submit" }
+    defaultConfig: { submitUrl: "/api/submit-form", buttonText: "Submit", elements: [] }
   },
   input: {
     id: "input",
     label: "Form Input Field",
-    icon: Edit3,
+    icon: Edit3, // Reusing Edit3 as a generic input icon
     description: "For text, email, number, etc. inputs.",
     defaultConfig: { label: "Input Field", type: "text", placeholder: "Enter value", name: "inputField" }
   },
-  textarea_field: {
+  textarea_field: { // Renamed from just 'textarea' to avoid conflict with HTML tag
     id: "textarea_field",
     label: "Form Textarea",
-    icon: Edit3,
+    icon: Edit3, // Reusing Edit3
     description: "For multi-line text input areas.",
     defaultConfig: { label: "Textarea", placeholder: "Enter text", name: "textareaField" }
   },
@@ -338,3 +341,5 @@ export const getRegisteredComponents = (): ComponentConfig[] => {
 export const getComponentConfig = (type: string): ComponentConfig | undefined => {
   return componentRegistry[type];
 };
+
+```
