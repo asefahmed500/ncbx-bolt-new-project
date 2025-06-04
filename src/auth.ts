@@ -23,11 +23,14 @@ export const authOptions: NextAuthConfig = {
         console.log("[Auth][Authorize] Attempting authorization...");
 
         const MONGODB_URI_ENV = process.env.MONGODB_URI;
-        if (!MONGODB_URI_ENV || MONGODB_URI_ENV.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || MONGODB_URI_ENV.endsWith("/?retryWrites=true&w=majority&appName=Cluster0")) {
-          console.error("[Auth][Authorize] CRITICAL PRE-CHECK FAILED: MONGODB_URI is not set correctly in environment variables. It must be set and point to a specific database.");
+        if (!MONGODB_URI_ENV || MONGODB_URI_ENV.includes("YOUR_MONGODB_URI_HERE") || MONGODB_URI_ENV.includes("YOUR_ACTUAL_DATABASE_NAME_HERE") || MONGODB_URI_ENV.endsWith("/?retryWrites=true&w=majority&appName=Cluster0")) {
+          const errorMsg = "[Auth][Authorize] CRITICAL PRE-CHECK FAILED: MONGODB_URI is not set correctly in environment variables. It must be set and point to a specific database.";
+          console.error(errorMsg);
           console.error("[Auth][Authorize] Current MONGODB_URI (potentially undefined or problematic):", MONGODB_URI_ENV);
           console.error("[Auth][Authorize] Login flow cannot proceed without a valid database URI. This will likely result in a 'Failed to fetch' error on the client if the auth API route crashes or is unresponsive.");
-          return null; 
+          // Throwing an error here can sometimes provide a more structured error to Auth.js
+          throw new Error("Database configuration error. Please contact support or check server logs.");
+          // return null; 
         }
 
         const User = (await import('@/models/User')).default;
@@ -49,9 +52,11 @@ export const authOptions: NextAuthConfig = {
           await dbConnect();
           const connectionState = mongoose.connection.readyState;
           if (connectionState !== mongoose.ConnectionStates.connected) {
-              console.error("[Auth][Authorize] Database not connected despite dbConnect() completing! State:", mongoose.ConnectionStates[connectionState]);
+              const dbErrorMsg = `[Auth][Authorize] Database not connected despite dbConnect() completing! State: ${mongoose.ConnectionStates[connectionState]}`;
+              console.error(dbErrorMsg);
               console.error("[Auth][Authorize] HINT: Check your MONGODB_URI for correctness (including database name), cluster status (e.g., not paused in Atlas), and IP access list if applicable.");
-              return null;
+              throw new Error("Database connection failed during authorization."); // Throw error
+              // return null;
           }
 
           const user = await User.findOne({ email: normalizedEmail }).select('+password').lean();
@@ -84,18 +89,20 @@ export const authOptions: NextAuthConfig = {
             console.log(`[Auth][Authorize] User ${normalizedEmail} is inactive.`);
             // Consider throwing a specific error or returning an object that middleware can interpret
             // For now, null will lead to "Invalid credentials" on client
-            return null; 
+            throw new Error("User account is inactive."); // Throw specific error
+            // return null; 
           }
 
           if (!user.password || typeof user.password !== 'string') { 
             console.log(`[Auth][Authorize] User ${normalizedEmail} has no password set in the database, it was not retrieved, or it's not a string.`);
-            return null;
+            throw new Error("User account has no password set or password format is invalid."); // Throw error
+            // return null;
           }
 
           const isPasswordMatch = await bcrypt.compare(password, user.password);
           if (!isPasswordMatch) {
             console.log(`[Auth][Authorize] Password mismatch for user: ${normalizedEmail}`);
-            return null;
+            return null; // Standard way to indicate credentials mismatch
           }
 
           let currentSubscription: ISubscription | null = null;
@@ -163,7 +170,16 @@ export const authOptions: NextAuthConfig = {
           } else if (typeof error.message === 'string' && (error.message.toLowerCase().includes('enodata') || error.message.toLowerCase().includes('eservfail') || error.message.toLowerCase().includes('bad auth'))) {
             console.error("[Auth][Authorize] This error suggests a problem connecting to or authenticating with MongoDB. Check connection string, IP whitelisting, credentials, and cluster status.");
           }
-          return null;
+          
+          // Re-throw the error or throw a new generic one to ensure Auth.js handles it
+          if (error.message.startsWith("Database configuration error") || 
+              error.message.startsWith("Database connection failed") ||
+              error.message.startsWith("User account is inactive") ||
+              error.message.startsWith("User account has no password set")) {
+            throw error; // Re-throw specific errors from above
+          }
+          throw new Error("An unexpected error occurred during authorization."); // Generic fallback
+          // return null;
         }
       },
     }),
@@ -257,9 +273,11 @@ export const authOptions: NextAuthConfig = {
   },
   pages: {
     signIn: '/login',
+    // If you have a custom error page for auth errors:
+    // error: '/auth/error', 
   },
   secret: process.env.NEXTAUTH_SECRET,
-  trustHost: true,
+  trustHost: true, // Required for some deployments, ensure you understand implications
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
@@ -343,11 +361,12 @@ global.nextauth.authjs.esm.client.env.NEXTAUTH_COOKIE_SAME_SITE = "lax";
 if (!global.nextauth_ಉ) {
   // @ts-ignore
   global.nextauth_ಉ = true;
-  console.debug("nextauth_ಉ", "NEXTAUTH_URL", process.env.NEXTAUTH_URL);
-  console.debug("nextauth_ಉ", "NEXTAUTH_SECRET", process.env.NEXTAUTH_SECRET ? "[set]" : "[not set]");
-  console.debug("nextauth_ಉ", "NEXTAUTH_URL_INTERNAL", process.env.NEXTAUTH_URL_INTERNAL);
-  console.debug("nextauth_ಉ", "AUTH_TRUST_HOST", process.env.AUTH_TRUST_HOST);
-  console.debug("nextauth_ಉ", "AUTH_URL", process.env.AUTH_URL);
-  console.debug("nextauth_ಉ", "APP_URL", process.env.APP_URL);
+  console.debug("nextauth_ಉ", "NEXTAUTH_URL (used by Auth.js internally):", process.env.APP_URL ?? process.env.NEXTAUTH_URL);
+  console.debug("nextauth_ಉ", "NEXTAUTH_SECRET (used by Auth.js internally):", process.env.NEXTAUTH_SECRET ? "[set]" : "[not set]");
+  console.debug("nextauth_ಉ", "NEXTAUTH_URL_INTERNAL (Auth.js internal, usually not needed to set manually):", process.env.NEXTAUTH_URL_INTERNAL);
+  console.debug("nextauth_ಉ", "AUTH_TRUST_HOST (Auth.js setting):", process.env.AUTH_TRUST_HOST); // For Next.js >= 14.0.2, might use this internally
+  // console.debug("nextauth_ಉ", "AUTH_URL (deprecated in v5):", process.env.AUTH_URL); // Log if present, but note deprecation
+  console.debug("nextauth_ಉ", "APP_URL (custom, used by this app):", process.env.APP_URL);
 }
     
+
