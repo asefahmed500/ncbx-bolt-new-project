@@ -43,7 +43,7 @@ const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPage
 
   const renderContainer = (el: IPageComponent, children: React.ReactNode, droppableId: string, Icon: React.ElementType, title: string) => {
     const { setNodeRef, isOver } = useDroppable({ id: droppableId });
-
+    const nestedElements = (el.type === 'section' ? el.config?.elements : []) || [];
     return (
       <div ref={setNodeRef} className={`p-2 my-1 border rounded-md transition-colors ${isOver ? 'border-primary bg-primary/10' : 'border-dashed border-muted-foreground/30'}`}>
         <div onClick={(e) => { e.stopPropagation(); onElementSelect((el._id as string), pageIndex);}} className="text-xs text-muted-foreground flex items-center mb-2 p-1 rounded bg-muted/50 cursor-pointer">
@@ -51,7 +51,13 @@ const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPage
             {title}
         </div>
         <div className="min-h-[50px] pl-4 border-l-2 border-dashed border-muted-foreground/20">
-            {children}
+             <SortableContext items={nestedElements.map((e: IPageComponent) => e._id as string)} strategy={verticalListSortingStrategy}>
+              {nestedElements.length > 0 ? (
+                nestedElements.map((child: IPageComponent) => (
+                  <RenderElement key={child._id as string} element={child} pageIndex={pageIndex} onElementSelect={onElementSelect} />
+                ))
+              ) : <div className={`text-xs text-muted-foreground py-4 text-center ${isOver ? 'font-bold' : ''}`}>Drop components here</div>}
+            </SortableContext>
         </div>
       </div>
     );
@@ -59,18 +65,9 @@ const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPage
 
   if (componentConf?.isContainer) {
     if (element.type === 'section') {
-      const nestedElements = element.config.elements || [];
       return (
         <SortableItem key={element._id as string} id={element._id as string}>
-          {renderContainer(element, (
-            <SortableContext items={nestedElements.map((e: IPageComponent) => e._id as string)} strategy={verticalListSortingStrategy}>
-              {nestedElements.length > 0 ? (
-                nestedElements.map((child: IPageComponent) => (
-                  <RenderElement key={child._id as string} element={child} pageIndex={pageIndex} onElementSelect={onElementSelect} />
-                ))
-              ) : <div className="text-xs text-muted-foreground py-4 text-center">Drop components here</div>}
-            </SortableContext>
-          ), `${element._id as string}`, Box, 'Section')}
+          {renderContainer(element, null, `${element._id as string}`, Box, 'Section')}
         </SortableItem>
       );
     }
@@ -87,13 +84,13 @@ const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPage
                             const droppableId = `${element._id as string}-col-${colIndex}`;
                             const { setNodeRef: setColDroppableRef, isOver: isColOver } = useDroppable({ id: droppableId });
                             return (
-                                <div key={colIndex} ref={setColDroppableRef} className={`flex-1 p-2 rounded min-h-[50px] transition-colors ${isColOver ? 'bg-primary/10' : 'bg-muted/30'}`}>
+                                <div key={colIndex} ref={setColDroppableRef} className={`flex-1 p-2 rounded min-h-[50px] transition-colors ${isColOver ? 'bg-primary/10 border-2 border-dashed border-primary' : 'bg-muted/30'}`}>
                                     <SortableContext items={col.elements.map(e => e._id as string)} strategy={verticalListSortingStrategy}>
                                         {col.elements.length > 0 ? (
                                             col.elements.map((child: IPageComponent) => (
                                                 <RenderElement key={child._id as string} element={child} pageIndex={pageIndex} onElementSelect={onElementSelect} />
                                             ))
-                                        ) : <div className="text-xs text-muted-foreground py-4 text-center">Drop here</div>}
+                                        ) : <div className={`text-xs text-muted-foreground py-4 text-center ${isColOver ? 'font-bold' : ''}`}>Drop here</div>}
                                     </SortableContext>
                                 </div>
                             );

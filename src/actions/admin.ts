@@ -772,5 +772,4 @@ export async function getDistinctTemplateCategories(): Promise<DistinctCategorie
   }
 }
     
-
     

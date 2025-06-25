@@ -1,0 +1,39 @@
+
+# This file is for storing environment variables.
+# For local development, you can create a .env.local file to override these values.
+# DO NOT commit your secrets to version control.
+
+# NextAuth.js Configuration
+# Generate a secret with: `openssl rand -base64 32`
+NEXTAUTH_SECRET="YOUR_NEXTAUTH_SECRET"
+# The full URL of your application, e.g., http://localhost:9003 for local dev
+NEXTAUTH_URL="http://localhost:9003" 
+# This should be the same as NEXTAUTH_URL
+APP_URL="http://localhost:9003"
+# The base domain for subdomains. For local testing, use a fake domain you can map in your hosts file if needed, e.g., 'notthedomain.com'
+NEXT_PUBLIC_APP_BASE_DOMAIN="notthedomain.com"
+
+# MongoDB Configuration
+# Your full MongoDB connection string, including the database name at the end.
+# e.g., mongodb+srv://<user>:<password>@cluster.mongodb.net/ncbx?retryWrites=true&w=majority
+MONGODB_URI="YOUR_MONGODB_URI/YOUR_DB_NAME"
+
+# Google AI (Gemini) API Key
+# Get your key from Google AI Studio: https://aistudio.google.com/app/apikey
+GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+
+# Stripe Configuration
+# Get your keys from the Stripe Dashboard: https://dashboard.stripe.com/apikeys
+STRIPE_SECRET_KEY="sk_test_..."
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..."
+# The webhook signing secret. Get it from your webhook details page in Stripe.
+STRIPE_WEBHOOK_SECRET="whsec_..."
+# The Price ID for your "Pro Monthly" plan in Stripe
+NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY="price_..."
+# The Price ID for your "Pro Yearly" plan in Stripe
+NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_YEARLY="price_..."
+
+# Cloudinary Configuration (Optional - for image uploads)
+CLOUDINARY_CLOUD_NAME="YOUR_CLOUDINARY_CLOUD_NAME"
+CLOUDINARY_API_KEY="YOUR_CLOUDINARY_API_KEY"
+CLOUDINARY_API_SECRET="YOUR_CLOUDINARY_API_SECRET"

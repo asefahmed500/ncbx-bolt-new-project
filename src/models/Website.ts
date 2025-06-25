@@ -122,6 +122,7 @@ WebsiteSchema.index({ userId: 1 });
 WebsiteSchema.index({ customDomain: 1 }, { unique: true, sparse: true });
 WebsiteSchema.index({ currentVersionId: 1 });
 WebsiteSchema.index({ publishedVersionId: 1 });
+// The unique:true on subdomain automatically creates an index.
 
 const Website = models.Website || model<IWebsite>('Website', WebsiteSchema);
 
