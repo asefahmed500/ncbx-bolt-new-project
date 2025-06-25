@@ -45,9 +45,9 @@ export async function GET(
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
     // Public can view approved templates. Admins or owners might view others.
-    // For simplicity, this public GET will only show approved or if admin is requesting.
     const session = await auth();
-    if (template.status !== 'approved' && session?.user?.role !== 'admin' && template.createdByUserId?.toString() !== session?.user?.id) {
+    const isOwner = template.createdByUserId && session?.user?.id && (template.createdByUserId as any)._id.toString() === session.user.id;
+    if (template.status !== 'approved' && session?.user?.role !== 'admin' && !isOwner) {
         return NextResponse.json({ error: 'Template not found or not available.' }, { status: 404 });
     }
 
@@ -69,10 +69,6 @@ export async function PUT(
     }
 
     const { templateId } = params;
-    if (!mongoose.Types.ObjectId.isValid(templateId)) {
-      return NextResponse.json({ error: 'Invalid Template ID format' }, { status: 400 });
-    }
-
     const body = await request.json();
     let result;
 
@@ -80,14 +76,15 @@ export async function PUT(
     if (body.hasOwnProperty('status') && Object.keys(body).length === 1) {
       result = await updateTemplateStatusByAdmin({ templateId, status: body.status });
     } else {
-      result = await updateTemplateMetadataByAdmin(templateId, body);
+      result = await updateTemplateMetadataByAdmin({ ...body, templateId });
     }
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
     return NextResponse.json(result.template, { status: 200 });
-  } catch (error: any) {
+  } catch (error: any)
+{
     console.error(`[API_PUT_TEMPLATE_${params.templateId}] Error:`, error);
      if (error.name === 'SyntaxError') {
         return NextResponse.json({ error: 'Invalid JSON in request body.' }, { status: 400 });
@@ -112,14 +109,13 @@ export async function DELETE(
     }
 
     await dbConnect();
+    // This is a direct DB delete. In a real app, you might soft delete or cascade deletes.
     const deletedTemplate = await Template.findByIdAndDelete(templateId);
-    // TODO: Also delete related TemplateReviews and ModerationQueueItems if necessary
 
     if (!deletedTemplate) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
-    // Note: Admin actions for delete might be more complex (e.g., cascade deletes)
-    // This is a direct DB delete.
+
     return NextResponse.json({ success: `Template ${templateId} deleted successfully.` }, { status: 200 });
   } catch (error: any) {
     console.error(`[API_DELETE_TEMPLATE_${params.templateId}] Error:`, error);

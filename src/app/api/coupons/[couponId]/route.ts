@@ -15,11 +15,8 @@ export async function GET(
     }
     
     const { couponId } = params;
-    if (!mongoose.Types.ObjectId.isValid(couponId) && couponId.toUpperCase() !== couponId) {
-         // Allow fetching by code as well, if needed, or enforce ObjectId
-        // For simplicity, let's assume getCouponByIdForAdmin handles finding by ID string.
-    }
-
+    // Validation is handled inside the action now.
+    
     const result = await getCouponByIdForAdmin(couponId);
 
     if (result.error) {
@@ -43,7 +40,6 @@ export async function PUT(
     }
 
     const { couponId } = params;
-    // getCouponByIdForAdmin action expects string, so validation of couponId format is inside it.
     
     const body = await request.json() as Omit<UpdateCouponInput, 'couponId'>;
     const updateData: UpdateCouponInput = { ...body, couponId };

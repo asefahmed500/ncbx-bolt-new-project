@@ -34,5 +34,3 @@ export function SortableItem({ id, children, className }: SortableItemProps) {
     </div>
   );
 }
-
-    

@@ -70,6 +70,8 @@ const WebsiteSchema = new Schema<IWebsite>(
     customDomain: {
       type: String,
       trim: true,
+      unique: true,
+      sparse: true, // Allows multiple null values but unique for non-null values
     },
     domainStatus: {
       type: String,
@@ -119,10 +121,9 @@ const WebsiteSchema = new Schema<IWebsite>(
 
 // Indexes
 WebsiteSchema.index({ userId: 1 });
-WebsiteSchema.index({ customDomain: 1 }, { unique: true, sparse: true });
 WebsiteSchema.index({ currentVersionId: 1 });
 WebsiteSchema.index({ publishedVersionId: 1 });
-// The unique:true on subdomain automatically creates an index.
+// The unique:true on subdomain and customDomain automatically creates indexes.
 
 const Website = models.Website || model<IWebsite>('Website', WebsiteSchema);
 
