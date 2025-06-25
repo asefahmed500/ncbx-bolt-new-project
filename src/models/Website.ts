@@ -36,6 +36,7 @@ export interface IWebsiteVersion extends Document {
   createdByUserId?: Types.ObjectId;
 }
 
+export type SaveWebsiteContentInput = Pick<IWebsiteVersion, 'pages' | 'globalSettings'> & { websiteId: string; };
 
 export interface IWebsite extends Document {
   userId: Types.ObjectId;

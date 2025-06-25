@@ -21,8 +21,8 @@ import { AiCopyModal } from "./ai-copy-modal";
 import { Laptop, Smartphone, Tablet, ArrowUpCircle, Wand2, LayoutGrid, User, LogOut, LogIn, Moon, Sun, LayoutDashboard, PencilRuler, Home, Info, Briefcase, DollarSign, UserPlus, HelpCircle, Settings, ShieldCheckIcon, Save, Eye, Download, ZoomIn, ZoomOut, Loader2, CheckCircle, AlertCircle, Menu, CloudOff, PackagePlus } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { usePathname } from 'next/navigation';
-import { publishWebsite, unpublishWebsite, getWebsiteMetadata, saveWebsiteContent, type SaveWebsiteContentInput } from '@/actions/website';
-import type { IWebsite, IWebsiteVersion, IWebsiteVersionPage } from '@/models/Website';
+import { publishWebsite, unpublishWebsite, getWebsiteMetadata } from '@/actions/website';
+import type { IWebsite, IWebsiteVersionPage, SaveWebsiteContentInput } from '@/models/Website';
 import { STRIPE_PRICE_ID_PRO_MONTHLY } from '@/config/plans';
 
 export type DeviceType = 'desktop' | 'tablet' | 'mobile';
@@ -464,14 +464,3 @@ export function AppHeader({
     </>
   );
 }
-
-declare module '@/models/Website' {
-    interface IPageComponent {
-      _id?: string | import('mongoose').Types.ObjectId;
-    }
-    interface IWebsiteVersionPage {
-      _id?: string | import('mongoose').Types.ObjectId;
-    }
-  }
-  
-import mongoose from 'mongoose';
