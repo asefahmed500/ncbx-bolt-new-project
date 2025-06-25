@@ -9,6 +9,7 @@ import { auth } from "@/auth";
 import mongoose from "mongoose";
 import { z } from "zod";
 import type { IPageComponent } from "@/models/PageComponent";
+import { generateWebsiteFromPrompt } from "@/ai/flows/generate-website-flow";
 
 // Helper to deeply serialize an object, converting ObjectIds and other non-plain types
 const serializeObject = (obj: any): any => {
@@ -220,6 +221,121 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
     return { error: `Failed to create website: ${error.message}` };
   }
 }
+
+
+const CreateWebsiteFromPromptInputSchema = z.object({
+  name: z.string().min(3, "Website name must be at least 3 characters.").max(100),
+  subdomain: z.string()
+    .min(3, "Subdomain must be at least 3 characters.")
+    .max(63)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Subdomain must be lowercase alphanumeric with hyphens.")
+    .optional(),
+  prompt: z.string().min(10, "AI prompt must be at least 10 characters long.").max(500),
+});
+
+export type CreateWebsiteFromPromptInput = z.infer<typeof CreateWebsiteFromPromptInputSchema>;
+
+interface CreateWebsiteFromPromptResult {
+  success?: string;
+  error?: string;
+  website?: IWebsite;
+}
+
+export async function createWebsiteFromPrompt(input: CreateWebsiteFromPromptInput): Promise<CreateWebsiteFromPromptResult> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "User not authenticated." };
+  }
+  const userId = session.user.id;
+
+  const parsedInput = CreateWebsiteFromPromptInputSchema.safeParse(input);
+  if (!parsedInput.success) {
+    const errorMessages = parsedInput.error.flatten().fieldErrors;
+    return { error: `Invalid input: ${JSON.stringify(errorMessages)}` };
+  }
+  
+  const { name, prompt } = parsedInput.data;
+  let { subdomain } = parsedInput.data;
+
+  try {
+    console.log(`[AI_CreateWebsite] User ${userId} starting generation with prompt: "${prompt}"`);
+    
+    // Step 1: Call the AI flow to generate page structure
+    const aiResult = await generateWebsiteFromPrompt({ prompt });
+    if (!aiResult || !aiResult.pages || aiResult.pages.length === 0) {
+      return { error: "The AI failed to generate a website structure. Please try a different prompt." };
+    }
+    console.log(`[AI_CreateWebsite] AI generated ${aiResult.pages.length} pages.`);
+
+    // The rest of this function is very similar to `createWebsite`, but uses the AI-generated content.
+    await dbConnect();
+
+    const user = await User.findById(userId);
+    if (!user) return { error: "User not found." };
+    
+    const planLimits = session.user.subscriptionLimits;
+    const userWebsitesCount = await Website.countDocuments({ userId });
+    if (planLimits && planLimits.websites !== Infinity && userWebsitesCount >= planLimits.websites) {
+      return { error: `Website creation limit of ${planLimits.websites} reached for your current plan. Please upgrade to create more websites.` };
+    }
+
+    if (!subdomain) {
+      subdomain = await generateUniqueSubdomain(name);
+    } else {
+      const existingSubdomain = await Website.findOne({ subdomain });
+      if (existingSubdomain) {
+        return { error: `Subdomain "${subdomain}" is already taken.` };
+      }
+    }
+
+    // Step 2: Use the AI-generated pages as the initial content
+    const initialPages: IWebsiteVersionPage[] = aiResult.pages.map(p => ({
+      _id: new mongoose.Types.ObjectId().toString(),
+      name: p.name,
+      slug: p.slug,
+      elements: p.elements.map(el => ({
+        _id: new mongoose.Types.ObjectId().toString(),
+        type: el.type,
+        config: el.config,
+        order: el.order,
+      })),
+      seoTitle: p.seoTitle,
+      seoDescription: p.seoDescription,
+    }));
+    
+    // Step 3: Create the Website and WebsiteVersion documents
+    const newWebsite = new Website({
+      userId,
+      name,
+      subdomain,
+      status: 'draft' as WebsiteStatus,
+    });
+    const savedWebsite = await newWebsite.save();
+
+    const initialVersion = new WebsiteVersion({
+      websiteId: savedWebsite._id,
+      versionNumber: Date.now(),
+      pages: initialPages,
+      globalSettings: {}, // AI could potentially generate this too in the future
+      createdByUserId: userId,
+    });
+    const savedVersion = await initialVersion.save();
+
+    savedWebsite.currentVersionId = savedVersion._id;
+    const finalWebsite = await savedWebsite.save();
+
+    console.log(`[AI_CreateWebsite] AI-generated website "${name}" created for user ${userId}.`);
+    return { success: "AI-generated website created successfully.", website: serializeObject(finalWebsite) };
+
+  } catch (error: any) {
+    console.error(`[AI_CreateWebsite] Error creating AI website for user ${userId}:`, error);
+    if (error.code === 11000 && error.message.includes('subdomain')) {
+      return { error: `Subdomain "${subdomain}" is already taken (database constraint).` };
+    }
+    return { error: `Failed to create website with AI: ${error.message}` };
+  }
+}
+
 
 const PageComponentConfigSchema = z.record(z.any()); 
 
