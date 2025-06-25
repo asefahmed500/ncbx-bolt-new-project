@@ -1,3 +1,4 @@
+
 import mongoose, { Schema, type Document } from 'mongoose';
 
 export interface IPageComponent extends Document {

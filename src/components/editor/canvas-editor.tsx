@@ -112,7 +112,7 @@ const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPage
   );
 };
 
-export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect }: CanvasEditorProps) {
+export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, isDragging, activeDragId }: CanvasEditorProps & { isDragging: boolean; activeDragId: string | null; }) {
   const { setNodeRef, isOver } = useDroppable({ id: 'canvas-drop-area' });
 
   const getCanvasWidth = () => {
@@ -142,7 +142,7 @@ export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect }
         <div ref={setNodeRef} className="h-full">
           <SortableContext items={elementsToRender.map(el => el._id as string)} strategy={verticalListSortingStrategy}>
             {elementsToRender.length === 0 ? (
-              <div className={`flex flex-col items-center justify-center h-full text-muted-foreground pointer-events-none select-none min-h-[300px] rounded-md transition-colors ${isOver ? 'bg-primary/10 border-2 border-dashed border-primary' : ''}`}>
+              <div className={`flex flex-col items-center justify-center h-full text-muted-foreground pointer-events-none select-none min-h-[300px] rounded-md transition-colors ${isOver && isDragging ? 'bg-primary/10 border-2 border-dashed border-primary' : ''}`}>
                 <LayoutGrid className="w-16 h-16 mb-4 text-muted-foreground/50" />
                 <p className="text-lg font-medium">Canvas Editor ({page?.name || 'Page'})</p>
                 <p className="text-sm">Drag components here to build your page.</p>
@@ -153,7 +153,7 @@ export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect }
               ))
             )}
           </SortableContext>
-           {isOver && elementsToRender.length > 0 && (
+           {isOver && elementsToRender.length > 0 && isDragging && (
               <div className="p-3 mt-1 border-2 border-dashed border-primary rounded-md bg-primary/10 text-center text-xs text-primary font-semibold">
                   Drop here to add to the bottom of the page
               </div>
