@@ -204,10 +204,10 @@ export function AppHeader({
 
   const publicNavLinks = [
     { href: "/", label: "Home", icon: Home },
-    { href: "/#about", label: "About", icon: Info },
-    { href: "/#services", label: "Services", icon: Briefcase },
-    { href: "/#pricing", label: "Pricing", icon: DollarSign },
-    { href: "/#support", label: "Support", icon: HelpCircle },
+    { href: "/about", label: "About", icon: Info },
+    { href: "/services", label: "Services", icon: Briefcase },
+    { href: "/pricing", label: "Pricing", icon: DollarSign },
+    { href: "/support", label: "Support", icon: HelpCircle },
   ];
 
   const renderPublishStatus = () => {
@@ -362,13 +362,7 @@ export function AppHeader({
                     <Link href="/dashboard"><LayoutDashboard className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Dashboard</span></Link>
                   </Button>
                   <Button variant="ghost" size="sm" asChild className="hidden sm:flex items-center">
-                    <Link href="/dashboard"><PencilRuler className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Go to Editor</span></Link>
-                  </Button>
-                  {onOpenTemplateGalleryModal && <Button variant="outline" size="sm" onClick={onOpenTemplateGalleryModal} className="hidden sm:flex items-center">
-                    <LayoutGrid className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">Templates</span>
-                  </Button>}
-                   <Button variant="outline" size="sm" onClick={() => setIsAiCopyModalOpen(true)} className="hidden sm:flex items-center">
-                    <Wand2 className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">AI Copy</span>
+                    <Link href="/dashboard/websites/create"><PencilRuler className="mr-1 h-4 w-4 md:mr-2" /><span className="hidden md:inline">New Site</span></Link>
                   </Button>
                 </>
               )}
@@ -416,17 +410,15 @@ export function AppHeader({
                     </>
                   ) : (
                      <>
-                      <DropdownMenuItem asChild className="sm:hidden"><Link href="/dashboard"><PencilRuler className="mr-2 h-4 w-4" />Go to Editor</Link></DropdownMenuItem>
-                      {onOpenTemplateGalleryModal && <DropdownMenuItem onClick={onOpenTemplateGalleryModal} className="sm:hidden"><LayoutGrid className="mr-2 h-4 w-4" />Templates</DropdownMenuItem>}
-                      <DropdownMenuItem onClick={() => setIsAiCopyModalOpen(true)} className="sm:hidden"><Wand2 className="mr-2 h-4 w-4" />AI Copy</DropdownMenuItem>
+                       <DropdownMenuItem asChild className="sm:hidden"><Link href="/dashboard/websites/create"><PencilRuler className="mr-2 h-4 w-4" />New Site</Link></DropdownMenuItem>
                     </>
                   )}
                   
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild><Link href="/dashboard/profile"><User className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
                   {session.user?.role === 'admin' && <DropdownMenuItem asChild><Link href="/admin/dashboard"><ShieldCheckIcon className="mr-2 h-4 w-4" />Admin Panel</Link></DropdownMenuItem>}
-                  <DropdownMenuItem asChild><Link href={isEditorPage && websiteId ? `/dashboard/websites/${websiteId}/settings` : "/dashboard/settings"}><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
-                  <DropdownMenuItem asChild><Link href="/#support"><HelpCircle className="mr-2 h-4 w-4" />Support</Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href={isEditorPage && websiteId ? `/dashboard/websites/${websiteId}/settings` : "/dashboard"}><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/support"><HelpCircle className="mr-2 h-4 w-4" />Support</Link></DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}><LogOut className="mr-2 h-4 w-4" />Log out</DropdownMenuItem>
                 </DropdownMenuContent>
@@ -483,4 +475,3 @@ declare module '@/models/Website' {
   }
   
 import mongoose from 'mongoose';
-  

@@ -78,7 +78,7 @@ const plans: Plan[] = [
       { text: 'Volume Discounts', included: true },
     ],
     actionLabel: 'Contact Us',
-    actionLink: '/contact-sales', // Placeholder link
+    actionLink: '/support?topic=enterprise',
   },
 ];
 
