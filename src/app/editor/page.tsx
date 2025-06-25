@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppHeader, type DeviceType, type EditorSaveStatus } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, ExternalLink, Text, Palette, Image as ImageIconLucide, Edit, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, ExternalLink, Text, Palette, Image as ImageIconLucide, Edit, ArrowLeft, ArrowRight, Upload } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormDescription } from '@/components/ui/form';
 import { getWebsiteEditorData, saveWebsiteContent, type SaveWebsiteContentInput } from '@/actions/website';
+import { getCloudinarySignature } from '@/actions/assets';
 import type { IWebsite, IWebsiteVersion, IWebsiteVersionPage } from '@/models/WebsiteVersion';
 import type { IPageComponent } from '@/models/PageComponent';
 import type { ITemplate } from '@/models/Template';
@@ -141,6 +142,10 @@ function EditorPageComponent() {
   const [selectedNavigationForEditing, setSelectedNavigationForEditing] = useState<INavigation | null>(null);
   const [editingNavItems, setEditingNavItems] = useState<INavigationItem[]>([]);
   const [editingNavName, setEditingNavName] = useState<string>("");
+
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadTargetKey, setUploadTargetKey] = useState<string | null>(null);
 
 
   const fetchSiteNavigations = useCallback(async (currentWebsiteId: string | null) => {
@@ -287,6 +292,53 @@ function EditorPageComponent() {
     });
     setEditorSaveStatus('unsaved_changes');
   };
+  
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!uploadTargetKey) return;
+
+    setIsUploading(true);
+    toast({ title: 'Uploading image...', description: 'Please wait.' });
+
+    try {
+        const signatureResult = await getCloudinarySignature({ folder: 'ncbx_user_assets' });
+        if (signatureResult.error || !signatureResult.signature) {
+            throw new Error(signatureResult.error || 'Failed to get upload signature.');
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('api_key', signatureResult.apiKey!);
+        formData.append('timestamp', signatureResult.timestamp!.toString());
+        formData.append('signature', signatureResult.signature);
+        formData.append('folder', 'ncbx_user_assets');
+
+        const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${signatureResult.cloudName!}/image/upload`;
+        const response = await fetch(cloudinaryUploadUrl, {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await response.json();
+
+        if (data.secure_url) {
+            handlePropertyChange(uploadTargetKey, data.secure_url);
+            toast({ title: 'Upload Successful!', description: 'Image has been updated.' });
+        } else {
+            throw new Error(data.error?.message || 'Cloudinary upload failed.');
+        }
+
+    } catch (error: any) {
+        toast({ title: 'Upload Failed', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsUploading(false);
+        setUploadTargetKey(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    }
+  };
+
 
   const handlePageDetailsChange = async (pageId: string, newName: string, newSlug: string, seoTitle?: string, seoDescription?: string) => {
     setCurrentPages(prev => prev.map(p => p._id === pageId ? {...p, name: newName, slug: newSlug, seoTitle, seoDescription } : p));
@@ -696,7 +748,38 @@ function EditorPageComponent() {
               return (
                 <div key={key} className="space-y-1 mt-2">
                   <Label htmlFor={`prop-${key}`} className="text-xs capitalize flex items-center"><ImageIconLucide className="mr-1.5 h-3 w-3"/>{key.replace(/([A-Z])/g, ' $1')}</Label>
-                  <Input type="url" id={`prop-${key}`} value={currentValue || ""} placeholder="https://example.com/image.png" className="text-xs bg-input" onChange={(e) => handlePropertyChange(key, e.target.value)} />
+                  
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleImageUpload} 
+                    className="hidden" 
+                    accept="image/png, image/jpeg, image/gif, image/webp"
+                  />
+
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      type="url" 
+                      id={`prop-${key}`} 
+                      value={currentValue || ""} 
+                      placeholder="https://... or upload" 
+                      className="text-xs bg-input flex-grow" 
+                      onChange={(e) => handlePropertyChange(key, e.target.value)} 
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        setUploadTargetKey(key);
+                        fileInputRef.current?.click();
+                      }}
+                      disabled={isUploading}
+                    >
+                      {isUploading && uploadTargetKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    </Button>
+                  </div>
+
                   {currentValue && typeof currentValue === 'string' && (
                     <div className="mt-1.5 p-1 border rounded bg-muted/30 flex justify-center">
                         <img src={currentValue} alt="Preview" className="max-w-full max-h-24 h-auto rounded object-contain" data-ai-hint="user uploaded image" onError={(e) => (e.currentTarget.style.display = 'none')} />
@@ -949,3 +1032,4 @@ declare module '@/models/WebsiteVersion' {
     _id?: string | import('mongoose').Types.ObjectId;
   }
 }
+
