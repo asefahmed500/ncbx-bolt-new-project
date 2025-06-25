@@ -1,0 +1,138 @@
+
+==================================
+NCBX Website Canvas - Documentation
+==================================
+
+This document provides a comprehensive overview of the NCBX Website Canvas application, its features, and how to use it as both a regular user and an administrator.
+
+-------------------
+Section 1: Overview
+-------------------
+
+NCBX Website Canvas is a full-featured, no-code/low-code website builder. It empowers users to create professional, responsive websites using an intuitive drag-and-drop editor. The platform is built with a modern tech stack and includes AI-powered content generation, a robust template system, and a complete admin panel for platform management.
+
+-----------------------
+Section 2: Core Features
+-----------------------
+
+- **Visual Drag-and-Drop Editor**: Build pages by dragging components onto a canvas. Reorder and nest elements with ease.
+- **AI-Powered Content Generation**: Leverage Genkit to generate compelling website copy for various sections.
+- **Component-Based Architecture**: A rich library of pre-built components (Navbars, Heroes, Cards, Footers, etc.).
+- **Template System**: Start from pre-made templates, or save your own designs for reuse. Includes an admin approval workflow for public templates.
+- **User & Subscription Management**: Secure authentication via NextAuth.js and subscription handling with Stripe.
+- **Comprehensive Admin Panel**: Manage users, templates, coupons, and content moderation from a central dashboard.
+- **Dynamic Site Rendering**: Published websites are rendered dynamically based on their subdomain or custom domain.
+
+--------------------
+Section 3: Tech Stack
+--------------------
+
+- **Framework**: Next.js (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS with ShadCN UI components
+- **Authentication**: NextAuth.js (Credentials Provider)
+- **Database**: MongoDB with Mongoose
+- **AI**: Google AI via Genkit
+- **Drag & Drop**: @dnd-kit
+- **Payments**: Stripe
+- **Asset Management**: Cloudinary (optional, for image uploads)
+
+-------------------------------
+Section 4: User Functionality Guide
+-------------------------------
+
+### 4.1. Registration & Dashboard
+
+- **Sign Up**: Users can create an account using their name, email, and password.
+- **Dashboard**: After logging in, the dashboard is the central hub. From here, users can:
+  - View a list of their existing websites.
+  - Create a new website.
+  - Manage their subscription and billing.
+
+### 4.2. The Website Editor
+
+The editor is the core of the application and consists of three main parts:
+
+1.  **Component Library (Left Sidebar)**: A list of all available components (Headings, Buttons, Sections, etc.). Users drag these onto the canvas.
+2.  **Canvas (Center)**: A visual representation of the web page. This is where users build their layout. It supports different device previews (desktop, tablet, mobile).
+3.  **Property Inspector (Right Sidebar)**: When a component on the canvas is selected, its properties (text, color, links, etc.) appear here for editing.
+
+### 4.3. Building a Website
+
+- **Create a Site**: From the dashboard, click "Create New Website". Users give it a name and an optional subdomain. If the subdomain is left blank, a unique one is auto-generated.
+- **Add Components**: Drag components from the left sidebar onto the canvas.
+- **Reorder Components**: Drag and drop components already on the canvas to change their order.
+- **Edit Content**: Click on a component on the canvas. Its settings will appear in the right-hand inspector. Users can change text, colors, image URLs, links, and other properties. Custom UI controls like color pickers and image previews are provided for a better experience.
+- **Manage Pages**: The editor supports multiple pages. Users can add new pages, switch between them using tabs, and delete pages. Each page has its own SEO settings (title, description) available in the property inspector when no element is selected.
+- **Manage Navigations**: The "Site Navigations" tab in the property inspector allows users to create global navigation menus (e.g., "Main Menu", "Footer Links"). These can then be linked to Navbar components, ensuring consistency across the site.
+
+### 4.4. Saving & Publishing
+
+- **Save**: The "Save Site" button saves the current state of the editor as a new `WebsiteVersion`. This does not make the changes live. The save status indicator shows whether there are unsaved changes.
+- **Publish**: The "Publish" button makes the latest saved version live and accessible to the world at its subdomain or custom domain.
+- **Unpublish**: A published site can be taken offline using the "Unpublish" button.
+
+### 4.5. Managing Subscriptions
+
+- Users can upgrade from a Free plan to a Pro plan to unlock more features (e.g., create more websites, use custom domains).
+- The "Manage Subscription" button in the dashboard redirects the user to the Stripe Customer Portal, where they can manage their billing details, view invoices, or cancel their subscription at any time.
+
+-------------------------------------
+Section 5: Administrator Functionality Guide
+-------------------------------------
+
+### 5.1. Accessing the Admin Panel
+
+- To become an admin, a user's `role` must be manually changed from "user" to "admin" in the MongoDB `users` collection.
+- Once an admin, a link to the "Admin Panel" appears in the user dropdown menu, or they can navigate directly to `/admin/dashboard`.
+
+### 5.2. Admin Dashboard
+
+The admin dashboard provides a high-level overview of the platform and quick links to all management sections.
+
+### 5.3. User Management (`/admin/users`)
+
+- **View & Search**: Admins can view a paginated list of all users and search for specific users by name or email.
+- **Details**: The user list shows key details like their subscription plan, status, and the number of websites they have created.
+- **Actions**:
+  - **Suspend/Reactivate**: Admins can toggle a user's `isActive` status. An inactive user cannot log in.
+  - **View in Stripe**: A link is provided to view the user's details directly in the Stripe dashboard (requires Stripe login).
+
+### 5.4. Template Management (`/admin/templates`)
+
+- **Review Submissions**: Admins can view templates submitted by users.
+- **Approve/Reject**: Templates can be approved to make them available in the public gallery for all users, or rejected.
+- **Filter**: Templates can be filtered by status (e.g., 'pending_approval') or category.
+- **Edit Metadata**: Admins can edit a template's name, description, category, tags, and pricing details.
+- **Export**: Template data can be exported as a JSON file for backup or migration.
+
+### 5.5. Coupon Management (`/admin/coupons`)
+
+- **Create Coupons**: Admins can create new discount coupons, specifying:
+  - A unique code.
+  - Discount type (percentage or fixed amount).
+  - Discount value.
+  - Usage limits (total and per-user).
+  - Expiration date and minimum purchase amount.
+- **View & Edit**: Admins can view all existing coupons, edit their details, or change their active status.
+- **Delete**: Coupons can be permanently deleted.
+
+### 5.6. Content Moderation (`/admin/moderation`)
+
+- This section provides a queue of user-generated content that requires review (e.g., template reviews, reported content).
+- Admins can **Approve**, **Reject**, or **Escalate** items in the queue.
+- This system ensures that user-submitted content (like reviews) is appropriate before it becomes publicly visible.
+
+--------------------------------------
+Section 6: API and Server Actions
+--------------------------------------
+
+The application heavily relies on Next.js Server Actions to handle backend logic. These are type-safe functions that run on the server and can be called directly from client components.
+
+- **Location**: All server actions are located in `src/actions/`.
+- **Files**: `admin.ts`, `auth.ts`, `order.ts`, `payment.ts`, `stripe.ts`, `template.ts`, `user.ts`, `website.ts`.
+- **Functionality**: Each file contains functions related to its domain (e.g., `createWebsite`, `updateUserStatus`).
+
+Many of these server actions are also exposed via traditional RESTful API routes in `src/app/api/` for potential use by third-party services or for cases where a standard API endpoint is more suitable.
+
+This architecture keeps the data-fetching and mutation logic organized, secure, and co-located with the server environment.
