@@ -55,13 +55,7 @@ export default function AdminCouponsPage() {
     }
   }, [session, status, router]);
 
-  useEffect(() => {
-    if (status === 'authenticated' && session?.user?.role === 'admin') {
-      fetchCoupons(currentPage);
-    }
-  }, [currentPage, status, session]);
-
-  const fetchCoupons = async (page: number) => {
+  const fetchCoupons = React.useCallback(async (page: number) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -79,7 +73,14 @@ export default function AdminCouponsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.role === 'admin') {
+      fetchCoupons(currentPage);
+    }
+  }, [currentPage, status, session, fetchCoupons]);
+
   
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);

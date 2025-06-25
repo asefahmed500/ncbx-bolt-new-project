@@ -1,7 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/auth';
-import { updateTemplateMetadataByAdmin, updateTemplateStatusByAdmin, getTemplateDataForExport } from '@/actions/admin';
+import { updateTemplateMetadataByAdmin, updateTemplateStatusByAdmin } from '@/actions/admin';
 import Template from '@/models/Template'; // For GET
 import dbConnect from '@/lib/dbConnect';
 import mongoose from 'mongoose';
@@ -69,6 +69,10 @@ export async function PUT(
     }
 
     const { templateId } = params;
+    if (!mongoose.Types.ObjectId.isValid(templateId)) {
+      return NextResponse.json({ error: 'Invalid Template ID format' }, { status: 400 });
+    }
+    
     const body = await request.json();
     let result;
 
@@ -83,8 +87,7 @@ export async function PUT(
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
     return NextResponse.json(result.template, { status: 200 });
-  } catch (error: any)
-{
+  } catch (error: any) {
     console.error(`[API_PUT_TEMPLATE_${params.templateId}] Error:`, error);
      if (error.name === 'SyntaxError') {
         return NextResponse.json({ error: 'Invalid JSON in request body.' }, { status: 400 });
