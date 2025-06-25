@@ -103,6 +103,7 @@ const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPage
     }
   }
 
+  // Fallback for all non-container elements
   return (
     <SortableItem key={element._id as string} id={element._id as string}>
       <div>
@@ -111,6 +112,7 @@ const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPage
     </SortableItem>
   );
 };
+
 
 export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, isDragging, activeDragId }: CanvasEditorProps) {
   const { setNodeRef, isOver } = useDroppable({ id: 'canvas-drop-area' });
