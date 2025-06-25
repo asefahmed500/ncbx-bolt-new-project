@@ -1,3 +1,4 @@
+
 "use server";
 
 import dbConnect from "@/lib/dbConnect";
@@ -72,9 +73,11 @@ const serializeObject = (obj: any): any => {
 };
 
 
-interface WebsiteActionInput {
-  websiteId: string;
-}
+const WebsiteActionInputSchema = z.object({
+  websiteId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
+    message: "Invalid Website ID.",
+  }),
+});
 
 interface WebsiteActionResult {
   success?: string;
@@ -440,29 +443,23 @@ export async function saveWebsiteContent(input: SaveWebsiteContentInput): Promis
   }
 }
 
-export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise<WebsiteActionResult> {
+export async function publishWebsite(input: { websiteId: string }): Promise<WebsiteActionResult> {
   const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "User not authenticated." };
-  }
+  if (!session?.user?.id) return { error: "User not authenticated." };
+  
+  const parsedInput = WebsiteActionInputSchema.safeParse(input);
+  if (!parsedInput.success) return { error: "Invalid input." };
+  const { websiteId } = parsedInput.data;
   const userId = session.user.id;
-
-  if (!mongoose.Types.ObjectId.isValid(websiteId)) {
-    return { error: "Invalid Website ID format." };
-  }
 
   try {
     await dbConnect();
     const website = await Website.findById(websiteId);
 
-    if (!website) {
-      return { error: "Website not found." };
-    }
-
+    if (!website) return { error: "Website not found." };
     if (website.userId.toString() !== userId && session.user.role !== 'admin') {
       return { error: "Unauthorized to publish this website." };
     }
-
     if (!website.currentVersionId) {
       return { error: "No current version available to publish. Please save a version of your website first." };
     }
@@ -472,10 +469,8 @@ export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise
     website.publishedVersionId = website.currentVersionId; 
     
     const updatedWebsiteDoc = await website.save();
-
     console.log(`[WebsiteAction_Publish] Website ${websiteId}, version ${website.publishedVersionId} marked as published.`);
     return { success: "Website published successfully.", website: serializeObject(updatedWebsiteDoc) };
-
   } catch (error: any) {
     console.error(`[WebsiteAction_Publish] Error publishing website ${websiteId}:`, error);
     try {
@@ -487,72 +482,56 @@ export async function publishWebsite({ websiteId }: WebsiteActionInput): Promise
   }
 }
 
-export async function unpublishWebsite({ websiteId }: WebsiteActionInput): Promise<WebsiteActionResult> {
+export async function unpublishWebsite(input: { websiteId: string }): Promise<WebsiteActionResult> {
   const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "User not authenticated." };
-  }
-  const userId = session.user.id;
+  if (!session?.user?.id) return { error: "User not authenticated." };
 
-  if (!mongoose.Types.ObjectId.isValid(websiteId)) {
-    return { error: "Invalid Website ID format." };
-  }
+  const parsedInput = WebsiteActionInputSchema.safeParse(input);
+  if (!parsedInput.success) return { error: "Invalid input." };
+  const { websiteId } = parsedInput.data;
+  const userId = session.user.id;
 
   try {
     await dbConnect();
     const website = await Website.findById(websiteId);
-
-    if (!website) {
-      return { error: "Website not found." };
-    }
-
+    if (!website) return { error: "Website not found." };
     if (website.userId.toString() !== userId && session.user.role !== 'admin') {
       return { error: "Unauthorized to unpublish this website." };
     }
     
     website.status = 'unpublished' as WebsiteStatus;
     const updatedWebsiteDoc = await website.save();
-
     console.log(`[WebsiteAction_Unpublish] Website ${websiteId} marked as unpublished.`);
     return { success: "Website unpublished successfully.", website: serializeObject(updatedWebsiteDoc) };
-
   } catch (error: any) {
     console.error(`[WebsiteAction_Unpublish] Error unpublishing website ${websiteId}:`, error);
     return { error: `Failed to unpublish website: ${error.message}` };
   }
 }
 
-export async function deleteWebsite({ websiteId }: WebsiteActionInput): Promise<Omit<WebsiteActionResult, 'website'>> {
+export async function deleteWebsite(input: { websiteId: string }): Promise<Omit<WebsiteActionResult, 'website'>> {
   const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "User not authenticated." };
-  }
-  const userId = session.user.id;
+  if (!session?.user?.id) return { error: "User not authenticated." };
 
-  if (!mongoose.Types.ObjectId.isValid(websiteId)) {
-    return { error: "Invalid Website ID format." };
-  }
+  const parsedInput = WebsiteActionInputSchema.safeParse(input);
+  if (!parsedInput.success) return { error: "Invalid input." };
+  const { websiteId } = parsedInput.data;
+  const userId = session.user.id;
 
   try {
     await dbConnect();
     const website = await Website.findById(websiteId);
-
-    if (!website) {
-      return { error: "Website not found." };
-    }
-
+    if (!website) return { error: "Website not found." };
     if (website.userId.toString() !== userId && session.user.role !== 'admin') {
       return { error: "Unauthorized to delete this website." };
     }
 
     const deletionResult = await WebsiteVersion.deleteMany({ websiteId: website._id });
     console.log(`[WebsiteAction_Delete] Deleted ${deletionResult.deletedCount} versions for website ${websiteId}.`);
-
     await Website.findByIdAndDelete(website._id);
     
     console.log(`[WebsiteAction_Delete] Website ${websiteId} deleted successfully.`);
     return { success: "Website and all its versions deleted successfully." };
-
   } catch (error: any) {
     console.error(`[WebsiteAction_Delete] Error deleting website ${websiteId}:`, error);
     return { error: `Failed to delete website: ${error.message}` };

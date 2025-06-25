@@ -7,8 +7,16 @@ import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
 import Coupon from "@/models/Coupon";
 import { headers } from "next/headers";
-import { STRIPE_PRICE_ID_PRO_MONTHLY } from "@/config/plans"; // Import your Price ID
+import { z } from "zod";
 import type Stripe from "stripe";
+
+const CreateOneTimePaymentIntentInputSchema = z.object({
+  amountInCents: z.number().int().positive("Amount must be a positive integer."),
+  currency: z.string().length(3, "Currency must be a 3-letter ISO code.").default('usd'),
+  couponCode: z.string().optional(),
+  metadata: z.record(z.string()).optional(),
+});
+export type CreateOneTimePaymentIntentInput = z.infer<typeof CreateOneTimePaymentIntentInputSchema>;
 
 export async function createStripeCheckoutSession(priceId: string, isSubscription: boolean = true) {
   const session = await auth();
@@ -115,24 +123,18 @@ export async function createStripeCustomerPortalSession() {
 }
 
 
-export async function createOneTimePaymentIntent(
-  amountInCents: number,
-  currency: string = 'usd',
-  couponCode?: string,
-  metadata?: Record<string, string>
-) {
+export async function createOneTimePaymentIntent(input: CreateOneTimePaymentIntentInput) {
   const session = await auth();
   if (!session?.user?.id) {
     return { error: "User not authenticated." };
   }
   const userId = session.user.id;
 
-  if (!amountInCents || amountInCents <= 0) {
-    return { error: "Invalid amount." };
+  const parsedInput = CreateOneTimePaymentIntentInputSchema.safeParse(input);
+  if (!parsedInput.success) {
+    return { error: `Invalid input: ${JSON.stringify(parsedInput.error.flatten())}` };
   }
-  if (!currency) {
-    return { error: "Currency is required."};
-  }
+  const { amountInCents, currency, couponCode, metadata } = parsedInput.data;
 
   let finalAmountInCents = amountInCents;
   let discountApplied = 0;
@@ -157,7 +159,6 @@ export async function createOneTimePaymentIntent(
       if (coupon.minPurchaseAmount && amountInCents < coupon.minPurchaseAmount) {
         return { error: `Minimum purchase of ${coupon.minPurchaseAmount / 100} ${currency.toUpperCase()} required for this coupon.` };
       }
-      // TODO: Add per-user usage limit check here if needed
 
       if (coupon.discountType === 'percentage') {
         discountApplied = Math.round(amountInCents * (coupon.discountValue / 100));
@@ -166,8 +167,7 @@ export async function createOneTimePaymentIntent(
       }
       finalAmountInCents = Math.max(0, amountInCents - discountApplied);
       appliedCouponId = coupon._id.toString();
-      appliedCouponCode = coupon.code; // Store the code to pass in metadata
-      console.log(`[CreatePaymentIntent Action] Coupon ${couponCode} validated. Original: ${amountInCents}, Discount: ${discountApplied}, Final: ${finalAmountInCents}`);
+      appliedCouponCode = coupon.code;
     }
 
     const user = await User.findById(userId);
@@ -192,9 +192,9 @@ export async function createOneTimePaymentIntent(
       originalAmountInCents: amountInCents.toString(),
       discountAppliedInCents: discountApplied.toString(),
       finalAmountInCents: finalAmountInCents.toString(),
-      ...(appliedCouponCode && { appliedCouponCode }), // Use validated coupon code
-      ...(appliedCouponId && { appliedCouponId }), // Pass coupon's DB ID
-      ...(metadata && metadata), // Spread any additional metadata
+      ...(appliedCouponCode && { appliedCouponCode }),
+      ...(appliedCouponId && { appliedCouponId }),
+      ...(metadata && metadata),
     };
 
     const paymentIntent = await stripe.paymentIntents.create({
@@ -209,13 +209,6 @@ export async function createOneTimePaymentIntent(
       return { error: "Could not create PaymentIntent." };
     }
 
-    // REMOVED: Coupon usage increment. This will be handled by the payment_intent.succeeded webhook.
-    // if (couponId && paymentIntent.id) {
-    //   await Coupon.findByIdAndUpdate(couponId, { $inc: { timesUsed: 1 } });
-    //   console.log(`[CreatePaymentIntent Action] Incremented usage for coupon ID ${couponId}`);
-    // }
-
-    console.log(`[CreatePaymentIntent Action] Created PaymentIntent ${paymentIntent.id} for user ${userId}. Final amount: ${finalAmountInCents}. Metadata: ${JSON.stringify(paymentIntentMetadata)}`);
     return {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
@@ -236,4 +229,3 @@ export async function createOneTimePaymentIntent(
     return { error: `An unexpected error occurred: ${error.message}` };
   }
 }
-

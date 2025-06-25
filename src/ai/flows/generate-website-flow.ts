@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent that generates a multi-page website structure from a text prompt.
@@ -107,7 +108,7 @@ const generateWebsiteFlow = ai.defineFlow(
     }
     // Ensure at least one page exists and one is a homepage
     if (output.pages.length === 0) {
-        output.pages.push({ name: "Home", slug: "/", elements: [] });
+        output.pages.push({ name: "Home", slug: "/", elements: [], seoTitle: "Home", seoDescription: "" });
     }
     if (!output.pages.some(p => p.slug === "/")) {
         output.pages[0].slug = "/";
