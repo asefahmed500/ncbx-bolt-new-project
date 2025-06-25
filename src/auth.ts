@@ -199,6 +199,7 @@ export const authOptions: NextAuthConfig = {
             if (session.avatarUrl !== undefined) token.avatarUrl = session.avatarUrl;
             
             if (session.refreshSubscription) { 
+                await dbConnect();
                 const dbSub = await Subscription.findOne({ userId: token.id }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
                 let planDetails;
                 if (dbSub) {

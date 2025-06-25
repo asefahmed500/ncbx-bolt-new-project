@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10', 10);
     const searchTerm = searchParams.get('search') || undefined;
 
-    const result = await getUsersForAdmin(searchTerm, page, limit);
+    const result = await getUsersForAdmin({ searchTerm, page, limit });
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });

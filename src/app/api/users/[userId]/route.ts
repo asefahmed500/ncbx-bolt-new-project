@@ -2,8 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/auth';
 import { updateUserProfile } from '@/actions/user';
-import { updateUserStatus }
-from '@/actions/admin'; // For admin updating user status
+import { updateUserStatus } from '@/actions/admin'; // For admin updating user status
 import User from '@/models/User'; // For fetching user details
 import dbConnect from '@/lib/dbConnect';
 import mongoose from 'mongoose';
@@ -78,7 +77,7 @@ export async function PUT(
       if (typeof body.isActive !== 'boolean') {
         return NextResponse.json({ error: 'Invalid isActive value' }, { status: 400 });
       }
-      const statusResult = await updateUserStatus(userId, body.isActive);
+      const statusResult = await updateUserStatus({ userId, isActive: body.isActive });
       if (statusResult.error) {
         return NextResponse.json({ error: statusResult.error }, { status: 400 });
       }

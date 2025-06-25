@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10', 10);
     const statusFilter = searchParams.get('status') || undefined;
 
-    const result = await getModerationQueueItems(page, limit, statusFilter);
+    const result = await getModerationQueueItems({ page, limit, statusFilter });
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });
