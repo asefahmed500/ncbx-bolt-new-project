@@ -254,7 +254,7 @@ function EditorPageComponent() {
         if (updatedElementForState) {
             setSelectedElement(prevSel => prevSel ? {
                 ...prevSel,
-                config: updatedElementForState!.config,
+                ...updatedElementForState
             } : null);
         }
 
@@ -473,7 +473,7 @@ function EditorPageComponent() {
                 if (el._id === containerId && el.type === 'section') return el.config.elements;
                 if (el.type === 'columns' && Array.isArray(el.config.columns)) {
                     for (let i = 0; i < el.config.columns.length; i++) {
-                        if (`${el._id}-col-${i}` === containerId) return el.config.columns[i].elements;
+                        if (el.config.columns[i].id === containerId) return el.config.columns[i].elements;
                         if (el.config.columns[i].elements) queue.push(...el.config.columns[i].elements);
                     }
                 }
@@ -495,6 +495,12 @@ function EditorPageComponent() {
                 config: JSON.parse(JSON.stringify(componentConfig.defaultConfig || {})),
                 order: 0,
             };
+
+            if (newElement.type === 'columns' && Array.isArray(newElement.config.columns)) {
+                newElement.config.columns.forEach((col: any) => {
+                    col.id = new mongoose.Types.ObjectId().toString(); // Assign new unique IDs to columns
+                });
+            }
             
             let targetList = findContainerList(newPages, overId);
             let dropIndex = -1;

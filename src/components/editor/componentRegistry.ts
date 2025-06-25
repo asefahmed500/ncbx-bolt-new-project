@@ -88,8 +88,8 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       count: 2, 
       gap: "16px", 
       columns: [
-        { elements: [] },
-        { elements: [] }
+        { id: 'col-placeholder-1', elements: [] },
+        { id: 'col-placeholder-2', elements: [] }
       ]
     },
   },

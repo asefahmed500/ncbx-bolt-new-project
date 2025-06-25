@@ -81,11 +81,11 @@ const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPage
                         Columns
                     </div>
                     <div className="flex flex-col md:flex-row gap-4">
-                        {element.config.columns.map((col: { elements: IPageComponent[] }, colIndex: number) => {
-                            const droppableId = `${element._id as string}-col-${colIndex}`;
+                        {element.config.columns.map((col: { id: string; elements: IPageComponent[] }, colIndex: number) => {
+                            const droppableId = col.id; // Use the persistent ID
                             const { setNodeRef: setColDroppableRef, isOver: isColOver } = useDroppable({ id: droppableId });
                             return (
-                                <div key={colIndex} ref={setColDroppableRef} className={`flex-1 p-2 rounded min-h-[50px] transition-colors ${isColOver ? 'bg-primary/10 border-2 border-dashed border-primary' : 'bg-muted/30'}`}>
+                                <div key={droppableId} ref={setColDroppableRef} className={`flex-1 p-2 rounded min-h-[50px] transition-colors ${isColOver ? 'bg-primary/10 border-2 border-dashed border-primary' : 'bg-muted/30'}`}>
                                     <SortableContext items={col.elements.map(e => e._id as string)} strategy={verticalListSortingStrategy}>
                                         {col.elements.length > 0 ? (
                                             col.elements.map((child: IPageComponent) => (
