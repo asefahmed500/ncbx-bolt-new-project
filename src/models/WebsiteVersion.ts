@@ -20,8 +20,7 @@ const WebsiteVersionPageSchema = new Schema<IWebsiteVersionPage>({
   elements: [PageComponentSchema], // Embeds the actual component data
   seoTitle: { type: String, trim: true },
   seoDescription: { type: String, trim: true },
-}); // Removed { _id: false }. Mongoose defaults to creating _id for subdocuments.
-    // Explicitly adding _id definition for clarity and to ensure it's handled as an ObjectId if a string is passed.
+});
 
 export interface IWebsiteVersion extends Document {
   websiteId: mongoose.Schema.Types.ObjectId;
