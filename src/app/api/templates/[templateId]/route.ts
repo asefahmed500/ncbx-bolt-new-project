@@ -44,7 +44,7 @@ export async function GET(
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
-    // Public can view approved templates. Admins or owners might view others.
+    
     const session = await auth();
     const isOwner = template.createdByUserId && session?.user?.id && (template.createdByUserId as any)._id.toString() === session.user.id;
     if (template.status !== 'approved' && session?.user?.role !== 'admin' && !isOwner) {
