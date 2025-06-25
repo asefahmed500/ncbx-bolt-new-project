@@ -40,6 +40,7 @@ export interface IWebsiteVersion extends Document {
 export interface IWebsite extends Document {
   userId: Types.ObjectId;
   name: string;
+  description?: string; // Added description field
   customDomain?: string;
   domainStatus?: DomainConnectionStatus;
   dnsInstructions?: string;
@@ -65,6 +66,10 @@ const WebsiteSchema = new Schema<IWebsite>(
     name: {
       type: String,
       required: [true, 'Website name is required.'],
+      trim: true,
+    },
+    description: {
+      type: String,
       trim: true,
     },
     customDomain: {

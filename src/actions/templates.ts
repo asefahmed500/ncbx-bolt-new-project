@@ -215,3 +215,37 @@ export async function submitTemplateReview(input: SubmitTemplateReviewInput): Pr
     return { error: `An unexpected error occurred: ${error.message || "Could not save review."}` };
   }
 }
+
+
+interface GetApprovedTemplatesResult {
+  templates?: ITemplate[];
+  totalTemplates?: number;
+  error?: string;
+}
+const GetTemplatesInputSchema = z.object({
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(100).default(100), // Default to a higher limit for gallery
+  categoryFilter: z.string().optional(),
+});
+
+export async function getApprovedTemplates(input: z.infer<typeof GetTemplatesInputSchema>): Promise<GetApprovedTemplatesResult> {
+  const { page, limit, categoryFilter } = GetTemplatesInputSchema.parse(input);
+  try {
+    await dbConnect();
+    const query: mongoose.FilterQuery<ITemplate> = { status: 'approved' };
+    if (categoryFilter && categoryFilter !== 'all') {
+      query.category = categoryFilter;
+    }
+
+    const skip = (page - 1) * limit;
+    const templatesFromDB = await Template.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+    const totalTemplates = await Template.countDocuments(query);
+    return { templates: serializeObject(templatesFromDB), totalTemplates };
+  } catch (error: any) {
+    return { error: "Failed to fetch approved templates: " + error.message };
+  }
+}

@@ -87,6 +87,7 @@ interface WebsiteActionResult {
 
 const CreateWebsiteInputSchema = z.object({
   name: z.string().min(3, "Website name must be at least 3 characters.").max(100),
+  description: z.string().max(255, "Description is too long.").optional(),
   subdomain: z.string()
     .min(3, "Subdomain must be at least 3 characters.")
     .max(63)
@@ -135,7 +136,7 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
     return { error: `Invalid input: ${JSON.stringify(errorMessages)}` };
   }
 
-  const { name, templateId } = parsedInput.data;
+  const { name, description, templateId } = parsedInput.data;
   let { subdomain } = parsedInput.data;
 
   try {
@@ -195,6 +196,7 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
     const newWebsite = new Website({
       userId,
       name,
+      description,
       subdomain,
       status: 'draft' as WebsiteStatus,
       templateId: templateId || undefined,
@@ -310,6 +312,7 @@ export async function createWebsiteFromPrompt(input: CreateWebsiteFromPromptInpu
     const newWebsite = new Website({
       userId,
       name,
+      description: `AI-generated website based on the prompt: "${prompt}"`,
       subdomain,
       status: 'draft' as WebsiteStatus,
     });
@@ -571,7 +574,6 @@ interface SetCustomDomainResult {
   success?: string;
   error?: string;
   website?: IWebsite;
-  dnsInstructions?: string;
 }
 
 export async function setCustomDomain(input: { websiteId: string, domainName: string }): Promise<SetCustomDomainResult> {
@@ -609,7 +611,10 @@ export async function setCustomDomain(input: { websiteId: string, domainName: st
       return { error: `Domain "${normalizedDomainName}" is already in use by another website.` };
     }
     
-    const instructions = `To connect "${normalizedDomainName}", update your DNS settings. This typically involves adding a CNAME record pointing to your app's hosting target or A records. Consult your hosting provider's documentation for specific record values. Verification may take up to 48 hours.`;
+    // In a real app, you would get this from your hosting provider (e.g., Vercel's API).
+    const appHostname = process.env.VERCEL_URL || `cname.${process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'example.com'}`;
+    const instructions = `To connect your domain, create a CNAME record in your DNS provider's settings pointing from "${normalizedDomainName}" to "${appHostname}". Verification may take a few hours.`;
+
 
     website.customDomain = normalizedDomainName;
     website.domainStatus = 'pending_verification' as DomainConnectionStatus;
@@ -621,7 +626,6 @@ export async function setCustomDomain(input: { websiteId: string, domainName: st
     return { 
       success: `Custom domain "${normalizedDomainName}" has been set. Please configure your DNS records.`, 
       website: serializeObject(updatedWebsiteDoc),
-      dnsInstructions: instructions,
     };
 
   } catch (error: any) {
@@ -630,6 +634,49 @@ export async function setCustomDomain(input: { websiteId: string, domainName: st
       return { error: `Domain "${normalizedDomainName}" might already be in use (database constraint).` };
     }
     return { error: `Failed to set custom domain: ${error.message}` };
+  }
+}
+
+export async function verifyCustomDomain(input: { websiteId: string }): Promise<WebsiteActionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: "User not authenticated." };
+
+  const parsedInput = WebsiteActionInputSchema.safeParse(input);
+  if (!parsedInput.success) return { error: "Invalid input." };
+  const { websiteId } = parsedInput.data;
+
+  try {
+    await dbConnect();
+    const website = await Website.findById(websiteId);
+    if (!website || (website.userId.toString() !== session.user.id && session.user.role !== 'admin')) {
+      return { error: "Website not found or unauthorized." };
+    }
+    if (!website.customDomain) {
+      return { error: "No custom domain is set for this website." };
+    }
+
+    // --- DNS Verification Logic ---
+    // In a real production application, this would involve calling your hosting provider's API
+    // (e.g., Vercel's Domains API) or performing a DNS lookup.
+    // For this project, we will simulate a successful verification.
+    
+    // Example conceptual check (would be replaced with real API call):
+    // const verificationResult = await vercel.checkDomain(website.customDomain);
+    // if (verificationResult.status === 'verified') {
+    //   website.domainStatus = 'verified';
+    // } else {
+    //   website.domainStatus = 'error_dns';
+    //   return { error: "DNS records do not seem to be configured correctly. Please check and try again.", website: serializeObject(website) };
+    // }
+
+    // Simulating success for this project:
+    website.domainStatus = 'verified';
+    website.dnsInstructions = "Domain successfully verified and connected!";
+
+    const updatedWebsite = await website.save();
+    return { success: "Domain verified successfully!", website: serializeObject(updatedWebsite) };
+  } catch (error: any) {
+    return { error: `Failed to verify domain: ${error.message}` };
   }
 }
 

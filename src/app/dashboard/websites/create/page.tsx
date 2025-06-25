@@ -10,7 +10,6 @@ import { createWebsite, type CreateWebsiteInput, createWebsiteFromPrompt, type C
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
@@ -22,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Schema for the manual creation form
 const createManualFormSchema = z.object({
   name: z.string().min(3, "Website name must be at least 3 characters.").max(100),
+  description: z.string().max(255, "Description cannot exceed 255 characters.").optional().or(z.literal('')),
   subdomain: z.string()
     .min(3, "Subdomain must be at least 3 characters.")
     .max(63)
@@ -53,7 +53,7 @@ export default function CreateWebsitePage() {
 
   const manualForm = useForm<CreateManualFormValues>({
     resolver: zodResolver(createManualFormSchema),
-    defaultValues: { name: '', subdomain: '' },
+    defaultValues: { name: '', description: '', subdomain: '' },
   });
 
   const aiForm = useForm<CreateAiFormValues>({
@@ -65,6 +65,7 @@ export default function CreateWebsitePage() {
     setIsManualLoading(true);
     const inputData: CreateWebsiteInput = {
         name: data.name,
+        description: data.description,
         subdomain: data.subdomain || undefined,
     };
     try {
@@ -73,7 +74,7 @@ export default function CreateWebsitePage() {
         toast({ title: 'Error Creating Website', description: result.error, variant: 'destructive' });
       } else if (result.success && result.website) {
         toast({ title: 'Website Created!', description: `Your new website "${result.website.name}" is ready.` });
-        router.push('/dashboard');
+        router.push(`/editor?websiteId=${result.website._id}`); // Redirect to editor
       }
     } catch (error) {
       toast({ title: 'Failed to Create Website', description: 'An unexpected error occurred.', variant: 'destructive' });
@@ -130,17 +131,20 @@ export default function CreateWebsitePage() {
                   <FormField control={manualForm.control} name="name" render={({ field }) => (
                     <FormItem><FormLabel>Website Name</FormLabel><FormControl><Input placeholder="My Awesome Project" {...field} className="bg-input" /></FormControl><FormMessage /></FormItem>
                   )} />
+                   <FormField control={manualForm.control} name="description" render={({ field }) => (
+                    <FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea placeholder="A short description of your website's purpose." {...field} className="bg-input" rows={2}/></FormControl><FormMessage /></FormItem>
+                  )} />
                   <FormField control={manualForm.control} name="subdomain" render={({ field }) => (
                     <FormItem><FormLabel>Subdomain (Optional)</FormLabel><FormControl>
                       <div className="flex items-center">
                         <Input placeholder="my-project" {...field} className="bg-input rounded-r-none" />
                         <span className="px-3 py-2 text-sm bg-muted border border-input border-l-0 rounded-r-md text-muted-foreground">.{process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'notthedomain.com'}</span>
                       </div>
-                    </FormControl><p className="text-xs text-muted-foreground mt-1">Leave blank to auto-generate.</p><FormMessage /></FormItem>
+                    </FormControl><p className="text-xs text-muted-foreground mt-1">Leave blank to auto-generate. Use lowercase letters, numbers, and hyphens.</p><FormMessage /></FormItem>
                   )} />
                   <Button type="submit" className="w-full" disabled={isManualLoading}>
                     {isManualLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusSquare className="mr-2 h-4 w-4" />}
-                    {isManualLoading ? 'Creating...' : 'Create Website'}
+                    {isManualLoading ? 'Creating...' : 'Create & Go to Editor'}
                   </Button>
                 </form>
               </Form>
@@ -158,7 +162,7 @@ export default function CreateWebsitePage() {
                         <Input placeholder="janes-bakery" {...field} className="bg-input rounded-r-none" />
                         <span className="px-3 py-2 text-sm bg-muted border border-input border-l-0 rounded-r-md text-muted-foreground">.{process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'notthedomain.com'}</span>
                       </div>
-                    </FormControl><p className="text-xs text-muted-foreground mt-1">Leave blank to auto-generate.</p><FormMessage /></FormItem>
+                    </FormControl><p className="text-xs text-muted-foreground mt-1">Leave blank to auto-generate. Use lowercase letters, numbers, and hyphens.</p><FormMessage /></FormItem>
                   )} />
                   <FormField control={aiForm.control} name="prompt" render={({ field }) => (
                     <FormItem><FormLabel>Describe Your Website</FormLabel><FormControl>
@@ -167,7 +171,7 @@ export default function CreateWebsitePage() {
                   )} />
                   <Button type="submit" className="w-full" disabled={isAiLoading}>
                     {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                    {isAiLoading ? 'Generating...' : 'Generate with AI'}
+                    {isAiLoading ? 'Generating...' : 'Generate with AI & Go to Editor'}
                   </Button>
                 </form>
               </Form>
