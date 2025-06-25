@@ -56,62 +56,6 @@ const defaultInitialPage: IWebsiteVersionPage = {
   seoDescription: "Welcome to your new site!",
 };
 
-// Helper to find an element and its parent array in the nested structure
-const findElementAndParent = (pages: IWebsiteVersionPage[], elementId: string): { parentArray: IPageComponent[]; elementIndex: number; } | null => {
-    for (const page of pages) {
-        let queue: { elements: IPageComponent[], path: string }[] = [{ elements: page.elements, path: '' }];
-        while (queue.length > 0) {
-            const { elements } = queue.shift()!;
-            const elementIndex = elements.findIndex(el => el._id === elementId);
-            if (elementIndex !== -1) {
-                return { parentArray: elements, elementIndex };
-            }
-            for (const el of elements) {
-                if (el.type === 'section' && el.config?.elements) {
-                    queue.push({ elements: el.config.elements, path: '' });
-                } else if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
-                    el.config.columns.forEach((col: any) => {
-                        if (col.elements) queue.push({ elements: col.elements, path: '' });
-                    });
-                }
-            }
-        }
-    }
-    return null;
-};
-
-// Helper to find a container's element array
-const findContainerArray = (pages: IWebsiteVersionPage[], containerId: string): IPageComponent[] | null => {
-    if (containerId === 'canvas-drop-area') {
-        // Find active page and return its root elements array
-        const activePage = pages.find(p => p._id === pages[0]._id); // Simplified for single page context
-        return activePage ? activePage.elements : null;
-    }
-
-    for (const page of pages) {
-        let queue: IPageComponent[] = [...page.elements];
-        while (queue.length > 0) {
-            const el = queue.shift()!;
-            if (el._id === containerId) {
-                if (el.type === 'section') return el.config.elements;
-            }
-            if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
-                for (let i = 0; i < el.config.columns.length; i++) {
-                    if (`${el._id as string}-col-${i}` === containerId) {
-                        return el.config.columns[i].elements;
-                    }
-                    queue.push(...el.config.columns[i].elements);
-                }
-            }
-            if (el.type === 'section' && el.config?.elements) {
-                queue.push(...el.config.elements);
-            }
-        }
-    }
-    return null;
-};
-
-
 function EditorPageComponent() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -231,66 +175,92 @@ function EditorPageComponent() {
   const handleElementSelect = useCallback((elementId: string, pageIndex: number) => {
     const page = currentPages[pageIndex];
     if (page) {
-      const elementIndex = page.elements.findIndex(el => (el._id as string) === elementId);
-      if (elementIndex !== -1) {
-        setSelectedElement({ ...(page.elements[elementIndex] as IPageComponent), pageIndex, elementIndex });
-      } else {
-        // TODO: search recursively for nested elements
-        setSelectedElement(null);
-      }
+        let elementToSelect: IPageComponent | null = null;
+        let elementIndex = -1;
+
+        const findElement = (elements: IPageComponent[]): IPageComponent | null => {
+            for (let i = 0; i < elements.length; i++) {
+                const el = elements[i];
+                if (el._id === elementId) {
+                    elementIndex = i;
+                    return el;
+                }
+                if (el.type === 'section' && el.config?.elements) {
+                    const found = findElement(el.config.elements);
+                    if (found) return found;
+                }
+                if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
+                    for (const col of el.config.columns) {
+                        const found = findElement(col.elements);
+                        if (found) return found;
+                    }
+                }
+            }
+            return null;
+        };
+
+        elementToSelect = findElement(page.elements);
+
+        if (elementToSelect) {
+            setSelectedElement({ ...elementToSelect, pageIndex, elementIndex });
+        } else {
+            setSelectedElement(null);
+        }
     }
   }, [currentPages]);
 
   const handlePropertyChange = (propertyName: string, value: any, isPageSetting: boolean = false) => {
     setCurrentPages(prevPages => {
-      const newPages = JSON.parse(JSON.stringify(prevPages)) as IWebsiteVersionPage[];
-      const pageToUpdate = newPages[activePageIndex];
+        const newPages = JSON.parse(JSON.stringify(prevPages)) as IWebsiteVersionPage[];
+        const pageToUpdate = newPages[activePageIndex];
+        let updatedElementForState: IPageComponent | null = null;
 
-      if (pageToUpdate) {
-        if (isPageSetting) {
-          (pageToUpdate as any)[propertyName] = value;
-        } else if (selectedElement) {
-          // This needs to be recursive to find the selected element if it's nested
-          let elementToUpdate: IPageComponent | undefined;
-          let queue = [...pageToUpdate.elements];
-          while (queue.length > 0) {
-              const current = queue.shift();
-              if (current?._id === selectedElement._id) {
-                  elementToUpdate = current;
-                  break;
-              }
-              if (current?.type === 'section' && current.config?.elements) {
-                  queue.push(...current.config.elements);
-              }
-              if (current?.type === 'columns' && Array.isArray(current.config?.columns)) {
-                  current.config.columns.forEach((col: any) => queue.push(...col.elements));
-              }
-          }
-
-          if (elementToUpdate) {
-            if (propertyName === 'config' && typeof value === 'object' && value !== null) {
-              elementToUpdate.config = { ...elementToUpdate.config, ...value };
-            } else {
-              elementToUpdate.config = { ...elementToUpdate.config, [propertyName]: value };
+        if (pageToUpdate) {
+            if (isPageSetting) {
+                (pageToUpdate as any)[propertyName] = value;
+            } else if (selectedElement) {
+                const findAndApply = (elements: IPageComponent[]): boolean => {
+                    for (let el of elements) {
+                        if (el._id === selectedElement._id) {
+                            if (propertyName === 'config' && typeof value === 'object' && value !== null) {
+                                el.config = { ...el.config, ...value };
+                            } else {
+                                el.config[propertyName] = value;
+                            }
+                            if (el.type === 'navbar' && propertyName === 'navigationId') {
+                                const selectedNav = allSiteNavigations.find(nav => nav._id === value);
+                                if (selectedNav) {
+                                    el.config.links = selectedNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
+                                } else if (!value) {
+                                    el.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
+                                }
+                            }
+                            updatedElementForState = JSON.parse(JSON.stringify(el));
+                            return true;
+                        }
+                        if (el.type === 'section' && el.config?.elements && findAndApply(el.config.elements)) return true;
+                        if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
+                            for (const col of el.config.columns) {
+                                if (col.elements && findAndApply(col.elements)) return true;
+                            }
+                        }
+                    }
+                    return false;
+                };
+                findAndApply(pageToUpdate.elements);
             }
-             if (elementToUpdate.type === 'navbar' && propertyName === 'navigationId') {
-              const selectedNav = allSiteNavigations.find(nav => nav._id === value);
-              if (selectedNav) {
-                elementToUpdate.config.links = selectedNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
-              } else if (!value) {
-                elementToUpdate.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
-              }
-            }
-            setSelectedElement(prevSel => prevSel ? {
-              ...prevSel,
-              config: { ...elementToUpdate!.config }
-            } : null);
-          }
         }
-      }
-      return newPages;
+        
+        if (updatedElementForState) {
+            setSelectedElement(prevSel => prevSel ? {
+                ...prevSel,
+                config: updatedElementForState!.config,
+            } : null);
+        }
+
+        setEditorSaveStatus('unsaved_changes');
+        return newPages;
     });
-    setEditorSaveStatus('unsaved_changes');
   };
   
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -346,17 +316,22 @@ function EditorPageComponent() {
   };
 
   const getEditorContentForSave = useCallback((): SaveWebsiteContentInput['pages'] => {
+    const reorderAndClean = (elements: IPageComponent[]): any[] => {
+        return elements.map((el, index) => ({
+            _id: el._id as string,
+            type: el.type,
+            config: el.type === 'section' ? { ...el.config, elements: reorderAndClean(el.config.elements || []) } : 
+                    el.type === 'columns' ? { ...el.config, columns: el.config.columns.map((c: any) => ({ ...c, elements: reorderAndClean(c.elements || [])})) } :
+                    el.config,
+            order: index,
+            label: el.label,
+        }));
+    };
     return currentPages.map(page => ({
       _id: page._id as string,
       name: page.name,
       slug: page.slug,
-      elements: page.elements.map((el, index) => ({
-        _id: el._id as string,
-        type: el.type,
-        config: el.config,
-        order: index,
-        label: el.label,
-      })),
+      elements: reorderAndClean(page.elements),
       seoTitle: page.seoTitle,
       seoDescription: page.seoDescription,
     }));
@@ -457,73 +432,127 @@ function EditorPageComponent() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDraggedItem(null);
-  
+
     if (!over) return;
-  
-    if (active.data.current?.isSidebarItem) {
-      // Logic for dropping a new component from the sidebar
-      const componentType = active.data.current.type as string;
-      const componentConfig = getComponentConfig(componentType);
-      if (!componentConfig) return;
-  
-      const newElement: IPageComponent = {
-        _id: new mongoose.Types.ObjectId().toString(),
-        type: componentType,
-        label: componentConfig.label,
-        config: JSON.parse(JSON.stringify(componentConfig.defaultConfig || {})),
-        order: 0,
-      };
-  
-      setCurrentPages(prevPages => {
-        const newPages = [...prevPages];
-        const activePage = newPages[activePageIndex];
-        if (!activePage) return prevPages;
-  
-        const overId = over.id.toString();
-        let targetIndex = activePage.elements.length;
-  
-        if (overId !== 'canvas-drop-area') {
-          const overIndex = activePage.elements.findIndex(el => (el._id as string) === overId);
-          if (overIndex !== -1) {
-            targetIndex = overIndex + 1;
-          }
+
+    const activeId = active.id.toString();
+    const overId = over.id.toString();
+
+    setCurrentPages(prevPages => {
+        const newPages = JSON.parse(JSON.stringify(prevPages)); // Deep copy for mutable operations
+
+        const findElementAndParentList = (pages: IWebsiteVersionPage[], elementId: string): { list: IPageComponent[]; index: number; element: IPageComponent } | null => {
+            for (const page of pages) {
+                const queue: { list: IPageComponent[] }[] = [{ list: page.elements }];
+                while (queue.length > 0) {
+                    const { list } = queue.shift()!;
+                    const index = list.findIndex(el => el._id === elementId);
+                    if (index !== -1) return { list, index, element: list[index] };
+
+                    for (const el of list) {
+                        if (el.type === 'section' && el.config?.elements) queue.push({ list: el.config.elements });
+                        else if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
+                            el.config.columns.forEach((col: any) => {
+                                if (col.elements) queue.push({ list: col.elements });
+                            });
+                        }
+                    }
+                }
+            }
+            return null;
+        };
+
+        const findContainerList = (pages: IWebsiteVersionPage[], containerId: string): IPageComponent[] | null => {
+            const activePage = pages[activePageIndex];
+            if (!activePage) return null;
+            if (containerId === 'canvas-drop-area') return activePage.elements;
+
+            const queue: IPageComponent[] = [...activePage.elements];
+            while (queue.length > 0) {
+                const el = queue.shift()!;
+                if (el._id === containerId && el.type === 'section') return el.config.elements;
+                if (el.type === 'columns' && Array.isArray(el.config.columns)) {
+                    for (let i = 0; i < el.config.columns.length; i++) {
+                        if (`${el._id}-col-${i}` === containerId) return el.config.columns[i].elements;
+                        if (el.config.columns[i].elements) queue.push(...el.config.columns[i].elements);
+                    }
+                }
+                if (el.type === 'section' && el.config.elements) queue.push(...el.config.elements);
+            }
+            return null;
+        };
+
+        // Case 1: Dropping a new item from the sidebar
+        if (active.data.current?.isSidebarItem) {
+            const componentType = active.data.current.type as string;
+            const componentConfig = getComponentConfig(componentType);
+            if (!componentConfig) return newPages;
+
+            const newElement: IPageComponent = {
+                _id: new mongoose.Types.ObjectId().toString(),
+                type: componentType,
+                label: componentConfig.label,
+                config: JSON.parse(JSON.stringify(componentConfig.defaultConfig || {})),
+                order: 0,
+            };
+            
+            let targetList = findContainerList(newPages, overId);
+            let dropIndex = -1;
+
+            if (!targetList) {
+                const overElementInfo = findElementAndParentList(newPages, overId);
+                if (overElementInfo) {
+                    targetList = overElementInfo.list;
+                    dropIndex = overElementInfo.index + 1;
+                }
+            }
+
+            if (targetList) {
+                if (dropIndex === -1) dropIndex = targetList.length;
+                targetList.splice(dropIndex, 0, newElement);
+            }
+
+        } else { // Case 2: Reordering an existing item
+            const sourceInfo = findElementAndParentList(newPages, activeId);
+            if (!sourceInfo) return newPages;
+            
+            const [movedElement] = sourceInfo.list.splice(sourceInfo.index, 1);
+
+            let destinationList = findContainerList(newPages, overId);
+            let destinationIndex = -1;
+            
+            if (destinationList) { // Dropped on a container
+                destinationIndex = destinationList.length;
+            } else { // Dropped on an element
+                const overElementInfo = findElementAndParentList(newPages, overId);
+                if (overElementInfo) {
+                    destinationList = overElementInfo.list;
+                    destinationIndex = overElementInfo.index;
+                }
+            }
+            
+            if (destinationList) {
+                destinationList.splice(destinationIndex, 0, movedElement);
+            } else { // Fallback: drop back to original list
+                sourceInfo.list.splice(sourceInfo.index, 0, movedElement);
+            }
         }
-  
-        activePage.elements.splice(targetIndex, 0, newElement);
-  
-        // Re-order all elements
-        activePage.elements.forEach((el, index) => {
-          el.order = index;
-        });
-  
-        return newPages;
-      });
-    } else {
-      // Logic for reordering existing components on the canvas
-      const activeId = active.id.toString();
-      const overId = over.id.toString();
-  
-      if (activeId !== overId) {
-        setCurrentPages(prevPages => {
-          const newPages = [...prevPages];
-          const activePage = newPages[activePageIndex];
-          if (!activePage) return prevPages;
-  
-          const oldIndex = activePage.elements.findIndex(el => (el._id as string) === activeId);
-          const newIndex = activePage.elements.findIndex(el => (el._id as string) === overId);
-          
-          if (oldIndex !== -1 && newIndex !== -1) {
-            activePage.elements = arrayMove(activePage.elements, oldIndex, newIndex);
-            activePage.elements.forEach((el, index) => {
-              el.order = index;
+        
+        // Final pass to re-assign order property for all elements
+        const reorderRecursively = (elements: IPageComponent[]) => {
+            elements.forEach((el, index) => {
+                el.order = index;
+                if (el.type === 'section' && el.config.elements) reorderRecursively(el.config.elements);
+                if (el.type === 'columns' && Array.isArray(el.config.columns)) {
+                    el.config.columns.forEach((col: any) => reorderRecursively(col.elements));
+                }
             });
-          }
-          return newPages;
-        });
-      }
-    }
-  
-    setEditorSaveStatus('unsaved_changes');
+        };
+        newPages.forEach(page => reorderRecursively(page.elements));
+
+        setEditorSaveStatus('unsaved_changes');
+        return newPages;
+    });
   };
 
   const handleCreateNavigation = async () => {
@@ -963,6 +992,30 @@ function EditorPageComponent() {
   };
 
   const currentEditorPage = currentPages[activePageIndex] || defaultInitialPage;
+  
+  // Helper to find an element within the pages structure
+  const findElementAndParent = (pages: IWebsiteVersionPage[], elementId: string): { parentArray: IPageComponent[], elementIndex: number; } | null => {
+    for (const page of pages) {
+        let queue: { elements: IPageComponent[], path: string }[] = [{ elements: page.elements, path: '' }];
+        while (queue.length > 0) {
+            const { elements } = queue.shift()!;
+            const elementIndex = elements.findIndex(el => el._id === elementId);
+            if (elementIndex !== -1) {
+                return { parentArray: elements, elementIndex };
+            }
+            for (const el of elements) {
+                if (el.type === 'section' && el.config?.elements) {
+                    queue.push({ elements: el.config.elements, path: '' });
+                } else if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
+                    el.config.columns.forEach((col: any) => {
+                        if (col.elements) queue.push({ elements: col.elements, path: '' });
+                    });
+                }
+            }
+        }
+    }
+    return null;
+  };
 
   return (
     <DndContext
@@ -1032,4 +1085,3 @@ declare module '@/models/WebsiteVersion' {
     _id?: string | import('mongoose').Types.ObjectId;
   }
 }
-
