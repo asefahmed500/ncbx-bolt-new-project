@@ -21,7 +21,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, MessageSquare, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link'; // Keep if needed for links like View Content
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,9 +30,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
+import { cn } from '@/lib/utils';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -77,7 +75,7 @@ export default function AdminModerationPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await getModerationQueueItems(page, ITEMS_PER_PAGE, currentStatus);
+      const result = await getModerationQueueItems({ page, limit: ITEMS_PER_PAGE, statusFilter: currentStatus });
       if (result.error) {
         setError(result.error);
         setItems([]);
@@ -105,9 +103,9 @@ export default function AdminModerationPage() {
   };
 
   const updateUrlParams = (page: number, status: string) => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams.toString());
     params.set('page', page.toString());
-    if (status) params.set('status', status);
+    params.set('status', status);
     router.push(`/admin/moderation?${params.toString()}`);
   };
 
@@ -320,5 +318,3 @@ export default function AdminModerationPage() {
     </div>
   );
 }
-
-    

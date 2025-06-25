@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Download, ListFilter, Eye, BarChartHorizontalBig, Edit } from 'lucide-react';
+import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Download, Eye, BarChartHorizontalBig, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -35,8 +35,8 @@ export default function AdminTemplatesPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
   const [totalPages, setTotalPages] = useState(0);
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
-  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || 'all');
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
   useEffect(() => {
@@ -69,7 +69,12 @@ export default function AdminTemplatesPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await getTemplatesForAdmin(page, ITEMS_PER_PAGE, currentStatus || undefined, currentCategory || undefined);
+      const result = await getTemplatesForAdmin({ 
+        page, 
+        limit: ITEMS_PER_PAGE, 
+        statusFilter: currentStatus === 'all' ? undefined : currentStatus, 
+        categoryFilter: currentCategory === 'all' ? undefined : currentCategory 
+      });
       if (result.error) {
         setError(result.error);
         setTemplates([]);
@@ -126,15 +131,15 @@ export default function AdminTemplatesPage() {
   };
 
   const updateUrlParams = (page: number, currentStatus: string, currentCategory: string) => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams.toString());
     params.set('page', page.toString());
-    if (currentStatus) params.set('status', currentStatus);
-    if (currentCategory) params.set('category', currentCategory);
+    params.set('status', currentStatus);
+    params.set('category', currentCategory);
     router.push(`/admin/templates?${params.toString()}`);
   };
 
 
-  if (status === 'loading' || isLoading) {
+  if (status === 'loading' || (isLoading && templates.length === 0)) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-80px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -270,6 +275,3 @@ export default function AdminTemplatesPage() {
     </div>
   );
 }
-    
-
-    

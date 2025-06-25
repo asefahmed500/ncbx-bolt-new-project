@@ -65,7 +65,7 @@ export default function AdminCouponsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await getCouponsForAdmin(page, ITEMS_PER_PAGE);
+      const result = await getCouponsForAdmin({ page, limit: ITEMS_PER_PAGE });
       if (result.error) {
         setError(result.error);
         setCoupons([]);
@@ -87,7 +87,7 @@ export default function AdminCouponsPage() {
   };
 
   const updateUrlParams = (page: number) => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams.toString());
     params.set('page', page.toString());
     router.push(`/admin/coupons?${params.toString()}`);
   };
@@ -255,5 +255,3 @@ export default function AdminCouponsPage() {
     </div>
   );
 }
-
-    

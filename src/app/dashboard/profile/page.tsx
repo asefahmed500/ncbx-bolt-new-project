@@ -80,6 +80,7 @@ export default function ProfilePage() {
         });
         // Update the session to reflect changes immediately
         await updateSession({
+            ...session,
             user: {
                 ...session?.user,
                 name: result.user.name,

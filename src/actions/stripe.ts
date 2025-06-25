@@ -123,20 +123,22 @@ export async function createStripeCustomerPortalSession() {
 }
 
 
-export async function createOneTimePaymentIntent(input: CreateOneTimePaymentIntentInput) {
+export async function createOneTimePaymentIntent(amountInCents: number, currency: string = 'usd', couponCode?: string, metadata?: Record<string, string>) {
   const session = await auth();
   if (!session?.user?.id) {
     return { error: "User not authenticated." };
   }
   const userId = session.user.id;
 
-  const parsedInput = CreateOneTimePaymentIntentInputSchema.safeParse(input);
+  const parsedInput = CreateOneTimePaymentIntentInputSchema.safeParse({
+    amountInCents, currency, couponCode, metadata
+  });
   if (!parsedInput.success) {
     return { error: `Invalid input: ${JSON.stringify(parsedInput.error.flatten())}` };
   }
-  const { amountInCents, currency, couponCode, metadata } = parsedInput.data;
+  const { amountInCents: validatedAmount, currency: validatedCurrency, couponCode: validatedCouponCode, metadata: validatedMetadata } = parsedInput.data;
 
-  let finalAmountInCents = amountInCents;
+  let finalAmountInCents = validatedAmount;
   let discountApplied = 0;
   let appliedCouponId: string | null = null;
   let appliedCouponCode: string | null = null;
@@ -144,8 +146,8 @@ export async function createOneTimePaymentIntent(input: CreateOneTimePaymentInte
   try {
     await dbConnect();
 
-    if (couponCode) {
-      const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
+    if (validatedCouponCode) {
+      const coupon = await Coupon.findOne({ code: validatedCouponCode.toUpperCase(), isActive: true });
 
       if (!coupon) {
         return { error: "Invalid or inactive coupon code." };
@@ -156,16 +158,16 @@ export async function createOneTimePaymentIntent(input: CreateOneTimePaymentInte
       if (coupon.usageLimit > 0 && coupon.timesUsed >= coupon.usageLimit) {
         return { error: "Coupon usage limit reached." };
       }
-      if (coupon.minPurchaseAmount && amountInCents < coupon.minPurchaseAmount) {
-        return { error: `Minimum purchase of ${coupon.minPurchaseAmount / 100} ${currency.toUpperCase()} required for this coupon.` };
+      if (coupon.minPurchaseAmount && validatedAmount < coupon.minPurchaseAmount) {
+        return { error: `Minimum purchase of ${coupon.minPurchaseAmount / 100} ${validatedCurrency.toUpperCase()} required for this coupon.` };
       }
 
       if (coupon.discountType === 'percentage') {
-        discountApplied = Math.round(amountInCents * (coupon.discountValue / 100));
+        discountApplied = Math.round(validatedAmount * (coupon.discountValue / 100));
       } else if (coupon.discountType === 'fixed_amount') {
         discountApplied = coupon.discountValue; // Assuming this is in cents
       }
-      finalAmountInCents = Math.max(0, amountInCents - discountApplied);
+      finalAmountInCents = Math.max(0, validatedAmount - discountApplied);
       appliedCouponId = coupon._id.toString();
       appliedCouponCode = coupon.code;
     }
@@ -189,17 +191,17 @@ export async function createOneTimePaymentIntent(input: CreateOneTimePaymentInte
 
     const paymentIntentMetadata: Record<string, string> = {
       userId: user._id.toString(),
-      originalAmountInCents: amountInCents.toString(),
+      originalAmountInCents: validatedAmount.toString(),
       discountAppliedInCents: discountApplied.toString(),
       finalAmountInCents: finalAmountInCents.toString(),
       ...(appliedCouponCode && { appliedCouponCode }),
       ...(appliedCouponId && { appliedCouponId }),
-      ...(metadata && metadata),
+      ...(validatedMetadata && validatedMetadata),
     };
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: finalAmountInCents,
-      currency: currency,
+      currency: validatedCurrency,
       customer: stripeCustomerId,
       automatic_payment_methods: { enabled: true },
       metadata: paymentIntentMetadata,
@@ -214,7 +216,7 @@ export async function createOneTimePaymentIntent(input: CreateOneTimePaymentInte
       paymentIntentId: paymentIntent.id,
       finalAmount: finalAmountInCents,
       discountApplied: discountApplied,
-      originalAmount: amountInCents,
+      originalAmount: validatedAmount,
       couponApplied: !!appliedCouponCode,
     };
 

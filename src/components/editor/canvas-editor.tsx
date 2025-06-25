@@ -15,6 +15,8 @@ interface CanvasEditorProps {
   page: IWebsiteVersionPage;
   pageIndex: number;
   onElementSelect: (elementId: string, pageIndex: number) => void;
+  isDragging: boolean; 
+  activeDragId: string | null; 
 }
 
 const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPageComponent; pageIndex: number; onElementSelect: CanvasEditorProps['onElementSelect']; }) => {
@@ -112,7 +114,7 @@ const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPage
   );
 };
 
-export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, isDragging, activeDragId }: CanvasEditorProps & { isDragging: boolean; activeDragId: string | null; }) {
+export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, isDragging, activeDragId }: CanvasEditorProps) {
   const { setNodeRef, isOver } = useDroppable({ id: 'canvas-drop-area' });
 
   const getCanvasWidth = () => {
@@ -174,5 +176,3 @@ declare module '@/models/WebsiteVersion' {
     _id?: string | import('mongoose').Types.ObjectId;
   }
 }
-
-    

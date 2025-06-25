@@ -54,7 +54,7 @@ export default function AdminUsersPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await getUsersForAdmin(currentSearchTerm, page, ITEMS_PER_PAGE);
+      const result = await getUsersForAdmin({ searchTerm: currentSearchTerm, page, limit: ITEMS_PER_PAGE });
       if (result.error) {
         setError(result.error);
         setUsers([]);
@@ -72,8 +72,6 @@ export default function AdminUsersPage() {
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
-    setCurrentPage(1); // Reset to first page on new search
-    updateUrlParams(1, event.target.value);
   };
   
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -89,15 +87,19 @@ export default function AdminUsersPage() {
   };
 
   const updateUrlParams = (page: number, search: string) => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams.toString());
     params.set('page', page.toString());
-    if (search) params.set('search', search);
+    if (search) {
+        params.set('search', search);
+    } else {
+        params.delete('search');
+    }
     router.push(`/admin/users?${params.toString()}`);
   };
 
   const handleToggleUserStatus = async (userId: string, currentIsActive: boolean) => {
     setIsUpdatingStatus(userId);
-    const result = await updateUserStatus(userId, !currentIsActive);
+    const result = await updateUserStatus({ userId, isActive: !currentIsActive });
     setIsUpdatingStatus(null);
 
     if (result.error) {
@@ -279,6 +281,3 @@ export default function AdminUsersPage() {
     </div>
   );
 }
-
-
-    

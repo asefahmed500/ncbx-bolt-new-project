@@ -104,6 +104,7 @@ export default function EditTemplatePage() {
     setIsLoading(true);
     
     const metadataPayload: UpdateTemplateMetadataInput = {
+      templateId,
       name: data.name,
       description: data.description,
       category: data.category,
@@ -122,7 +123,7 @@ export default function EditTemplatePage() {
     let metadataSuccess = false;
     let statusSuccess = false;
 
-    const metaResult = await updateTemplateMetadataByAdmin(templateId, metadataPayload);
+    const metaResult = await updateTemplateMetadataByAdmin(metadataPayload);
     if (metaResult.error) {
       toast({ title: "Error Updating Metadata", description: metaResult.error, variant: "destructive" });
     } else {
@@ -344,5 +345,3 @@ export default function EditTemplatePage() {
     </div>
   );
 }
-
-    
