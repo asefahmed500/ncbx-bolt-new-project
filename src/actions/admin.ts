@@ -772,4 +772,65 @@ export async function getDistinctTemplateCategories(): Promise<DistinctCategorie
   }
 }
     
+export interface AdminDashboardStats {
+  totalUsers: number;
+  activeSubscriptions: number;
+  monthlyRevenue: number;
+  systemHealth: string; // conceptual
+  newUsersLastWeek: number; // another stat
+  pendingModerationItems: number;
+}
+
+export async function getAdminDashboardStats(): Promise<{ stats?: AdminDashboardStats; error?: string }> {
+  const session = await auth();
+  if (session?.user?.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    await dbConnect();
     
+    const totalUsers = await User.countDocuments({});
+    
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const newUsersLastWeek = await User.countDocuments({ createdAt: { $gte: oneWeekAgo }});
+
+    const activeSubscriptionsCount = await Subscription.countDocuments({
+      stripeSubscriptionStatus: { $in: ['active', 'trialing'] },
+    });
+
+    const activeSubscriptions = await Subscription.find({
+        stripeSubscriptionStatus: { $in: ['active', 'trialing'] },
+    }).lean();
+
+    let monthlyRevenue = 0;
+    for (const sub of activeSubscriptions) {
+        const plan = getPlanByStripePriceId(sub.stripePriceId);
+        if (plan?.stripeYearlyPriceId === sub.stripePriceId && plan.yearlyPrice) {
+            monthlyRevenue += plan.yearlyPrice / 12;
+        } else if (plan?.monthlyPrice) {
+            monthlyRevenue += plan.monthlyPrice;
+        }
+    }
+    
+    const pendingModerationItems = await ModerationQueueItem.countDocuments({ status: 'pending' });
+
+    return {
+      stats: {
+        totalUsers,
+        activeSubscriptions: activeSubscriptionsCount,
+        monthlyRevenue: Math.round(monthlyRevenue), // round to nearest dollar
+        systemHealth: 'Optimal', // Conceptual
+        newUsersLastWeek,
+        pendingModerationItems,
+      }
+    };
+
+  } catch (error: any) {
+    console.error("[getAdminDashboardStats] Error fetching stats:", error);
+    return { error: "Failed to fetch dashboard statistics." };
+  }
+}
+    
+

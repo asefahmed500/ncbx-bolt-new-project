@@ -58,6 +58,7 @@ export const PLANS_CONFIG: AppPlan[] = [
     stripeMonthlyPriceId: STRIPE_PRICE_ID_PRO_MONTHLY,
     stripeYearlyPriceId: STRIPE_PRICE_ID_PRO_YEARLY,
     monthlyPrice: 29, // Example display price
+    yearlyPrice: 228, // Example display price, for MRR calc
     features: [
       { text: 'Build up to 5 Websites', includedInPro: true, includedInEnterprise: true },
       { text: 'Access to All Templates', includedInPro: true, includedInEnterprise: true },
@@ -77,6 +78,7 @@ export const PLANS_CONFIG: AppPlan[] = [
     description: 'Tailored solutions for large organizations.',
     stripeMonthlyPriceId: STRIPE_PRICE_ID_ENTERPRISE_MONTHLY,
     monthlyPrice: 99, // Example display price
+    yearlyPrice: 948, // Example display price
     features: [
       { text: 'Build Unlimited Websites', includedInPro: true, includedInEnterprise: true },
       { text: 'Access to All Templates', includedInPro: true, includedInEnterprise: true },
