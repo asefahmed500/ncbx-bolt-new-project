@@ -1,4 +1,5 @@
 
+
 import mongoose, { Schema, model, models, type Document, type Types } from 'mongoose';
 import type { IPageComponent } from './PageComponent'; // Ensure this path is correct
 
@@ -118,8 +119,6 @@ const WebsiteSchema = new Schema<IWebsite>(
 
 // Indexes
 WebsiteSchema.index({ userId: 1 });
-// The 'unique: true' property on 'subdomain' already creates a unique index. The explicit index below is redundant.
-// WebsiteSchema.index({ subdomain: 1 }, { unique: true }); 
 WebsiteSchema.index({ customDomain: 1 }, { unique: true, sparse: true });
 WebsiteSchema.index({ currentVersionId: 1 });
 WebsiteSchema.index({ publishedVersionId: 1 });
