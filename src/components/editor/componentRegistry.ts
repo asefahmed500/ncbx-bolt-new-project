@@ -37,6 +37,7 @@ export interface ComponentConfig {
   label: string;
   icon: LucideIcon;
   description: string;
+  isContainer?: boolean; // Flag to identify container components
   defaultConfig?: Record<string, any>;
 }
 
@@ -69,6 +70,30 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     description: "Interactive call-to-action links.",
     defaultConfig: { text: "Click Me", link: "#", style: "primary", alignment: "left" },
   },
+  section: {
+    id: "section",
+    label: "Section / Container",
+    icon: Box,
+    description: "Group content into distinct sections.",
+    isContainer: true, // This is a container
+    defaultConfig: { backgroundColor: "#FFFFFF", paddingTop: "20px", paddingBottom: "20px", elements: [] },
+  },
+  columns: {
+    id: "columns",
+    label: "Columns Layout",
+    icon: Columns,
+    description: "Arrange content in responsive columns.",
+    isContainer: true, // This is a container
+    defaultConfig: { 
+      count: 2, 
+      gap: "16px", 
+      // A more structured config for columns to hold nested elements
+      columns: [
+        { id: "col-1", elements: [] },
+        { id: "col-2", elements: [] }
+      ]
+    },
+  },
   navbar: {
     id: "navbar",
     label: "Navbar Section",
@@ -76,8 +101,8 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     description: "Responsive top navigation bar.",
     defaultConfig: {
       brandText: "MySite",
-      brandLink: "/", // Added brandLink
-      navigationId: null, // To store ID of a global Navigation entity
+      brandLink: "/", 
+      navigationId: null, 
       links: [{ text: "Home", href: "/", type: "internal" }, { text: "About", href: "/about", type: "internal" }],
       backgroundColor: "bg-neutral-100", textColor: "text-neutral-800"
     },
@@ -276,20 +301,6 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     description: "Company/about info section.",
     defaultConfig: { title: "About Us", content: "<p>We are a team dedicated to excellence.</p>", elements: [] }
   },
-  section: {
-    id: "section",
-    label: "Section / Container",
-    icon: Box,
-    description: "Group content into distinct sections.",
-    defaultConfig: { backgroundColor: "#FFFFFF", paddingTop: "20px", paddingBottom: "20px", elements: [] },
-  },
-  columns: {
-    id: "columns",
-    label: "Columns Layout",
-    icon: Columns,
-    description: "Arrange content in responsive columns.",
-    defaultConfig: { count: 2, gap: "16px", layout: ["1fr", "1fr"], elements: [[],[]] }, // elements per column
-  },
   divider: {
     id: "divider",
     label: "Divider",
@@ -301,6 +312,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     id: "form",
     label: "Form Container",
     icon: ListChecks,
+    isContainer: true,
     description: "Group form input fields for submissions.",
     defaultConfig: { submitUrl: "/api/submit-form", buttonText: "Submit", elements: [] }
   },
@@ -341,5 +353,3 @@ export const getRegisteredComponents = (): ComponentConfig[] => {
 export const getComponentConfig = (type: string): ComponentConfig | undefined => {
   return componentRegistry[type];
 };
-
-```
