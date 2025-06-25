@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, FormEvent } from 'react';
@@ -55,6 +54,7 @@ export function PremiumTemplatePaymentModal({ isOpen, onOpenChange, template, on
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState('');
+  const [finalAmount, setFinalAmount] = useState<number | null>(template?.price || null);
 
   useEffect(() => {
     if (isOpen && template && template.price) {
@@ -78,6 +78,7 @@ export function PremiumTemplatePaymentModal({ isOpen, onOpenChange, template, on
           toast({ title: "Payment Setup Error", description: result.error, variant: "destructive" });
         } else {
           setClientSecret(result.clientSecret);
+          setFinalAmount(result.finalAmount || template.price!);
         }
         setIsLoading(false);
       };
@@ -120,14 +121,14 @@ export function PremiumTemplatePaymentModal({ isOpen, onOpenChange, template, on
     setIsProcessingPayment(false);
   };
   
-  const priceDisplay = template?.price ? `$${(template.price / 100).toFixed(2)}` : '$0.00';
+  const priceDisplay = finalAmount !== null ? `$${(finalAmount / 100).toFixed(2)}` : '...';
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md bg-card">
         <DialogHeader>
           <DialogTitle className="font-headline text-foreground flex items-center"><ShoppingCart className="mr-2 h-5 w-5"/>Purchase Premium Template</DialogTitle>
-          <DialogDescription className="text-muted-foreground">Complete your secure payment for "{template?.name}" ({priceDisplay}).</DialogDescription>
+          <DialogDescription className="text-muted-foreground">Complete your secure payment for "{template?.name}".</DialogDescription>
         </DialogHeader>
         {isLoading ? (
             <div className="flex items-center justify-center h-48"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
