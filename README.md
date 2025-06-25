@@ -1,6 +1,6 @@
-# NCBX Website Canvas
+# NCBX
 
-NCBX Website Canvas is a full-featured, no-code website builder that empowers users to create professional, responsive websites using an intuitive drag-and-drop editor. It comes packed with AI-powered content generation, a robust template system, and a complete admin panel for platform management.
+NCBX is a full-featured, no-code website builder that empowers users to create professional, responsive websites using an intuitive drag-and-drop editor. It comes packed with AI-powered content generation, a robust template system, and a complete admin panel for platform management.
 
 ## ✨ Core Features
 

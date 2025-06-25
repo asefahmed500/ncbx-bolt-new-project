@@ -1,15 +1,15 @@
 
 ==================================
-NCBX Website Canvas - Documentation
+NCBX - Documentation
 ==================================
 
-This document provides a comprehensive overview of the NCBX Website Canvas application, its features, and how to use it as both a regular user and an administrator.
+This document provides a comprehensive overview of the NCBX application, its features, and how to use it as both a regular user and an administrator.
 
 -------------------
 Section 1: Overview
 -------------------
 
-NCBX Website Canvas is a full-featured, no-code/low-code website builder. It empowers users to create professional, responsive websites using an intuitive drag-and-drop editor. The platform is built with a modern tech stack and includes AI-powered content generation, a robust template system, and a complete admin panel for platform management.
+NCBX is a full-featured, no-code/low-code website builder. It empowers users to create professional, responsive websites using an intuitive drag-and-drop editor. The platform is built with a modern tech stack and includes AI-powered content generation, a robust template system, and a complete admin panel for platform management.
 
 -----------------------
 Section 2: Core Features

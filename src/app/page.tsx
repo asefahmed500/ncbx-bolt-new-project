@@ -19,7 +19,7 @@ export default function LandingPage() {
             Build Stunning Websites, Effortlessly.
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-            NCBX Website Canvas empowers you to create professional, responsive websites with an intuitive drag-and-drop editor. No code required. Launch your vision today!
+            NCBX empowers you to create professional, responsive websites with an intuitive drag-and-drop editor. No code required. Launch your vision today!
           </p>
           <div className="space-x-4">
             <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg">
@@ -38,7 +38,7 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <Zap className="w-12 h-12 text-primary mx-auto mb-4" />
             <h2 className="text-3xl md:text-4xl font-headline font-semibold">
-              Why Choose NCBX Canvas?
+              Why Choose NCBX?
             </h2>
             <p className="text-lg text-muted-foreground mt-3 max-w-xl mx-auto">Powerful features designed to bring your vision to life quickly and efficiently.</p>
           </div>
@@ -71,17 +71,17 @@ export default function LandingPage() {
           <div className="text-center mb-12">
             <Info className="w-12 h-12 text-primary/80 mx-auto mb-4" />
             <h2 className="text-3xl md:text-4xl font-headline font-semibold">
-              About NCBX Canvas
+              About NCBX
             </h2>
           </div>
           <div className="max-w-3xl mx-auto text-center">
             <p className="text-lg text-muted-foreground mb-4">
-              We believe creating a powerful online presence shouldn't be complicated. NCBX Canvas was born from the desire to empower creators, entrepreneurs, and businesses of all sizes to build beautiful, high-performing websites without needing to write a single line of code.
+              We believe creating a powerful online presence shouldn't be complicated. NCBX was born from the desire to empower creators, entrepreneurs, and businesses of all sizes to build beautiful, high-performing websites without needing to write a single line of code.
             </p>
             <p className="text-lg text-muted-foreground">
               Our mission is to provide an intuitive, flexible, and powerful platform that grows with you. Join our community and bring your digital vision to life!
             </p>
-            <Image src="https://placehold.co/600x400.png" alt="Team working on NCBX Canvas" width={600} height={400} className="mt-10 rounded-lg shadow-xl mx-auto" data-ai-hint="team collaboration" />
+            {/* Image removed as requested */}
           </div>
         </div>
       </section>
@@ -139,7 +139,7 @@ export default function LandingPage() {
           <div className="max-w-3xl mx-auto">
             <Card className="p-8 shadow-lg bg-card">
               <p className="text-lg text-muted-foreground italic mb-6">
-                "NCBX Canvas transformed how I build websites for my clients. It's fast, intuitive, and the AI features are a game-changer!"
+                "NCBX transformed how I build websites for my clients. It's fast, intuitive, and the AI features are a game-changer!"
               </p>
               <p className="font-semibold font-headline">- Alex P, Web Designer</p>
             </Card>
@@ -162,7 +162,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer id="support" className="py-8 bg-card border-t border-border">
         <div className="container mx-auto px-6 text-center text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} NCBX Website Canvas. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} NCBX. All rights reserved.</p>
           <div className="mt-2 space-x-4">
             <Link href="/#about" className="hover:text-primary">About</Link>
             <Link href="/#services" className="hover:text-primary">Services</Link>

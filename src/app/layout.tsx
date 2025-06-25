@@ -4,8 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import AuthSessionProvider from '@/components/auth/auth-session-provider';
 
 export const metadata: Metadata = {
-  title: 'NCBX Website Canvas',
-  description: 'Build professional websites with a no-code drag-and-drop editor.',
+  title: 'NCBX',
+  description: 'The no-code website builder for professionals.',
 };
 
 export default function RootLayout({
