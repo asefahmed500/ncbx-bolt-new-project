@@ -405,78 +405,72 @@ function EditorPageComponent() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDraggedItem(null);
+  
     if (!over) return;
   
-    const clonedPages = JSON.parse(JSON.stringify(currentPages)) as IWebsiteVersionPage[];
-    const activeId = active.id.toString();
-    const overId = over.id.toString();
-  
-    // Scenario 1: Dragging a new component from the sidebar
     if (active.data.current?.isSidebarItem) {
-      const newComponentType = active.data.current.type as string;
-      const componentConf = getComponentConfig(newComponentType);
-      if (!componentConf) return;
+      // Logic for dropping a new component from the sidebar
+      const componentType = active.data.current.type as string;
+      const componentConfig = getComponentConfig(componentType);
+      if (!componentConfig) return;
   
       const newElement: IPageComponent = {
         _id: new mongoose.Types.ObjectId().toString(),
-        type: newComponentType,
-        label: componentConf.label,
-        config: JSON.parse(JSON.stringify(componentConf.defaultConfig || {})),
+        type: componentType,
+        label: componentConfig.label,
+        config: JSON.parse(JSON.stringify(componentConfig.defaultConfig || {})),
         order: 0,
       };
   
-      // Find the target container array
-      const targetContainer = findContainerArray(clonedPages, overId);
-      if (targetContainer) {
-        targetContainer.push(newElement);
-      } else {
-        // Fallback or handle dropping on an item to place after
-        const overItemInfo = findElementAndParent(clonedPages, overId);
-        if (overItemInfo) {
-          overItemInfo.parentArray.splice(overItemInfo.elementIndex + 1, 0, newElement);
-        } else {
-          // Default to adding to the root if no container found
-          clonedPages[activePageIndex].elements.push(newElement);
+      setCurrentPages(prevPages => {
+        const newPages = [...prevPages];
+        const activePage = newPages[activePageIndex];
+        if (!activePage) return prevPages;
+  
+        const overId = over.id.toString();
+        let targetIndex = activePage.elements.length;
+  
+        if (overId !== 'canvas-drop-area') {
+          const overIndex = activePage.elements.findIndex(el => (el._id as string) === overId);
+          if (overIndex !== -1) {
+            targetIndex = overIndex + 1;
+          }
         }
-      }
+  
+        activePage.elements.splice(targetIndex, 0, newElement);
+  
+        // Re-order all elements
+        activePage.elements.forEach((el, index) => {
+          el.order = index;
+        });
+  
+        return newPages;
+      });
     } else {
-      // Scenario 2: Reordering existing components
-      const activeElementInfo = findElementAndParent(clonedPages, activeId);
-      if (!activeElementInfo) return;
+      // Logic for reordering existing components on the canvas
+      const activeId = active.id.toString();
+      const overId = over.id.toString();
   
-      const { parentArray: sourceArray, elementIndex: oldIndex } = activeElementInfo;
-      const [draggedItem] = sourceArray.splice(oldIndex, 1);
+      if (activeId !== overId) {
+        setCurrentPages(prevPages => {
+          const newPages = [...prevPages];
+          const activePage = newPages[activePageIndex];
+          if (!activePage) return prevPages;
   
-      const overContainerArray = findContainerArray(clonedPages, overId);
-      if (overContainerArray) {
-        // Dropped onto a container
-        overContainerArray.push(draggedItem);
-      } else {
-        // Dropped onto another item
-        const overElementInfo = findElementAndParent(clonedPages, overId);
-        if (overElementInfo) {
-          const { parentArray: destArray, elementIndex: newIndex } = overElementInfo;
-          destArray.splice(newIndex + 1, 0, draggedItem);
-        } else {
-          // Fallback: put it back where it was if drop target is invalid
-          sourceArray.splice(oldIndex, 0, draggedItem);
-        }
+          const oldIndex = activePage.elements.findIndex(el => (el._id as string) === activeId);
+          const newIndex = activePage.elements.findIndex(el => (el._id as string) === overId);
+          
+          if (oldIndex !== -1 && newIndex !== -1) {
+            activePage.elements = arrayMove(activePage.elements, oldIndex, newIndex);
+            activePage.elements.forEach((el, index) => {
+              el.order = index;
+            });
+          }
+          return newPages;
+        });
       }
     }
   
-    // Normalize order for all arrays
-    const normalizeOrder = (elements: IPageComponent[]) => {
-      elements.forEach((el, index) => {
-        el.order = index;
-        if (el.config?.elements) normalizeOrder(el.config.elements);
-        if (Array.isArray(el.config?.columns)) {
-          el.config.columns.forEach((col: any) => normalizeOrder(col.elements));
-        }
-      });
-    };
-  
-    clonedPages.forEach(p => normalizeOrder(p.elements));
-    setCurrentPages(clonedPages);
     setEditorSaveStatus('unsaved_changes');
   };
 

@@ -30,8 +30,6 @@ export function DraggableComponentItem({ id, icon: Icon, label, description }: D
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
       <Card
-        // draggable="true" // useDraggable handles this
-        // onDragStart={handleDragStart} // useDraggable handles this
         className="p-3 hover:shadow-lg transition-shadow cursor-grab active:cursor-grabbing mb-2 bg-card border border-border rounded-md"
         role="button"
         tabIndex={0}
