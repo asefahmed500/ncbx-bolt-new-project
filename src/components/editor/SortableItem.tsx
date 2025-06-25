@@ -25,7 +25,7 @@ export function SortableItem({ id, children, className }: SortableItemProps) {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 1000 : 'auto', // Ensure dragging item is on top
+    zIndex: isDragging ? 1000 : 'auto',
   };
 
   return (
@@ -34,3 +34,5 @@ export function SortableItem({ id, children, className }: SortableItemProps) {
     </div>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 "use server";
 
 import dbConnect from "@/lib/dbConnect";
@@ -77,15 +78,23 @@ interface GetUsersResult {
   error?: string;
 }
 
-export async function getUsersForAdmin(
-  searchTerm?: string,
-  page: number = 1,
-  limit: number = 10
-): Promise<GetUsersResult> {
+const GetUsersInputSchema = z.object({
+    searchTerm: z.string().optional(),
+    page: z.number().min(1).default(1),
+    limit: z.number().min(1).max(100).default(10),
+});
+
+export async function getUsersForAdmin(input: z.infer<typeof GetUsersInputSchema>): Promise<GetUsersResult> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
     return { error: "Unauthorized" };
   }
+  
+  const parsedInput = GetUsersInputSchema.safeParse(input);
+    if (!parsedInput.success) {
+      return { error: `Invalid input: ${JSON.stringify(parsedInput.error.flatten())}` };
+    }
+  const { searchTerm, page, limit } = parsedInput.data;
 
   try {
     await dbConnect();
@@ -143,23 +152,26 @@ export async function getUsersForAdmin(
 
     return { users: enrichedUsers, totalUsers };
   } catch (error: any) {
-    console.error("[AdminAction_GetUsers] Error fetching users:", error);
     return { error: "Failed to fetch users: " + error.message };
   }
 }
 
-export async function updateUserStatus(
-  userId: string,
-  isActive: boolean
-): Promise<{ success?: string; error?: string; user?: IUserForAdmin }> {
+
+const UpdateUserStatusInputSchema = z.object({
+  userId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), "Invalid User ID"),
+  isActive: z.boolean(),
+});
+export async function updateUserStatus(input: z.infer<typeof UpdateUserStatusInputSchema>): Promise<{ success?: string; error?: string; user?: IUserForAdmin }> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
     return { error: "Unauthorized" };
   }
 
-  if (!userId || typeof isActive !== "boolean") {
-    return { error: "Invalid input: userId and isActive status are required." };
+  const parsedInput = UpdateUserStatusInputSchema.safeParse(input);
+  if (!parsedInput.success) {
+      return { error: `Invalid input: ${JSON.stringify(parsedInput.error.flatten())}` };
   }
+  const { userId, isActive } = parsedInput.data;
 
   try {
     await dbConnect();
@@ -173,19 +185,15 @@ export async function updateUserStatus(
     await user.save();
     
     // Refetch the enriched user data for consistency with getUsersForAdmin display
-    const usersResult = await getUsersForAdmin(user.email || undefined, 1, 1);
+    const usersResult = await getUsersForAdmin({searchTerm: user.email || undefined, page: 1, limit: 1});
     const updatedUserForAdmin = usersResult.users && usersResult.users.length > 0 ? usersResult.users[0] : undefined;
 
 
-    console.log(
-      `[AdminAction_UpdateUserStatus] User ${userId} status updated to ${isActive ? "active" : "suspended"}.`
-    );
     return {
       success: `User status updated to ${isActive ? "active" : "suspended"}.`,
       user: updatedUserForAdmin,
     };
   } catch (error: any) {
-    console.error("[AdminAction_UpdateUserStatus] Error updating user status:", error);
     return { error: "Failed to update user status: " + error.message };
   }
 }
@@ -260,11 +268,9 @@ export async function createCoupon(input: CreateCouponInput): Promise<CreateCoup
     const newCoupon = new Coupon(newCouponData);
     const savedCoupon = await newCoupon.save();
 
-    console.log(`[AdminAction_CreateCoupon] Coupon "${savedCoupon.code}" created by admin ${session.user.id}.`);
     return { success: "Coupon created successfully.", coupon: serializeObject(savedCoupon) };
 
   } catch (error: any) {
-    console.error("[AdminAction_CreateCoupon] Error creating coupon:", error);
     if (error.code === 11000) {
       return { error: "A coupon with this code already exists (database)." };
     }
@@ -281,14 +287,22 @@ interface GetCouponsResult {
   totalCoupons?: number;
   error?: string;
 }
-export async function getCouponsForAdmin(
-  page: number = 1,
-  limit: number = 10
-): Promise<GetCouponsResult> {
+
+const GetCouponsInputSchema = z.object({
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(100).default(10),
+});
+export async function getCouponsForAdmin(input: z.infer<typeof GetCouponsInputSchema>): Promise<GetCouponsResult> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
     return { error: "Unauthorized" };
   }
+
+  const parsedInput = GetCouponsInputSchema.safeParse(input);
+    if (!parsedInput.success) {
+        return { error: `Invalid input: ${JSON.stringify(parsedInput.error.flatten())}` };
+    }
+  const { page, limit } = parsedInput.data;
 
   try {
     await dbConnect();
@@ -301,7 +315,6 @@ export async function getCouponsForAdmin(
     const totalCoupons = await Coupon.countDocuments({});
     return { coupons: serializeObject(couponsFromDB), totalCoupons };
   } catch (error: any) {
-    console.error("[AdminAction_GetCoupons] Error fetching coupons:", error);
     return { error: "Failed to fetch coupons: " + error.message };
   }
 }
@@ -322,7 +335,6 @@ export async function getCouponByIdForAdmin(couponId: string): Promise<{ coupon?
     }
     return { coupon: serializeObject(coupon) };
   } catch (error: any) {
-    console.error(`[AdminAction_GetCouponById] Error fetching coupon ${couponId}:`, error);
     return { error: "Failed to fetch coupon: " + error.message };
   }
 }
@@ -389,11 +401,9 @@ export async function updateCouponByAdmin(input: UpdateCouponInput): Promise<Upd
 
     const updatedCoupon = await coupon.save();
 
-    console.log(`[AdminAction_UpdateCoupon] Coupon "${updatedCoupon.code}" (ID: ${couponId}) updated by admin ${session.user.id}.`);
     return { success: "Coupon updated successfully.", coupon: serializeObject(updatedCoupon) };
 
   } catch (error: any) {
-    console.error("[AdminAction_UpdateCoupon] Error updating coupon:", error);
     if (error instanceof z.ZodError) {
         return { error: `Validation error: ${error.errors.map(e => e.message).join(', ')}` };
     }
@@ -416,10 +426,8 @@ export async function deleteCouponByAdmin(couponId: string): Promise<{ success?:
     if (result.deletedCount === 0) {
       return { error: "Coupon not found or already deleted." };
     }
-    console.log(`[AdminAction_DeleteCoupon] Coupon ${couponId} deleted by admin ${session.user.id}.`);
     return { success: "Coupon deleted successfully." };
   } catch (error: any) {
-    console.error(`[AdminAction_DeleteCoupon] Error deleting coupon ${couponId}:`, error);
     return { error: `Failed to delete coupon: ${error.message}` };
   }
 }
@@ -431,15 +439,22 @@ interface GetModerationQueueItemsResult {
   error?: string;
 }
 
-export async function getModerationQueueItems(
-  page: number = 1,
-  limit: number = 10,
-  statusFilter?: string
-): Promise<GetModerationQueueItemsResult> {
+const GetModerationQueueInputSchema = z.object({
+    page: z.number().min(1).default(1),
+    limit: z.number().min(1).max(100).default(10),
+    statusFilter: z.string().optional(),
+});
+export async function getModerationQueueItems(input: z.infer<typeof GetModerationQueueInputSchema>): Promise<GetModerationQueueItemsResult> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
     return { error: "Unauthorized" };
   }
+    
+  const parsedInput = GetModerationQueueInputSchema.safeParse(input);
+  if (!parsedInput.success) {
+    return { error: `Invalid input: ${JSON.stringify(parsedInput.error.flatten())}` };
+  }
+  const { page, limit, statusFilter } = parsedInput.data;
 
   try {
     await dbConnect();
@@ -464,7 +479,6 @@ export async function getModerationQueueItems(
 
     return { items: serializeObject(itemsFromDB), totalItems };
   } catch (error: any) {
-    console.error("[AdminAction_GetModerationQueueItems] Error fetching moderation items:", error);
     return { error: "Failed to fetch moderation items: " + error.message };
   }
 }
@@ -526,7 +540,6 @@ export async function processModerationItemByAdmin(input: ProcessModerationItemI
       if (review) {
         review.isApproved = action === 'approve';
         await review.save();
-        console.log(`[AdminAction_ProcessModeration] TemplateReview ${review._id} isApproved updated to: ${review.isApproved}.`);
       }
     } else if (item.contentType === 'template_submission' && item.contentRefModel === 'Template') {
        const template = await Template.findById(item.contentId);
@@ -534,16 +547,13 @@ export async function processModerationItemByAdmin(input: ProcessModerationItemI
            if(action === 'approve') template.status = 'approved' as TemplateStatus;
            else if (action === 'reject') template.status = 'rejected' as TemplateStatus;
            await template.save();
-           console.log(`[AdminAction_ProcessModeration] Template ${template._id} status updated to: ${template.status}.`);
        }
     }
 
     const updatedItem = await item.save();
-    console.log(`[AdminAction_ProcessModeration] Item ${itemId} processed by admin ${adminUserId}. Action: ${action}, New Status: ${newStatus}.`);
     return { success: `Moderation item status set to ${newStatus}.`, item: serializeObject(updatedItem) };
 
   } catch (error: any) {
-    console.error("[AdminAction_ProcessModeration] Error processing item:", error);
     return { error: `Failed to process item: ${error.message}` };
   }
 }
@@ -554,16 +564,23 @@ interface GetTemplatesResult {
   error?: string;
 }
 
-export async function getTemplatesForAdmin(
-  page: number = 1,
-  limit: number = 10,
-  statusFilter?: string,
-  categoryFilter?: string
-): Promise<GetTemplatesResult> {
+const GetTemplatesInputSchema = z.object({
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(100).default(10),
+  statusFilter: z.string().optional(),
+  categoryFilter: z.string().optional(),
+});
+export async function getTemplatesForAdmin(input: z.infer<typeof GetTemplatesInputSchema>): Promise<GetTemplatesResult> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
     return { error: "Unauthorized" };
   }
+  
+  const parsedInput = GetTemplatesInputSchema.safeParse(input);
+  if (!parsedInput.success) {
+    return { error: `Invalid input: ${JSON.stringify(parsedInput.error.flatten())}` };
+  }
+  const { page, limit, statusFilter, categoryFilter } = parsedInput.data;
 
   try {
     await dbConnect();
@@ -591,7 +608,6 @@ export async function getTemplatesForAdmin(
 
     return { templates: serializeObject(templatesFromDB), totalTemplates };
   } catch (error: any) {
-    console.error("[AdminAction_GetTemplatesForAdmin] Error fetching templates:", error);
     return { error: "Failed to fetch templates: " + error.message };
   }
 }
@@ -634,16 +650,15 @@ export async function updateTemplateStatusByAdmin(input: UpdateTemplateStatusInp
     template.status = status;
     const updatedTemplate = await template.save();
 
-    console.log(`[AdminAction_UpdateTemplateStatus] Template ${templateId} status updated to "${status}" by admin ${session.user.id}.`);
     return { success: `Template status updated to "${status}".`, template: serializeObject(updatedTemplate) };
 
   } catch (error: any) {
-    console.error("[AdminAction_UpdateTemplateStatus] Error updating template status:", error);
     return { error: `Failed to update template status: ${error.message}` };
   }
 }
 
 const UpdateTemplateMetadataInputSchema = z.object({
+  templateId: z.string().refine(val => mongoose.Types.ObjectId.isValid(val)),
   name: z.string().min(1, "Name cannot be empty.").max(100).optional(),
   description: z.string().max(500).optional(),
   category: z.string().optional(),
@@ -661,16 +676,10 @@ interface UpdateTemplateMetadataResult {
   template?: ITemplate;
 }
 
-export async function updateTemplateMetadataByAdmin(
-  templateId: string,
-  data: UpdateTemplateMetadataInput
-): Promise<UpdateTemplateMetadataResult> {
+export async function updateTemplateMetadataByAdmin(data: UpdateTemplateMetadataInput): Promise<UpdateTemplateMetadataResult> {
   const session = await auth();
   if (session?.user?.role !== "admin") {
     return { error: "Unauthorized" };
-  }
-  if (!mongoose.Types.ObjectId.isValid(templateId)) {
-    return { error: "Invalid Template ID." };
   }
 
   const parsedData = UpdateTemplateMetadataInputSchema.safeParse(data);
@@ -678,6 +687,7 @@ export async function updateTemplateMetadataByAdmin(
     const errorMessages = parsedData.error.flatten().fieldErrors;
     return { error: `Invalid input: ${JSON.stringify(errorMessages)}` };
   }
+  const { templateId, ...updateFields } = parsedData.data;
 
   try {
     await dbConnect();
@@ -685,8 +695,6 @@ export async function updateTemplateMetadataByAdmin(
     if (!template) {
       return { error: "Template not found." };
     }
-
-    const updateFields = parsedData.data;
 
     if (updateFields.isPremium !== undefined) {
       template.isPremium = updateFields.isPremium;
@@ -709,11 +717,9 @@ export async function updateTemplateMetadataByAdmin(
     if (updateFields.liveDemoUrl !== undefined) template.liveDemoUrl = updateFields.liveDemoUrl || undefined;
 
     const updatedTemplate = await template.save();
-    console.log(`[AdminAction_UpdateTemplateMeta] Template ${templateId} metadata updated by admin ${session.user.id}.`);
     return { success: "Template metadata updated successfully.", template: serializeObject(updatedTemplate) };
 
   } catch (error: any) {
-    console.error(`[AdminAction_UpdateTemplateMeta] Error updating template ${templateId}:`, error);
     return { error: `Failed to update template metadata: ${error.message}` };
   }
 }
@@ -743,7 +749,6 @@ export async function getTemplateDataForExport(templateId: string): Promise<GetT
     }
     return { template: serializeObject(template) };
   } catch (error: any) {
-    console.error(`[AdminAction_GetTemplateDataForExport] Error fetching template ${templateId}:`, error);
     return { error: `Failed to fetch template data: ${error.message}` };
   }
 }
@@ -763,8 +768,9 @@ export async function getDistinctTemplateCategories(): Promise<DistinctCategorie
     const categories = await Template.distinct('category').where({ status: 'approved' }).exec();
     return { categories: categories.filter(cat => cat && typeof cat === 'string' && cat.trim() !== '').map(String) };
   } catch (error: any) {
-    console.error("[AdminAction_GetDistinctCategories] Error fetching categories:", error);
     return { error: "Failed to fetch categories: " + error.message };
   }
 }
+    
+
     

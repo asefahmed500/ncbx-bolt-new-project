@@ -13,23 +13,23 @@ import {
   Edit3,
   MapPin,
   ListChecks,
-  PanelTop, // For Navbar
-  AppWindow, // For Hero Section
-  PanelBottom, // For Footer
-  LayoutGrid as CardSectionIcon, // Renamed to avoid conflict
-  Sparkles, // Features
-  MessageSquareText, // Testimonials
-  BadgeDollarSign, // Pricing
-  MailQuestion, // Contact Form
-  HelpCircle, // FAQ
-  Images, // Gallery
-  TrendingUp, // Stats
-  Megaphone, // CallToAction
-  Users, // Team
-  Mail, // Newsletter
-  Newspaper, // Blog
-  Briefcase, // Services
-  Info, // About
+  PanelTop, 
+  AppWindow, 
+  PanelBottom, 
+  LayoutGrid as CardSectionIcon,
+  Sparkles, 
+  MessageSquareText, 
+  BadgeDollarSign, 
+  MailQuestion, 
+  HelpCircle,
+  Images,
+  TrendingUp,
+  Megaphone, 
+  Users, 
+  Mail, 
+  Newspaper, 
+  Briefcase, 
+  Info,
 } from "lucide-react";
 
 export interface ComponentConfig {
@@ -37,7 +37,7 @@ export interface ComponentConfig {
   label: string;
   icon: LucideIcon;
   description: string;
-  isContainer?: boolean; // Flag to identify container components
+  isContainer?: boolean;
   defaultConfig?: Record<string, any>;
 }
 
@@ -75,7 +75,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Section / Container",
     icon: Box,
     description: "Group content into distinct sections.",
-    isContainer: true, // This is a container
+    isContainer: true,
     defaultConfig: { backgroundColor: "#FFFFFF", paddingTop: "20px", paddingBottom: "20px", elements: [] },
   },
   columns: {
@@ -83,14 +83,13 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Columns Layout",
     icon: Columns,
     description: "Arrange content in responsive columns.",
-    isContainer: true, // This is a container
+    isContainer: true,
     defaultConfig: { 
       count: 2, 
       gap: "16px", 
-      // A more structured config for columns to hold nested elements
       columns: [
-        { id: "col-1", elements: [] },
-        { id: "col-2", elements: [] }
+        { elements: [] },
+        { elements: [] }
       ]
     },
   },
@@ -319,14 +318,14 @@ export const componentRegistry: Record<string, ComponentConfig> = {
   input: {
     id: "input",
     label: "Form Input Field",
-    icon: Edit3, // Reusing Edit3 as a generic input icon
+    icon: Edit3, 
     description: "For text, email, number, etc. inputs.",
     defaultConfig: { label: "Input Field", type: "text", placeholder: "Enter value", name: "inputField" }
   },
-  textarea_field: { // Renamed from just 'textarea' to avoid conflict with HTML tag
+  textarea_field: { 
     id: "textarea_field",
     label: "Form Textarea",
-    icon: Edit3, // Reusing Edit3
+    icon: Edit3, 
     description: "For multi-line text input areas.",
     defaultConfig: { label: "Textarea", placeholder: "Enter text", name: "textareaField" }
   },
@@ -353,3 +352,5 @@ export const getRegisteredComponents = (): ComponentConfig[] => {
 export const getComponentConfig = (type: string): ComponentConfig | undefined => {
   return componentRegistry[type];
 };
+
+    

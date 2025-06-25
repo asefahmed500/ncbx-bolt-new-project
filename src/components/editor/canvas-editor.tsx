@@ -3,10 +3,8 @@
 
 import React from 'react';
 import type { DeviceType } from './app-header';
-import { useToast } from "@/hooks/use-toast";
-import { LayoutGrid, Package, Image as ImageIconLucide, Type as TypeIcon, Square as ButtonIcon, Columns, Box } from 'lucide-react';
+import { LayoutGrid, Package, Box, Columns, Type as TypeIcon, Square as ButtonIcon, Image as ImageIconLucide } from 'lucide-react';
 import type { IWebsiteVersionPage, IPageComponent } from '@/models/WebsiteVersion';
-import Image from 'next/image';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from './SortableItem';
 import { useDroppable } from '@dnd-kit/core';
@@ -17,16 +15,10 @@ interface CanvasEditorProps {
   page: IWebsiteVersionPage;
   pageIndex: number;
   onElementSelect: (elementId: string, pageIndex: number) => void;
-  isDragging: boolean;
-  activeDragId: string | null;
 }
 
-// Recursive component to render elements and their nested structures
-const RenderElement = ({ element, pageIndex, onElementSelect, path }: { element: IPageComponent; pageIndex: number; onElementSelect: CanvasEditorProps['onElementSelect']; path: string }) => {
+const RenderElement = ({ element, pageIndex, onElementSelect }: { element: IPageComponent; pageIndex: number; onElementSelect: CanvasEditorProps['onElementSelect']; }) => {
   const componentConf = getComponentConfig(element.type);
-  const { setNodeRef: setDroppableNodeRef, isOver } = useDroppable({
-    id: `${element._id as string}`, // Each element is a droppable zone
-  });
 
   const renderSimplePlaceholder = (el: IPageComponent) => {
     let Icon = Package;
@@ -38,22 +30,21 @@ const RenderElement = ({ element, pageIndex, onElementSelect, path }: { element:
 
     return (
       <div
-        onClick={() => onElementSelect((el._id as string), pageIndex)}
+        onClick={(e) => { e.stopPropagation(); onElementSelect((el._id as string), pageIndex); }}
         className="p-3 border border-dashed border-muted-foreground/30 rounded-md hover:border-primary hover:bg-primary/5 cursor-pointer transition-all bg-card dark:bg-neutral-800 my-1 flex items-center text-xs text-muted-foreground"
       >
         <Icon className="w-4 h-4 mr-2 text-primary/70 flex-shrink-0" />
         <span className="font-medium text-primary/90 capitalize flex-grow truncate" title={contentPreview}>{contentPreview}</span>
-        <span className="ml-2 text-muted-foreground/70 text-xs whitespace-nowrap">Order: {el.order}</span>
       </div>
     );
   };
 
   const renderContainer = (el: IPageComponent, children: React.ReactNode, droppableId: string, Icon: React.ElementType, title: string) => {
-    const { setNodeRef: setContainerDroppableRef, isOver: isContainerOver } = useDroppable({ id: droppableId });
+    const { setNodeRef, isOver } = useDroppable({ id: droppableId });
 
     return (
-      <div ref={setContainerDroppableRef} className={`p-2 my-1 border rounded-md transition-colors ${isContainerOver ? 'border-primary bg-primary/10' : 'border-dashed border-muted-foreground/30'}`}>
-        <div onClick={() => onElementSelect((el._id as string), pageIndex)} className="text-xs text-muted-foreground flex items-center mb-2 p-1 rounded bg-muted/50 cursor-pointer">
+      <div ref={setNodeRef} className={`p-2 my-1 border rounded-md transition-colors ${isOver ? 'border-primary bg-primary/10' : 'border-dashed border-muted-foreground/30'}`}>
+        <div onClick={(e) => { e.stopPropagation(); onElementSelect((el._id as string), pageIndex);}} className="text-xs text-muted-foreground flex items-center mb-2 p-1 rounded bg-muted/50 cursor-pointer">
             <Icon className="w-4 h-4 mr-2" />
             {title}
         </div>
@@ -65,39 +56,40 @@ const RenderElement = ({ element, pageIndex, onElementSelect, path }: { element:
   };
 
   if (componentConf?.isContainer) {
-    if (element.type === 'section' && element.config?.elements) {
+    if (element.type === 'section') {
+      const nestedElements = element.config.elements || [];
       return (
         <SortableItem key={element._id as string} id={element._id as string}>
           {renderContainer(element, (
-            <SortableContext items={element.config.elements.map((e: IPageComponent) => e._id as string)} strategy={verticalListSortingStrategy}>
-              {element.config.elements.length > 0 ? (
-                element.config.elements.map((child: IPageComponent, index: number) => (
-                  <RenderElement key={child._id as string} element={child} pageIndex={pageIndex} onElementSelect={onElementSelect} path={`${path}.config.elements.${index}`} />
+            <SortableContext items={nestedElements.map((e: IPageComponent) => e._id as string)} strategy={verticalListSortingStrategy}>
+              {nestedElements.length > 0 ? (
+                nestedElements.map((child: IPageComponent) => (
+                  <RenderElement key={child._id as string} element={child} pageIndex={pageIndex} onElementSelect={onElementSelect} />
                 ))
               ) : <div className="text-xs text-muted-foreground py-4 text-center">Drop components here</div>}
             </SortableContext>
-          ), `${element._id as string}-dropzone`, Box, 'Section')}
+          ), `${element._id as string}`, Box, 'Section')}
         </SortableItem>
       );
     }
     if (element.type === 'columns' && Array.isArray(element.config?.columns)) {
         return (
             <SortableItem key={element._id as string} id={element._id as string}>
-                <div ref={setDroppableNodeRef} className="my-1 border-dashed border-muted-foreground/30 rounded-md border p-2">
-                    <div onClick={() => onElementSelect(element._id as string, pageIndex)} className="text-xs text-muted-foreground flex items-center mb-2 p-1 rounded bg-muted/50 cursor-pointer">
+                 <div className="my-1 border-dashed border-muted-foreground/30 rounded-md border p-2">
+                    <div onClick={(e) => { e.stopPropagation(); onElementSelect(element._id as string, pageIndex); }} className="text-xs text-muted-foreground flex items-center mb-2 p-1 rounded bg-muted/50 cursor-pointer">
                         <Columns className="w-4 h-4 mr-2" />
                         Columns
                     </div>
-                    <div className="flex gap-4">
-                        {element.config.columns.map((col: { id: string, elements: IPageComponent[] }, colIndex: number) => {
+                    <div className="flex flex-col md:flex-row gap-4">
+                        {element.config.columns.map((col: { elements: IPageComponent[] }, colIndex: number) => {
                             const droppableId = `${element._id as string}-col-${colIndex}`;
                             const { setNodeRef: setColDroppableRef, isOver: isColOver } = useDroppable({ id: droppableId });
                             return (
-                                <div key={col.id} ref={setColDroppableRef} className={`flex-1 p-2 rounded min-h-[50px] transition-colors ${isColOver ? 'bg-primary/10' : 'bg-muted/30'}`}>
+                                <div key={colIndex} ref={setColDroppableRef} className={`flex-1 p-2 rounded min-h-[50px] transition-colors ${isColOver ? 'bg-primary/10' : 'bg-muted/30'}`}>
                                     <SortableContext items={col.elements.map(e => e._id as string)} strategy={verticalListSortingStrategy}>
                                         {col.elements.length > 0 ? (
-                                            col.elements.map((child: IPageComponent, index: number) => (
-                                                <RenderElement key={child._id as string} element={child} pageIndex={pageIndex} onElementSelect={onElementSelect} path={`${path}.config.columns[${colIndex}].elements.${index}`} />
+                                            col.elements.map((child: IPageComponent) => (
+                                                <RenderElement key={child._id as string} element={child} pageIndex={pageIndex} onElementSelect={onElementSelect} />
                                             ))
                                         ) : <div className="text-xs text-muted-foreground py-4 text-center">Drop here</div>}
                                     </SortableContext>
@@ -111,20 +103,17 @@ const RenderElement = ({ element, pageIndex, onElementSelect, path }: { element:
     }
   }
 
-  // Fallback for non-containers or misconfigured containers
   return (
     <SortableItem key={element._id as string} id={element._id as string}>
-      <div ref={setDroppableNodeRef}>
+      <div>
         {renderSimplePlaceholder(element)}
       </div>
     </SortableItem>
   );
 };
 
-export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, isDragging, activeDragId }: CanvasEditorProps) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: 'canvas-drop-area',
-  });
+export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect }: CanvasEditorProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'canvas-drop-area' });
 
   const getCanvasWidth = () => {
     switch (devicePreview) {
@@ -150,21 +139,17 @@ export function CanvasEditor({ devicePreview, page, pageIndex, onElementSelect, 
         }}
         aria-label={`Website canvas preview for ${devicePreview}`}
       >
-        <div ref={setNodeRef}>
-          <SortableContext
-            items={elementsToRender.map(el => el._id as string)}
-            strategy={verticalListSortingStrategy}
-          >
+        <div ref={setNodeRef} className="h-full">
+          <SortableContext items={elementsToRender.map(el => el._id as string)} strategy={verticalListSortingStrategy}>
             {elementsToRender.length === 0 ? (
-              <div className={`flex flex-col items-center justify-center h-full text-muted-foreground pointer-events-none select-none min-h-[300px] rounded-md transition-colors ${isOver ? 'bg-primary/10' : ''}`}>
+              <div className={`flex flex-col items-center justify-center h-full text-muted-foreground pointer-events-none select-none min-h-[300px] rounded-md transition-colors ${isOver ? 'bg-primary/10 border-2 border-dashed border-primary' : ''}`}>
                 <LayoutGrid className="w-16 h-16 mb-4 text-muted-foreground/50" />
                 <p className="text-lg font-medium">Canvas Editor ({page?.name || 'Page'})</p>
                 <p className="text-sm">Drag components here to build your page.</p>
-                 {isOver && <p className="text-xs mt-2 text-primary font-semibold">Release to drop component</p>}
               </div>
             ) : (
-              elementsToRender.map((element, index) => (
-                <RenderElement key={element._id as string} element={element} pageIndex={pageIndex} onElementSelect={onElementSelect} path={`elements.${index}`} />
+              elementsToRender.map((element) => (
+                <RenderElement key={element._id as string} element={element} pageIndex={pageIndex} onElementSelect={onElementSelect} />
               ))
             )}
           </SortableContext>
@@ -189,3 +174,5 @@ declare module '@/models/WebsiteVersion' {
     _id?: string | import('mongoose').Types.ObjectId;
   }
 }
+
+    
