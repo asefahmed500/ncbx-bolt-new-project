@@ -77,7 +77,7 @@ export async function PUT(
     let result;
 
     // Determine if this is a status update or metadata update based on body keys
-    if (body.hasOwnProperty('status') && Object.keys(body).length === 2 && body.hasOwnProperty('templateId')) { // status only
+    if (body.hasOwnProperty('status') && Object.keys(body).length === 1) {
       result = await updateTemplateStatusByAdmin({ templateId, status: body.status });
     } else {
       result = await updateTemplateMetadataByAdmin({ ...body, templateId });
