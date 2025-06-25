@@ -1,13 +1,16 @@
 
 // @ts-nocheck
-console.log("[Auth Module] src/auth.ts loaded by server."); // New log
+console.log("[Auth Module] src/auth.ts loaded by server.");
 
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import type { IUser } from '@/models/User'; // Keep type import
-import type { ISubscription } from "@/models/Subscription"; // Keep type import
 import mongoose from 'mongoose';
+
+import User from '@/models/User';
+import Subscription from '@/models/Subscription';
+import type { IUser } from '@/models/User';
+import type { ISubscription as ISubscriptionType } from "@/models/Subscription";
 import dbConnect from "@/lib/dbConnect";
 import { getPlanByStripePriceId, getPlanById, type AppPlan, type PlanLimit } from "@/config/plans"; 
 
@@ -28,13 +31,8 @@ export const authOptions: NextAuthConfig = {
           console.error(errorMsg);
           console.error("[Auth][Authorize] Current MONGODB_URI (potentially undefined or problematic):", MONGODB_URI_ENV);
           console.error("[Auth][Authorize] Login flow cannot proceed without a valid database URI. This will likely result in a 'Failed to fetch' error on the client if the auth API route crashes or is unresponsive.");
-          // Throwing an error here can sometimes provide a more structured error to Auth.js
           throw new Error("Database configuration error. Please contact support or check server logs.");
-          // return null; 
         }
-
-        const User = (await import('@/models/User')).default;
-        const Subscription = (await import('@/models/Subscription')).default;
 
         if (!credentials?.email || typeof credentials.email !== 'string' ||
             !credentials.password || typeof credentials.password !== 'string') {
@@ -56,7 +54,6 @@ export const authOptions: NextAuthConfig = {
               console.error(dbErrorMsg);
               console.error("[Auth][Authorize] HINT: Check your MONGODB_URI for correctness (including database name), cluster status (e.g., not paused in Atlas), and IP access list if applicable.");
               throw new Error("Database connection failed during authorization."); // Throw error
-              // return null;
           }
 
           const user = await User.findOne({ email: normalizedEmail }).select('+password').lean();
@@ -87,16 +84,12 @@ export const authOptions: NextAuthConfig = {
 
           if (!user.isActive) {
             console.log(`[Auth][Authorize] User ${normalizedEmail} is inactive.`);
-            // Consider throwing a specific error or returning an object that middleware can interpret
-            // For now, null will lead to "Invalid credentials" on client
-            throw new Error("User account is inactive."); // Throw specific error
-            // return null; 
+            throw new Error("User account is inactive.");
           }
 
           if (!user.password || typeof user.password !== 'string') { 
             console.log(`[Auth][Authorize] User ${normalizedEmail} has no password set in the database, it was not retrieved, or it's not a string.`);
-            throw new Error("User account has no password set or password format is invalid."); // Throw error
-            // return null;
+            throw new Error("User account has no password set or password format is invalid.");
           }
 
           const isPasswordMatch = await bcrypt.compare(password, user.password);
@@ -105,16 +98,13 @@ export const authOptions: NextAuthConfig = {
             return null; // Standard way to indicate credentials mismatch
           }
 
-          let currentSubscription: ISubscription | null = null;
+          let currentSubscription: ISubscriptionType | null = null;
           try {
             currentSubscription = await Subscription.findOne({
               userId: user._id,
-              // Optionally filter by active status here if Stripe webhooks are perfect
-              // stripeSubscriptionStatus: { $in: ['active', 'trialing'] } 
-            }).sort({ stripeCurrentPeriodEnd: -1 }).lean(); // Get the latest one if multiple (should ideally not happen for same user)
+            }).sort({ stripeCurrentPeriodEnd: -1 }).lean(); 
           } catch (subError) {
             console.error(`[Auth][Authorize] Error fetching subscription for user ${user._id}:`, subError);
-            // Decide if this should block login. For now, assume user can log in but might have Free plan.
           }
 
           let planDetails: AppPlan | undefined;
@@ -123,18 +113,13 @@ export const authOptions: NextAuthConfig = {
           if (currentSubscription && currentSubscription.stripePriceId) {
              planDetails = getPlanByStripePriceId(currentSubscription.stripePriceId);
              subscriptionStatusForSession = currentSubscription.stripeSubscriptionStatus as string;
-             // If planDetails is undefined here, it means the stripePriceId from DB doesn't match any known plan.
-             // This could happen if plans change in Stripe but not in app config. Default to free.
              if (!planDetails) {
                 console.warn(`[Auth][Authorize] No matching plan found in PLANS_CONFIG for stripePriceId: ${currentSubscription.stripePriceId}. User ${user._id} will default to free plan limits.`);
                 planDetails = getPlanById('free');
              }
           } else {
-            // No active-like subscription found, default to free plan
             planDetails = getPlanById('free');
-            // Subscription status is null if no relevant subscription record
           }
-
 
           const userToReturn = {
             id: user._id.toString(),
@@ -171,7 +156,6 @@ export const authOptions: NextAuthConfig = {
             console.error("[Auth][Authorize] This error suggests a problem connecting to or authenticating with MongoDB. Check connection string, IP whitelisting, credentials, and cluster status.");
           }
           
-          // Re-throw the error or throw a new generic one to ensure Auth.js handles it
           if (error.message.startsWith("Database configuration error") || 
               error.message.startsWith("Database connection failed") ||
               error.message.startsWith("User account is inactive") ||
@@ -179,7 +163,6 @@ export const authOptions: NextAuthConfig = {
             throw error; // Re-throw specific errors from above
           }
           throw new Error("An unexpected error occurred during authorization."); // Generic fallback
-          // return null;
         }
       },
     }),
@@ -189,7 +172,6 @@ export const authOptions: NextAuthConfig = {
   },
   callbacks: {
     async jwt({ token, user, account, trigger, session }) {
-      // console.log("[Auth][JWT Callback] Triggered. Current Token:", JSON.stringify(token), "User obj:", JSON.stringify(user));
       try {
         if (user && (trigger === "signIn" || trigger === "signUp")) {
           const authorizedUser = user as IUser & {
@@ -210,20 +192,14 @@ export const authOptions: NextAuthConfig = {
           token.subscriptionStatus = authorizedUser.subscriptionStatus;
           token.subscriptionPlanId = authorizedUser.subscriptionPlanId;
           token.subscriptionLimits = authorizedUser.subscriptionLimits;
-
-          // console.log("[Auth][JWT Callback] User data (incl. subscription) added to token on signIn/signUp:", JSON.stringify(token));
         }
 
         if (trigger === "update" && session) {
-            if (session.name !== undefined) token.name = session.name; // Allow clearing name by passing empty string
-            if (session.avatarUrl !== undefined) token.avatarUrl = session.avatarUrl; // Allow clearing avatar by passing empty string
+            if (session.name !== undefined) token.name = session.name;
+            if (session.avatarUrl !== undefined) token.avatarUrl = session.avatarUrl;
             
-            // If session update needs to refresh subscription status from DB (e.g., after a webhook update):
-            // This is an example, actual implementation might differ based on how you trigger updates.
-            // For instance, after a successful purchase/upgrade via webhook, you might want to force an update.
-            if (session.refreshSubscription) { // Custom property you might add to session in an update call
-                const SubscriptionModel = (await import('@/models/Subscription')).default;
-                const dbSub = await SubscriptionModel.findOne({ userId: token.id }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
+            if (session.refreshSubscription) { 
+                const dbSub = await Subscription.findOne({ userId: token.id }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
                 let planDetails;
                 if (dbSub) {
                     planDetails = getPlanByStripePriceId(dbSub.stripePriceId);
@@ -237,7 +213,6 @@ export const authOptions: NextAuthConfig = {
                     token.subscriptionLimits = planDetails?.limits;
                 }
             }
-            // console.log("[Auth][JWT Callback] Token updated via 'update' trigger:", JSON.stringify(token));
         }
         return token;
       } catch (error: any) {
@@ -247,7 +222,6 @@ export const authOptions: NextAuthConfig = {
       }
     },
     async session({ session, token }) {
-      // console.log("[Auth][Session Callback] Triggered. Current Session:", JSON.stringify(session), "Token:", JSON.stringify(token));
       try {
         if (token && session.user) {
           session.user.id = token.id as string;
@@ -260,9 +234,7 @@ export const authOptions: NextAuthConfig = {
           session.user.subscriptionStatus = token.subscriptionStatus as string | null | undefined;
           session.user.subscriptionPlanId = token.subscriptionPlanId as 'free' | 'pro' | 'enterprise' | undefined;
           session.user.subscriptionLimits = token.subscriptionLimits as PlanLimit | undefined;
-          // console.log("[Auth][Session Callback] Session user hydrated from token (incl. subscription):", JSON.stringify(session.user));
         } else {
-          // console.warn("[Auth][Session Callback] Token or session.user not available.");
         }
         return session;
       } catch (error: any) {
@@ -273,11 +245,9 @@ export const authOptions: NextAuthConfig = {
   },
   pages: {
     signIn: '/login',
-    // If you have a custom error page for auth errors:
-    // error: '/auth/error', 
   },
   secret: process.env.NEXTAUTH_SECRET,
-  trustHost: true, // Required for some deployments, ensure you understand implications
+  trustHost: true,
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
@@ -288,7 +258,7 @@ declare module "next-auth" {
       id: string;
       name?: string | null;
       email?: string | null;
-      image?: string | null; // Default NextAuth property, can be ignored if avatarUrl is used
+      image?: string | null;
       role: 'user' | 'admin';
       avatarUrl?: string;
       isActive: boolean;
@@ -296,12 +266,12 @@ declare module "next-auth" {
       subscriptionStatus?: string | null; 
       subscriptionPlanId?: 'free' | 'pro' | 'enterprise';
       subscriptionLimits?: PlanLimit;
-      projectsUsed?: number; // Added for consistency if needed directly on session.user from token
+      projectsUsed?: number;
     };
-    refreshSubscription?: boolean; // Custom property for triggering subscription refresh
+    refreshSubscription?: boolean;
   }
 
-  interface User { // This is the User object returned by the authorize callback
+  interface User {
     id: string;
     role: 'user' | 'admin';
     avatarUrl?: string;
@@ -312,7 +282,7 @@ declare module "next-auth" {
     subscriptionStatus?: string | null;
     subscriptionPlanId?: 'free' | 'pro' | 'enterprise';
     subscriptionLimits?: PlanLimit;
-    projectsUsed?: number; // For user object passed to JWT callback
+    projectsUsed?: number;
   }
 }
 
@@ -328,7 +298,7 @@ declare module "next-auth/jwt" {
     subscriptionStatus?: string | null;
     subscriptionPlanId?: 'free' | 'pro' | 'enterprise';
     subscriptionLimits?: PlanLimit;
-    projectsUsed?: number; // Ensure JWT can carry this if set from User object
+    projectsUsed?: number;
     error?: string;
   }
 }
@@ -365,8 +335,6 @@ if (!global.nextauth_ಉ) {
   console.debug("nextauth_ಉ", "NEXTAUTH_SECRET (used by Auth.js internally):", process.env.NEXTAUTH_SECRET ? "[set]" : "[not set]");
   console.debug("nextauth_ಉ", "NEXTAUTH_URL_INTERNAL (Auth.js internal, usually not needed to set manually):", process.env.NEXTAUTH_URL_INTERNAL);
   console.debug("nextauth_ಉ", "AUTH_TRUST_HOST (Auth.js setting):", process.env.AUTH_TRUST_HOST); // For Next.js >= 14.0.2, might use this internally
-  // console.debug("nextauth_ಉ", "AUTH_URL (deprecated in v5):", process.env.AUTH_URL); // Log if present, but note deprecation
   console.debug("nextauth_ಉ", "APP_URL (custom, used by this app):", process.env.APP_URL);
 }
     
-
