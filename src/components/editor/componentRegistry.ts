@@ -55,7 +55,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     icon: Box,
     description: "Group content into distinct sections.",
     isContainer: true,
-    defaultConfig: { backgroundColor: "transparent", paddingTop: "60px", paddingBottom: "60px", elements: [] },
+    defaultConfig: { id: newObjectId(), backgroundColor: "transparent", paddingTop: "60px", paddingBottom: "60px", elements: [] },
   },
    columns: {
     id: "columns",
@@ -359,5 +359,3 @@ export const getRegisteredComponents = (): ComponentConfig[] => {
 export const getComponentConfig = (type: string): ComponentConfig | undefined => {
   return componentRegistry[type];
 };
-
-    

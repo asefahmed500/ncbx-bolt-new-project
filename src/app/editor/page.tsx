@@ -7,12 +7,13 @@ import { AppHeader, type DeviceType, type EditorSaveStatus } from '@/components/
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X, Edit, UploadCloud } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getWebsiteEditorData, saveWebsiteContent, type SaveWebsiteContentInput } from '@/actions/website';
 import { getCloudinarySignature } from '@/actions/assets';
@@ -551,7 +552,10 @@ function EditorPageComponent() {
             const queue: IPageComponent[] = [...activePage.elements];
             while (queue.length > 0) {
                 const el = queue.shift()!;
-                if (el._id === containerId && el.type === 'section') return el.config.elements;
+                if (el.config.id === containerId && (el.type === 'section' || el.type === 'columns')) {
+                   // This is complex logic. For sections, it's config.elements. For columns, it's config.columns[...].elements.
+                   if (el.type === 'section') return el.config.elements;
+                }
                 if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
                     for (let i = 0; i < el.config.columns.length; i++) {
                         if (el.config.columns[i].id === containerId) return el.config.columns[i].elements;
@@ -581,6 +585,9 @@ function EditorPageComponent() {
                 newElement.config.columns.forEach((col: any) => {
                     col.id = newObjectId(); // Assign new unique IDs to columns
                 });
+            }
+             if (newElement.type === 'section') {
+                newElement.config.id = newObjectId();
             }
             
             let targetList = findContainerList(newPages, overId);
@@ -737,44 +744,170 @@ function EditorPageComponent() {
     const activePageData = currentPages[activePageIndex];
 
     if (selectedElement) {
-      const componentMeta = getComponentConfig(selectedElement.type);
-      return (
-        <>
-          <div className="flex justify-between items-center mb-3">
-             <p className="text-xs text-muted-foreground">Editing: <strong>{componentMeta?.label || selectedElement.type}</strong></p>
-             <div className="flex items-center">
-                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={duplicateSelectedElement} title="Duplicate Component">
-                  <Copy className="h-3.5 w-3.5"/>
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2" title="Delete Component">
-                      <Trash2 className="h-3.5 w-3.5"/>
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently remove the "{componentMeta?.label}" component from the canvas. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={deleteSelectedElement} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                 </AlertDialog>
-             </div>
-          </div>
-          {Object.entries(componentMeta?.defaultConfig || {}).map(([key, defaultValue]) => {
-            const currentValue = selectedElement.config?.[key] !== undefined ? selectedElement.config[key] : defaultValue;
+        const componentMeta = getComponentConfig(selectedElement.type);
+        
+        const renderField = (key: string, value: any) => {
+            if (key === 'id') return null; // Don't show the internal ID
+            
+            const fieldType = typeof componentMeta?.defaultConfig?.[key];
+            const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+            
+            if (key === 'navigationId') {
+                return (
+                    <div key={key}>
+                        <Label htmlFor={key} className="text-xs">{label}</Label>
+                        <Select
+                            value={value || ''}
+                            onValueChange={(val) => handlePropertyChange(key, val)}
+                        >
+                            <SelectTrigger className="text-xs h-8 bg-input"><SelectValue placeholder="Select a navigation" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">None</SelectItem>
+                                {allSiteNavigations.map(nav => (
+                                    <SelectItem key={nav._id as string} value={nav._id as string}>{nav.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )
+            }
+            
+            if (key.toLowerCase().includes('color')) {
+            return (
+                <div key={key} className="flex items-center justify-between">
+                <Label htmlFor={key} className="text-xs">{label}</Label>
+                <Input type="color" id={key} value={value || '#000000'} onChange={(e) => handlePropertyChange(key, e.target.value)} className="w-16 h-8 p-1 bg-input" />
+                </div>
+            );
+            }
+            
+            if (key === 'src' || key.toLowerCase().includes('imageurl') || key.toLowerCase().includes('backgroundimage')) {
+                return (
+                    <div key={key}>
+                        <Label htmlFor={key} className="text-xs">{label}</Label>
+                        <div className="flex gap-2">
+                            <Input type="text" id={key} value={value || ''} onBlur={(e) => handlePropertyChange(key, e.target.value)} defaultValue={value} className="text-xs h-8 bg-input" />
+                            <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => { setUploadTargetKey(key); fileInputRef.current?.click(); }} disabled={isUploading}>
+                                {isUploading && uploadTargetKey === key ? <Loader2 className="animate-spin h-4 w-4" /> : <UploadCloud className="h-4 w-4"/>}
+                            </Button>
+                        </div>
+                    </div>
+                )
+            }
+            
+            if (key === 'level') {
+                return (
+                    <div key={key}>
+                        <Label htmlFor={key} className="text-xs">{label}</Label>
+                        <Select
+                            value={value || 'h2'}
+                            onValueChange={(val) => handlePropertyChange(key, val)}
+                        >
+                            <SelectTrigger className="text-xs h-8 bg-input"><SelectValue/></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="h1">H1</SelectItem>
+                                <SelectItem value="h2">H2</SelectItem>
+                                <SelectItem value="h3">H3</SelectItem>
+                                <SelectItem value="h4">H4</SelectItem>
+                                <SelectItem value="h5">H5</SelectItem>
+                                <SelectItem value="h6">H6</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )
+            }
+            
+            if (key === 'alignment' || key === 'textAlign') {
+                return (
+                    <div key={key}>
+                        <Label htmlFor={key} className="text-xs">{label}</Label>
+                        <Select
+                            value={value || 'left'}
+                            onValueChange={(val) => handlePropertyChange(key, val)}
+                        >
+                            <SelectTrigger className="text-xs h-8 bg-input capitalize"><SelectValue/></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="left">Left</SelectItem>
+                                <SelectItem value="center">Center</SelectItem>
+                                <SelectItem value="right">Right</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )
+            }
+            
+            if (key.toLowerCase().includes('htmlcontent') || key.toLowerCase().includes('description') || key.toLowerCase().includes('quote')) {
+                return (
+                    <div key={key}>
+                        <Label htmlFor={key} className="text-xs">{label}</Label>
+                        <Textarea id={key} defaultValue={value || ''} onBlur={(e) => handlePropertyChange(key, e.target.value)} className="text-xs bg-input" rows={5} />
+                    </div>
+                )
+            }
+            
+            if (fieldType === 'boolean') {
+            return (
+                <div key={key} className="flex items-center justify-between rounded-md border p-2">
+                    <Label htmlFor={key} className="text-xs">{label}</Label>
+                    <Switch id={key} checked={!!value} onCheckedChange={(checked) => handlePropertyChange(key, checked)} />
+                </div>
+            )
+            }
 
-            // ... (rest of the renderPropertyFields logic for different input types)
-            return null; // Return null for brevity, previous logic was correct
-          })}
-        </>
-      );
+            if (Array.isArray(value)) {
+                return (
+                    <div key={key}>
+                        <Label htmlFor={key} className="text-xs">{label} (JSON)</Label>
+                        <Textarea id={key} defaultValue={JSON.stringify(value, null, 2)} onBlur={(e) => { try { handlePropertyChange(key, JSON.parse(e.target.value)) } catch (err) { toast({title: "Invalid JSON", variant: "destructive"}) }}} className="text-xs bg-input font-mono" rows={8}/>
+                        <p className="text-xxs text-muted-foreground mt-1">Edit the JSON data directly for complex properties.</p>
+                    </div>
+                )
+            }
+
+            if (fieldType === 'string' || fieldType === 'number') {
+            return (
+                <div key={key}>
+                <Label htmlFor={key} className="text-xs">{label}</Label>
+                <Input type={fieldType === 'number' ? 'number' : 'text'} id={key} defaultValue={value || ''} onBlur={(e) => handlePropertyChange(key, e.target.value)} className="text-xs h-8 bg-input" />
+                </div>
+            );
+            }
+            
+            return null; // Don't render a field for unknown types
+        };
+
+        return (
+            <div className="space-y-4">
+            <div className="flex justify-between items-center mb-3">
+                <p className="text-xs text-muted-foreground">Editing: <strong>{componentMeta?.label || selectedElement.type}</strong></p>
+                <div className="flex items-center">
+                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={duplicateSelectedElement} title="Duplicate Component">
+                    <Copy className="h-3.5 w-3.5"/>
+                    </Button>
+                    <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2" title="Delete Component">
+                        <Trash2 className="h-3.5 w-3.5"/>
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                            This will permanently remove the "{componentMeta?.label}" component from the canvas. This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={deleteSelectedElement} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            </div>
+            {Object.entries(selectedElement.config).map(([key, value]) => renderField(key, value))}
+            </div>
+        );
     } else if (activePageData) {
         if (selectedNavigationForEditing) {
             return (
@@ -931,9 +1064,12 @@ function EditorPageComponent() {
               <CardContent><div className="space-y-4">{renderPropertyFields()}</div>{selectedElement && <Button variant="outline" size="sm" onClick={() => setSelectedElement(null)} className="mt-4">Deselect Element</Button>}</CardContent></Card>
           </aside>
         </div>
+        
         {websiteId && <SaveTemplateModal isOpen={isSaveTemplateModalOpen} onOpenChange={setIsSaveTemplateModalOpen} currentDesignData={getEditorContentForSave()} />}
         <TemplateGalleryModal isOpen={isTemplateGalleryModalOpen} onOpenChange={setIsTemplateGalleryModalOpen} onApplyTemplate={handleApplyTemplate} />
         
+        <input type="file" ref={fileInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
+
         <AlertDialog open={showPageDeleteConfirm} onOpenChange={setShowPageDeleteConfirm}>
             <AlertDialogContent>
                 <AlertDialogHeader>
