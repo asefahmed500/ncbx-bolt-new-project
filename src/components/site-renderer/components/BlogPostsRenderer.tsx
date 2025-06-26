@@ -18,9 +18,9 @@ interface BlogPostsRendererProps {
 const BlogPostsRenderer: React.FC<BlogPostsRendererProps> = ({ config }) => {
   const sectionTitle = config?.title || 'Latest Articles';
   const posts: BlogPostItem[] = config?.posts || [
-    { title: "Blog Post 1", excerpt: "Exciting news and updates coming soon...", imageUrl: "https://placehold.co/400x250.png?text=Blog+1", link: "#", date: "June 1, 2024", dataAiHint:"technology article"},
-    { title: "Blog Post 2", excerpt: "Discover our new features in this post.", imageUrl: "https://placehold.co/400x250.png?text=Blog+2", link: "#", date: "May 28, 2024", dataAiHint:"business strategy"},
-    { title: "Blog Post 3", excerpt: "A deep dive into industry trends for this year.", imageUrl: "https://placehold.co/400x250.png?text=Blog+3", link: "#", date: "May 15, 2024", dataAiHint:"data analysis"},
+    { title: "Blog Post 1", excerpt: "Exciting news and updates coming soon...", imageUrl: "https://placehold.co/400x250.png", link: "#", date: "June 1, 2024", dataAiHint:"technology article"},
+    { title: "Blog Post 2", excerpt: "Discover our new features in this post.", imageUrl: "https://placehold.co/400x250.png", link: "#", date: "May 28, 2024", dataAiHint:"business strategy"},
+    { title: "Blog Post 3", excerpt: "A deep dive into industry trends for this year.", imageUrl: "https://placehold.co/400x250.png", link: "#", date: "May 15, 2024", dataAiHint:"data analysis"},
   ];
   const showFeaturedImage = config?.showFeaturedImage !== undefined ? config.showFeaturedImage : true;
 

@@ -60,7 +60,7 @@ const generateWebsitePrompt = ai.definePrompt({
 
 The user's request is: "{{{prompt}}}"
 
-You must create a structure with at least a Home page, and likely an About and Contact page unless the prompt implies otherwise. The homepage MUST have the slug "/". Create a rich and complete website with multiple sections on each page.
+You must create a structure with at least a Home page, and likely an About and Contact page unless the prompt implies otherwise. The homepage MUST have the slug of "/". Create a rich and complete website with multiple sections on each page. Use a variety of components to make the site engaging.
 
 For each page, you will create a list of components ("elements"). You must choose components from the following available types:
 [${availableComponentTypes}]

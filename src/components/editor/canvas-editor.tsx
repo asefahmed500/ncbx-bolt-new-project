@@ -38,15 +38,15 @@ const EditorCanvasElement = ({
 
   return (
     <SortableItem key={element._id as string} id={element._id as string}>
-      <div
+       <div 
         onClick={handleSelect}
-        className={`relative p-1 my-1 cursor-pointer transition-all ${isSelected ? 'outline outline-2 outline-primary outline-offset-2' : 'hover:outline hover:outline-1 hover:outline-primary/50'}`}
+        className={`relative p-1 my-1 cursor-pointer transition-all ${ isSelected ? 'ring-2 ring-primary ring-offset-2' : 'hover:ring-1 hover:ring-primary/50' }`}
       >
         <div className="pointer-events-none">
           <ElementRenderer element={element} />
         </div>
         {isSelected && (
-          <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
+          <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full z-10">
             {element.type}
           </div>
         )}
@@ -76,7 +76,7 @@ export function CanvasEditor({ devicePreview, page, pageIndex, selectedElementId
         style={{
           width: getCanvasWidth(),
           minHeight: devicePreview === 'desktop' ? 'calc(100% - 0rem)' : '812px',
-          padding: '20px',
+          padding: '0', // Let sections handle their own padding
           boxSizing: 'border-box',
           backgroundImage: 'radial-gradient(hsl(var(--border) / 0.2) 1px, transparent 1px)',
           backgroundSize: '15px 15px',
@@ -124,4 +124,3 @@ declare module '@/models/WebsiteVersion' {
     _id?: string | import('mongoose').Types.ObjectId;
   }
 }
-

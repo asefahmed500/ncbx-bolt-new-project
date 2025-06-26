@@ -23,7 +23,7 @@ export const PageComponentSchema = new Schema<IPageComponent>(
         'features', 'testimonials', 'pricing_table', 'contact_form',
         'faq', 'gallery', 'stats', 'call_to_action', 'team',
         'newsletter_signup', 'blog_posts', 'services_list', 'about_section',
-        'tabs', 'slider', 'locked_content', 'login_signup' // Added new components
+        'tabs', 'slider', 'locked_content', 'login_signup'
       ],
     },
     config: {

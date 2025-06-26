@@ -9,9 +9,7 @@ import {
   Minus,
   Code2,
   Video,
-  Edit3,
   MapPin,
-  ListChecks,
   PanelTop, 
   AppWindow, 
   PanelBottom, 
@@ -28,14 +26,9 @@ import {
   Newspaper, 
   Briefcase, 
   Info,
-  Star,
-  Waypoints,
-  PanelRight,
   RectangleHorizontal,
-  MousePointerClick,
-  TextCursorInput,
+  PanelRight,
   GalleryThumbnails,
-  Palette,
   EyeOff,
   UserPlus,
   MailQuestion
@@ -277,7 +270,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Map Embed",
     icon: MapPin,
     description: "Embed maps (e.g., Google Maps).",
-    defaultConfig: { provider: "google", embedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.521106361757!2d106.8166656147691!3d-6.194420095514903!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f5d2e764b12d%3A0x3d2c6eff0b6c2e6d!2sNational%20Monument!5e0!3m2!1sen!2sid!4v1620987473405!5m2!1sen!2sid!4v1620987473405!5m2!1sen!2sid", height: "400px" }
+    defaultConfig: { provider: "google", embedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.521106361757!2d106.8166656147691!3d-6.194420095514903!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f5d2e764b12d%3A0x3d2c6eff0b6c2e6d!2sNational%20Monument!5e0!3m2!1sen!2sid!4v1620987473405!5m2!1sen!2sid", height: "400px" }
   },
   customCode: {
     id: "customCode",
@@ -307,7 +300,56 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       loginButtonText: "Login",
       signupButtonText: "Sign Up Free",
     }
-  }
+  },
+   call_to_action: {
+    id: "call_to_action",
+    label: "Call to Action",
+    icon: Megaphone,
+    description: "A simple section with text and a button.",
+    defaultConfig: { text: "Ready to get started?", buttonText: "Contact Us", buttonLink: "/contact" }
+  },
+  stats: {
+    id: "stats",
+    label: "Stats Section",
+    icon: TrendingUp,
+    description: "Showcase key numbers and metrics.",
+    defaultConfig: { items: [ { value: "1M+", label: "Users" }, { value: "99%", label: "Satisfaction" } ] }
+  },
+  team: {
+    id: "team",
+    label: "Team Section",
+    icon: Users,
+    description: "Introduce your team members.",
+    defaultConfig: { title: "Meet Our Team", members: [ { name: "Jane Doe", role: "CEO", image: "https://placehold.co/200x200.png", dataAiHint:"ceo person" } ] }
+  },
+  newsletter_signup: {
+    id: "newsletter_signup",
+    label: "Newsletter Signup",
+    icon: Mail,
+    description: "A form to collect email subscribers.",
+    defaultConfig: { title: "Subscribe", placeholder: "Enter your email", buttonText: "Join" }
+  },
+  blog_posts: {
+    id: "blog_posts",
+    label: "Blog Posts",
+    icon: Newspaper,
+    description: "A list or grid of recent blog posts.",
+    defaultConfig: { title: "From Our Blog", posts: [ { title: "First Post", excerpt: "This is an excerpt." } ] }
+  },
+  services_list: {
+    id: "services_list",
+    label: "Services List",
+    icon: Briefcase,
+    description: "Detail the services you offer.",
+    defaultConfig: { title: "Our Services", items: [ { name: "Service One", description: "Description of service." } ] }
+  },
+  about_section: {
+    id: "about_section",
+    label: "About Section",
+    icon: Info,
+    description: "A section with text and an optional image.",
+    defaultConfig: { title: "About Us", content: "<p>Learn more about our company...</p>", imageUrl: "https://placehold.co/500x350.png", dataAiHint:"company team" }
+  },
 };
 
 export const getRegisteredComponents = (): ComponentConfig[] => {

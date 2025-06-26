@@ -18,9 +18,9 @@ interface TeamRendererProps {
 const TeamRenderer: React.FC<TeamRendererProps> = ({ config }) => {
   const sectionTitle = config?.title || 'Meet Our Team';
   const members: TeamMember[] = config?.members || [
-    { name: "Alice Johnson", role: "Chief Executive Officer", image: "https://placehold.co/300x300.png?text=Alice", bio: "Alice leads with vision and passion.", dataAiHint:"ceo business person"},
-    { name: "Bob Williams", role: "Head of Technology", image: "https://placehold.co/300x300.png?text=Bob", bio: "Bob is our tech guru, driving innovation.", dataAiHint:"engineer tech"},
-    { name: "Carol Davis", role: "Marketing Director", image: "https://placehold.co/300x300.png?text=Carol", bio: "Carol crafts compelling brand stories.", dataAiHint:"marketing professional"},
+    { name: "Alice Johnson", role: "Chief Executive Officer", image: "https://placehold.co/300x300.png", bio: "Alice leads with vision and passion.", dataAiHint:"ceo business person"},
+    { name: "Bob Williams", role: "Head of Technology", image: "https://placehold.co/300x300.png", bio: "Bob is our tech guru, driving innovation.", dataAiHint:"engineer tech"},
+    { name: "Carol Davis", role: "Marketing Director", image: "https://placehold.co/300x300.png", bio: "Carol crafts compelling brand stories.", dataAiHint:"marketing professional"},
   ];
 
   return (

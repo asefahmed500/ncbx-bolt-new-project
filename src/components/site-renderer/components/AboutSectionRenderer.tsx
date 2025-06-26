@@ -1,5 +1,6 @@
 
 import type { IPageComponent } from '@/models/PageComponent';
+import Image from 'next/image';
 
 interface AboutSectionRendererProps {
   config: IPageComponent['config'];
@@ -17,12 +18,14 @@ const AboutSectionRenderer: React.FC<AboutSectionRendererProps> = ({ config }) =
         <div className="text-center mb-10">
           <h2 className="text-3xl md:text-4xl font-bold font-headline">{title}</h2>
         </div>
-        <div className={`grid gap-8 ${imageUrl ? 'md:grid-cols-2 items-center' : 'grid-cols-1'}`}>
+        <div className={`grid gap-12 ${imageUrl ? 'md:grid-cols-2 items-center' : 'grid-cols-1'}`}>
           {imageUrl && (
             <div className="text-center md:text-left">
-              <img 
+              <Image 
                 src={imageUrl as string || "https://placehold.co/500x350.png?text=About+Image"} 
                 alt={imageAlt as string} 
+                width={500}
+                height={350}
                 className="rounded-lg shadow-xl mx-auto md:mx-0 max-w-full h-auto"
                 data-ai-hint={config?.dataAiHint as string || "company team"}
               />

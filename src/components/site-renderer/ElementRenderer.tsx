@@ -16,28 +16,24 @@ import TestimonialsRenderer from './components/TestimonialsRenderer';
 import PricingTableRenderer from './components/PricingTableRenderer';
 import ContactFormRenderer from './components/ContactFormRenderer';
 import FAQRenderer from './components/FAQRenderer';
-import GalleryRenderer from './components/GalleryRenderer';
-import StatsRenderer from './components/StatsRenderer';
-import CallToActionRenderer from './components/CallToActionRenderer';
-import TeamRenderer from './components/TeamRenderer';
-import NewsletterSignupRenderer from './components/NewsletterSignupRenderer';
 import VideoEmbedRenderer from './components/VideoEmbedRenderer';
-import BlogPostsRenderer from './components/BlogPostsRenderer';
-import ServicesListRenderer from './components/ServicesListRenderer';
-import AboutSectionRenderer from './components/AboutSectionRenderer';
+import MapEmbedRenderer from './components/MapEmbedRenderer';
+import CustomCodeRenderer from './components/CustomCodeRenderer';
 import DividerRenderer from './components/DividerRenderer';
 import ColumnsRenderer from './components/ColumnsRenderer';
 import SectionRenderer from './components/SectionRenderer';
-import FormRenderer from './components/FormRenderer';
-import InputRenderer from './components/InputRenderer';
-import TextareaFieldRenderer from './components/TextareaFieldRenderer';
-import MapEmbedRenderer from './components/MapEmbedRenderer';
-import CustomCodeRenderer from './components/CustomCodeRenderer';
 import SpacerRenderer from './components/SpacerRenderer';
 import TabsRenderer from './components/TabsRenderer';
 import SliderRenderer from './components/SliderRenderer';
 import LoginSignupRenderer from './components/LoginSignupRenderer';
 import LockedContentRenderer from './components/LockedContentRenderer';
+import CallToActionRenderer from './components/CallToActionRenderer';
+import StatsRenderer from './components/StatsRenderer';
+import TeamRenderer from './components/TeamRenderer';
+import NewsletterSignupRenderer from './components/NewsletterSignupRenderer';
+import BlogPostsRenderer from './components/BlogPostsRenderer';
+import ServicesListRenderer from './components/ServicesListRenderer';
+import AboutSectionRenderer from './components/AboutSectionRenderer';
 
 
 interface ElementRendererProps {
@@ -85,40 +81,18 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
       return <ContactFormRenderer config={element.config} />;
     case 'faq':
       return <FAQRenderer config={element.config} />;
-    case 'gallery':
-      return <GalleryRenderer config={element.config} />;
-    case 'stats':
-      return <StatsRenderer config={element.config} />;
-    case 'call_to_action':
-      return <CallToActionRenderer config={element.config} />;
-    case 'team':
-      return <TeamRenderer config={element.config} />;
-    case 'newsletter_signup':
-      return <NewsletterSignupRenderer config={element.config} />;
     case 'video_embed':
       return <VideoEmbedRenderer config={element.config} />;
-    case 'blog_posts':
-      return <BlogPostsRenderer config={element.config} />;
-    case 'services_list':
-      return <ServicesListRenderer config={element.config} />;
-    case 'about_section':
-      return <AboutSectionRenderer config={element.config} />;
+    case 'map_embed':
+        return <MapEmbedRenderer config={element.config} />;
+    case 'customCode':
+        return <CustomCodeRenderer config={element.config} />;
     case 'divider':
         return <DividerRenderer config={element.config} />;
     case 'section':
         return <SectionRenderer config={element.config} />;
     case 'columns':
         return <ColumnsRenderer config={element.config} />;
-    case 'form':
-        return <FormRenderer config={element.config} />;
-    case 'input':
-        return <InputRenderer config={element.config} />;
-    case 'textarea_field':
-        return <TextareaFieldRenderer config={element.config} />;
-    case 'map_embed':
-        return <MapEmbedRenderer config={element.config} />;
-    case 'customCode':
-        return <CustomCodeRenderer config={element.config} />;
     case 'spacer':
         return <SpacerRenderer config={element.config} />;
     case 'tabs':
@@ -129,6 +103,20 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
         return <LoginSignupRenderer config={element.config} />;
     case 'locked_content':
         return <LockedContentRenderer config={element.config} />;
+    case 'call_to_action':
+      return <CallToActionRenderer config={element.config} />;
+    case 'stats':
+      return <StatsRenderer config={element.config} />;
+    case 'team':
+      return <TeamRenderer config={element.config} />;
+    case 'newsletter_signup':
+      return <NewsletterSignupRenderer config={element.config} />;
+    case 'blog_posts':
+      return <BlogPostsRenderer config={element.config} />;
+    case 'services_list':
+      return <ServicesListRenderer config={element.config} />;
+    case 'about_section':
+      return <AboutSectionRenderer config={element.config} />;
     default:
       return (
         <div className="my-2 p-3 border border-dashed border-destructive/50 bg-destructive/10 rounded">
