@@ -444,13 +444,75 @@ export default function EditorPageComponent() {
       return;
     }
 
-    setCurrentPages(prev => prev.filter((_, index) => index !== pageToDeleteIndex));
+    const pageToDelete = currentPages[pageToDeleteIndex];
+    const deletedSlug = pageToDelete.slug;
+
+    // Filter out the deleted page from the main state
+    const newPages = currentPages.filter((_, index) => index !== pageToDeleteIndex);
+
+    // Update any navigations that were linking to the deleted page
+    const navUpdatePromises: Promise<any>[] = [];
+    const updatedNavigationsLocally: INavigation[] = [];
+
+    allSiteNavigations.forEach(nav => {
+      const initialItemCount = nav.items.length;
+      // Filter out internal links that match the slug of the deleted page
+      const filteredItems = nav.items.filter(item => !(item.type === 'internal' && item.url === deletedSlug));
+
+      if (filteredItems.length < initialItemCount) {
+        // If items were removed, queue an update to the database
+        navUpdatePromises.push(updateNavigation({
+          navigationId: nav._id as string,
+          items: filteredItems.map(({ label, url, type }) => ({ label, url, type })),
+        }));
+        updatedNavigationsLocally.push({ ...nav, items: filteredItems });
+      } else {
+        updatedNavigationsLocally.push(nav);
+      }
+    });
+    
+    // Wait for all navigation updates to complete in the database
+    try {
+      await Promise.all(navUpdatePromises);
+      if (navUpdatePromises.length > 0) {
+        toast({ title: "Navigations Updated", description: "Removed links to the deleted page." });
+      }
+    } catch(err) {
+      console.error("Error updating navigations after page delete:", err);
+      toast({ title: "Navigation Update Error", description: "Could not update all navigation menus.", variant: "destructive" });
+    }
+
+    // Refresh the local state for navigations to be used by the editor
+    setAllSiteNavigations(updatedNavigationsLocally);
+
+    // Now, refresh any navbar components currently in the editor state to reflect the updated navigation items
+    const pagesWithRefreshedNavs = newPages.map(page => {
+      const findAndRefreshNavbars = (elements: IPageComponent[]): IPageComponent[] => {
+        return elements.map(el => {
+          const newEl = { ...el }; // create a copy
+          if (newEl.type === 'navbar' && newEl.config.navigationId) {
+            const correspondingNav = updatedNavigationsLocally.find(n => n._id === newEl.config.navigationId);
+            if (correspondingNav) {
+              newEl.config.links = correspondingNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
+            }
+          }
+          // Recurse for nested elements
+          if (newEl.config?.elements) newEl.config.elements = findAndRefreshNavbars(newEl.config.elements);
+          if (newEl.config?.columns) newEl.config.columns.forEach((c: any) => { if (c.elements) c.elements = findAndRefreshNavbars(c.elements); });
+          return newEl;
+        });
+      };
+      return { ...page, elements: findAndRefreshNavbars(page.elements) };
+    });
+    
+    // Final state updates
+    setCurrentPages(pagesWithRefreshedNavs);
     setActivePageIndex(Math.max(0, pageToDeleteIndex - 1));
     setSelectedElement(null);
     setPageToDeleteIndex(null);
     setShowPageDeleteConfirm(false);
     setEditorSaveStatus('unsaved_changes');
-    toast({ title: "Page Removed", description: "Page removed from the editor. Save changes to make it permanent." });
+    toast({ title: "Page Removed", description: `Page "${pageToDelete.name}" was removed. Save changes to persist.` });
   };
   
   const deleteSelectedElement = () => {
