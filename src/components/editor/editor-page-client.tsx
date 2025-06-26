@@ -7,7 +7,7 @@ import { AppHeader, type DeviceType, type EditorSaveStatus } from '@/components/
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X, Edit, UploadCloud, ArrowLeft } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X, Edit, UploadCloud, ArrowLeft, RotateCcw } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -78,6 +78,7 @@ export default function EditorPageComponent() {
   const [editorSaveStatus, setEditorSaveStatus] = useState<EditorSaveStatus>('idle');
   const [pageToDeleteIndex, setPageToDeleteIndex] = useState<number | null>(null);
   const [showPageDeleteConfirm, setShowPageDeleteConfirm] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const [activeDraggedItem, setActiveDraggedItem] = useState<Active | null>(null);
 
@@ -608,6 +609,76 @@ export default function EditorPageComponent() {
 
     toast({ title: "Component Duplicated", description: `Component duplicated. Save your changes.` });
   };
+  
+  const handleResetSelectedElementStyles = () => {
+    if (!selectedElement) return;
+
+    const componentConfig = getComponentConfig(selectedElement.type);
+    if (!componentConfig?.defaultConfig) {
+        toast({ title: "Cannot Reset", description: "This component has no default styles defined.", variant: "destructive" });
+        return;
+    }
+
+    // Deep copy the default config to avoid mutating the registry
+    const newConfig = JSON.parse(JSON.stringify(componentConfig.defaultConfig));
+
+    // Preserve IDs for droppable containers to prevent dnd-kit errors
+    if (selectedElement.type === 'section' && selectedElement.config.id) {
+        newConfig.id = selectedElement.config.id;
+    }
+    if (selectedElement.type === 'columns' && Array.isArray(selectedElement.config.columns)) {
+        selectedElement.config.columns.forEach((oldCol: any, index: number) => {
+            if (newConfig.columns[index]) {
+                newConfig.columns[index].id = oldCol.id;
+            }
+        });
+    }
+
+    setCurrentPages(prevPages => {
+        const newPages = JSON.parse(JSON.stringify(prevPages));
+        const page = newPages[activePageIndex];
+        if (!page) return newPages;
+
+        let foundAndUpdated = false;
+
+        const updateRecursive = (elements: IPageComponent[]): IPageComponent[] => {
+            // Use map to return a new array, ensuring immutability
+            return elements.map(el => {
+                if (foundAndUpdated) return el; // early exit if already updated
+                if (el._id === selectedElement._id) {
+                    foundAndUpdated = true;
+                    return { ...el, config: newConfig };
+                }
+
+                // Create a copy for nested updates
+                const newEl = { ...el };
+                if (newEl.config?.elements && Array.isArray(newEl.config.elements)) {
+                    newEl.config = { ...newEl.config, elements: updateRecursive(newEl.config.elements) };
+                }
+                if (newEl.config?.columns && Array.isArray(newEl.config.columns)) {
+                    newEl.config = {
+                        ...newEl.config,
+                        columns: newEl.config.columns.map((col: any) => ({
+                            ...col,
+                            elements: col.elements ? updateRecursive(col.elements) : [],
+                        })),
+                    };
+                }
+                return newEl;
+            });
+        };
+        
+        page.elements = updateRecursive(page.elements);
+        return newPages;
+    });
+
+    // Update the selectedElement state as well to reflect the change in the properties panel
+    setSelectedElement(prev => prev ? { ...prev, config: newConfig } : null);
+    
+    setEditorSaveStatus('unsaved_changes');
+    toast({ title: "Component Reset", description: `Component styles have been reset to their defaults.` });
+    setShowResetConfirm(false); // Close the dialog
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1040,6 +1111,25 @@ export default function EditorPageComponent() {
                 <div className="flex justify-between items-center mb-3">
                     <p className="text-xs text-muted-foreground">Editing: <strong>{componentMeta?.label || selectedElement.type}</strong></p>
                     <div className="flex items-center">
+                        <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 px-2" title="Reset Component Styles">
+                                    <RotateCcw className="h-3.5 w-3.5"/>
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Reset Component Styles?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will revert all properties of the "{componentMeta?.label}" component to their original defaults. Any custom content like text or images will be replaced with placeholders. This action cannot be undone, but you can choose not to save your changes.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleResetSelectedElementStyles} className="bg-destructive hover:bg-destructive/90">Reset Styles</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                         <Button variant="ghost" size="sm" className="h-7 px-2" onClick={duplicateSelectedElement} title="Duplicate Component"><Copy className="h-3.5 w-3.5"/></Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild><Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2" title="Delete Component"><Trash2 className="h-3.5 w-3.5"/></Button></AlertDialogTrigger>
