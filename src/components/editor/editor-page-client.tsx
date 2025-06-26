@@ -213,61 +213,67 @@ export default function EditorPageComponent() {
   }, [currentPages]);
 
   const handlePropertyChange = (path: string, value: any) => {
-    setCurrentPages(prevPages => {
-        const newPages = JSON.parse(JSON.stringify(prevPages)); // Deep copy
-        if (!selectedElement) return newPages;
-
-        const pageToUpdate = newPages[activePageIndex];
-        if (!pageToUpdate) return newPages;
-
-        let finalUpdatedElement: IPageComponent | null = null;
-
-        const updateElementInList = (elements: IPageComponent[]): boolean => {
-            for (let el of elements) {
-                if (el._id === selectedElement._id) {
-                    const keys = path.split('.');
-                    let currentLevel = el.config;
-
-                    for (let i = 0; i < keys.length - 1; i++) {
-                        currentLevel = currentLevel[keys[i]] = currentLevel[keys[i]] || {};
-                    }
-                    currentLevel[keys[keys.length - 1]] = value;
-                    
-                    finalUpdatedElement = el;
-                    return true;
-                }
-                
-                if (el.config?.elements && Array.isArray(el.config.elements)) {
-                    if (updateElementInList(el.config.elements)) return true;
-                }
-                if (el.config?.columns && Array.isArray(el.config.columns)) {
-                    for (const col of el.config.columns) {
-                        if (col.elements && Array.isArray(col.elements)) {
-                            if (updateElementInList(col.elements)) return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        };
-
-        updateElementInList(pageToUpdate.elements);
-
-        if (finalUpdatedElement) {
-            if (finalUpdatedElement.type === 'navbar' && path === 'navigationId') {
-                const selectedNav = allSiteNavigations.find(nav => nav._id === value);
-                if (selectedNav) {
-                    finalUpdatedElement.config.links = selectedNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
-                } else if (!value) {
-                    finalUpdatedElement.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
-                }
-            }
-            setSelectedElement(prevSel => prevSel ? { ...prevSel, config: JSON.parse(JSON.stringify(finalUpdatedElement!.config)) } : null);
-        }
-
-        setEditorSaveStatus('unsaved_changes');
-        return newPages;
-    });
+      setCurrentPages(prevPages => {
+          const newPages = JSON.parse(JSON.stringify(prevPages));
+          if (!selectedElement) return newPages;
+  
+          const pageToUpdate = newPages[activePageIndex];
+          if (!pageToUpdate) return newPages;
+  
+          let finalUpdatedElement: IPageComponent | null = null;
+  
+          const setDeepValue = (obj: any, pathString: string, valueToSet: any) => {
+              const pathArray = pathString.match(/([^[.\]])+/g) || [];
+              let current = obj;
+              for (let i = 0; i < pathArray.length - 1; i++) {
+                  const key = pathArray[i];
+                  if (current[key] === undefined) {
+                      const nextKeyIsNumber = !isNaN(parseInt(pathArray[i + 1], 10));
+                      current[key] = nextKeyIsNumber ? [] : {};
+                  }
+                  current = current[key];
+              }
+              current[pathArray[pathArray.length - 1]] = valueToSet;
+          };
+  
+          const updateElementInList = (elements: IPageComponent[]): boolean => {
+              for (let el of elements) {
+                  if (el._id === selectedElement._id) {
+                      setDeepValue(el.config, path, value);
+                      finalUpdatedElement = el;
+                      return true;
+                  }
+                  if (el.config?.elements && Array.isArray(el.config.elements)) {
+                      if (updateElementInList(el.config.elements)) return true;
+                  }
+                  if (el.config?.columns && Array.isArray(el.config.columns)) {
+                      for (const col of el.config.columns) {
+                          if (col.elements && Array.isArray(col.elements)) {
+                              if (updateElementInList(col.elements)) return true;
+                          }
+                      }
+                  }
+              }
+              return false;
+          };
+  
+          updateElementInList(pageToUpdate.elements);
+  
+          if (finalUpdatedElement) {
+              if (finalUpdatedElement.type === 'navbar' && path === 'navigationId') {
+                  const selectedNav = allSiteNavigations.find(nav => nav._id === value);
+                  if (selectedNav) {
+                      finalUpdatedElement.config.links = selectedNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
+                  } else if (!value) {
+                      finalUpdatedElement.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
+                  }
+              }
+              setSelectedElement(prevSel => prevSel ? { ...prevSel, config: JSON.parse(JSON.stringify(finalUpdatedElement!.config)) } : null);
+          }
+  
+          setEditorSaveStatus('unsaved_changes');
+          return newPages;
+      });
   };
   
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -789,6 +795,66 @@ export default function EditorPageComponent() {
   const renderPropertyFields = () => {
     const activePageData = currentPages[activePageIndex];
 
+    const renderFieldsRecursive = (configObject: any, pathPrefix = '') => {
+        return Object.entries(configObject).map(([key, value]) => {
+            if (key === 'id' || key === 'elements' || key === 'columns' || key.toLowerCase().includes('dataaihint')) return null;
+            const currentPath = pathPrefix ? `${pathPrefix}.${key}` : key;
+
+            if (Array.isArray(value) && value.every(item => typeof item === 'object' && item !== null && !Array.isArray(item))) {
+                return renderFieldsForArray(value, currentPath, key);
+            }
+            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                return (
+                    <div key={currentPath} className="p-3 border rounded-md space-y-3 bg-muted/50 mt-2">
+                        <p className="text-sm font-semibold capitalize text-muted-foreground">{key}</p>
+                        <div className="pl-2 border-l-2 border-border space-y-3">{renderFieldsRecursive(value, currentPath)}</div>
+                    </div>
+                );
+            }
+            return <RenderPropertyField key={currentPath} propKey={key} propValue={value} path={currentPath} />;
+        });
+    };
+    
+    const renderFieldsForArray = (arr: any[], path: string, label: string) => {
+        const handleAddItem = () => {
+            const newItem = arr.length > 0 ? JSON.parse(JSON.stringify(arr[0])) : {};
+            Object.keys(newItem).forEach(key => {
+                if (typeof newItem[key] === 'string') newItem[key] = `New ${key}`;
+                if (typeof newItem[key] === 'number') newItem[key] = 0;
+                if (typeof newItem[key] === 'boolean') newItem[key] = false;
+                if (key.toLowerCase().includes('image')) newItem[key] = 'https://placehold.co/300x200.png';
+            });
+            handlePropertyChange(path, [...arr, newItem]);
+        };
+        
+        const handleRemoveItem = (index: number) => {
+            const newArray = arr.filter((_, i) => i !== index);
+            handlePropertyChange(path, newArray);
+        };
+    
+        return (
+            <div key={path} className="space-y-2">
+                <h4 className="text-sm font-semibold text-muted-foreground capitalize border-b pb-1 mb-2">{label.replace(/_/g, ' ')}</h4>
+                {arr.map((item, index) => (
+                    <div key={`${path}.${index}`} className="p-3 border rounded-md space-y-3 bg-card relative">
+                        <div className="flex justify-between items-center">
+                            <p className="text-xs font-semibold">Item {index + 1}</p>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveItem(index)}>
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                        </div>
+                        <div className="pl-2 border-l-2 border-border space-y-3">
+                            {renderFieldsRecursive(item, `${path}.${index}`)}
+                        </div>
+                    </div>
+                ))}
+                <Button size="sm" variant="outline" className="w-full text-xs" onClick={handleAddItem}>
+                    <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Add Item
+                </Button>
+            </div>
+        );
+    };
+
     const RenderPropertyField = ({ propKey, propValue, path }: { propKey: string; propValue: any; path: string }) => {
         const label = propKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
         
@@ -818,7 +884,7 @@ export default function EditorPageComponent() {
             );
         }
 
-        if (propKey === 'src' || propKey.toLowerCase().includes('imageurl') || propKey.toLowerCase().includes('backgroundimage')) {
+        if (propKey === 'src' || propKey.toLowerCase().includes('imageurl') || propKey.toLowerCase().includes('backgroundimage') || propKey.toLowerCase().includes('avatar')) {
             return (
                 <div key={path}>
                     <Label htmlFor={path} className="text-xs">{label}</Label>
@@ -844,7 +910,7 @@ export default function EditorPageComponent() {
             );
         }
         
-        if (typeof propValue === 'string' && propValue.length > 50) {
+        if (typeof propValue === 'string' && (propValue.length > 50 || propValue.includes('\n'))) {
            return (
                 <div key={path}>
                     <Label htmlFor={path} className="text-xs">{label}</Label>
@@ -859,16 +925,6 @@ export default function EditorPageComponent() {
             );
         }
 
-        if (Array.isArray(propValue)) {
-            return (
-                <div key={path}>
-                    <Label htmlFor={path} className="text-xs">{label} (JSON)</Label>
-                    <Textarea id={path} defaultValue={JSON.stringify(propValue, null, 2)} onBlur={(e) => { try { handlePropertyChange(path, JSON.parse(e.target.value)) } catch (err) { toast({title: "Invalid JSON", variant: "destructive"}) }}} className="text-xs bg-input font-mono" rows={8}/>
-                    <p className="text-xxs text-muted-foreground mt-1">Edit the JSON data directly for complex properties.</p>
-                </div>
-            );
-        }
-
         if (typeof propValue === 'string' || typeof propValue === 'number') {
             return (
                 <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Input type={typeof propValue === 'number' ? 'number' : 'text'} id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs h-8 bg-input" /></div>
@@ -876,22 +932,6 @@ export default function EditorPageComponent() {
         }
 
         return null;
-    };
-
-    const renderFieldsRecursive = (configObject: any, pathPrefix = '') => {
-        return Object.entries(configObject).map(([key, value]) => {
-            if (key === 'id' || key === 'elements' || key === 'columns' || key.toLowerCase().includes('dataaihint')) return null;
-            const currentPath = pathPrefix ? `${pathPrefix}.${key}` : key;
-            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                return (
-                    <div key={currentPath} className="p-3 border rounded-md space-y-3 bg-muted/50 mt-2">
-                        <p className="text-sm font-semibold capitalize text-muted-foreground">{key}</p>
-                        <div className="pl-2 border-l-2 border-border space-y-3">{renderFieldsRecursive(value, currentPath)}</div>
-                    </div>
-                );
-            }
-            return <RenderPropertyField key={currentPath} propKey={key} propValue={value} path={currentPath} />;
-        });
     };
 
     if (selectedElement) {
