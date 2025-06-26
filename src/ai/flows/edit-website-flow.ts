@@ -47,11 +47,9 @@ export async function editWebsite(input: EditWebsiteInput): Promise<EditWebsiteO
   return editWebsiteFlow(input);
 }
 
-const availableComponentTypes = Object.keys(componentRegistry).join(', ');
-
 const editWebsitePrompt = ai.definePrompt({
   name: 'editWebsitePrompt',
-  input: {schema: EditWebsiteInputSchema},
+  input: {schema: EditWebsiteInputSchema.extend({ componentExamples: z.any() })},
   output: {schema: EditWebsiteOutputSchema},
   model: 'googleai/gemini-1.5-flash-latest',
   prompt: `You are an expert web designer AI assistant integrated into a website builder.
@@ -61,7 +59,10 @@ Your task is to analyze the user's prompt and the current website structure (pro
 User's Prompt: "{{{prompt}}}"
 Currently Active Page Slug: "{{{activePageSlug}}}"
 
-Available component types are: [${availableComponentTypes}]
+Available Components and their default structures:
+\`\`\`json
+{{{jsonEncode componentExamples}}}
+\`\`\`
 
 Instructions:
 1.  **Analyze the Request**: Understand if the user wants to add, delete, or modify a component, change a style, add a page, or perform a general restructuring. Most changes should be applied to the currently active page unless the user specifies otherwise (e.g., "add a contact page").
@@ -69,7 +70,8 @@ Instructions:
 3.  **Return Modified Structure**: Your primary output is the 'modifiedPages' field, which should contain the entire, updated array of page objects.
 4.  **Explain Your Actions**: In the 'explanation' field, provide a short, friendly message to the user explaining what you did. For example, "I've added a pricing table to your Services page," or "I've changed the background color of the hero section."
 5.  **Be Smart**:
-    - If adding a component (e.g., "add a hero section"), populate it with relevant placeholder content based on the website's context. For images, you MUST use placeholder URLs from "https://placehold.co" and add a "dataAiHint" property with keywords.
+    - When adding a new component (e.g., "add a hero section"), use the default structure from the 'Available Components' list above as a starting point. Then, populate it with relevant placeholder content based on the user's prompt and the website's context.
+    - For images, you MUST use placeholder URLs from "https://placehold.co" and add a "dataAiHint" property with keywords.
     - If changing a style (e.g., "make the background dark blue"), find the relevant component (like a 'section' or 'hero') and update its 'backgroundColor' in the config. Use hex color codes.
     - If adding a new page (e.g., "create an 'About Us' page"), add a new page object to the 'pages' array with a suitable name and slug, and add some basic components to it.
     - **IMPORTANT**: When you add a new component or a new page, you must generate a new unique '_id' for it. An ID can be a short random string of letters and numbers.
@@ -89,7 +91,24 @@ const editWebsiteFlow = ai.defineFlow(
     outputSchema: EditWebsiteOutputSchema,
   },
   async (input) => {
-    const {output} = await editWebsitePrompt(input);
+     // Create a simplified representation of the component registry for the prompt
+    const componentExamples = Object.fromEntries(
+      Object.entries(componentRegistry).map(([key, value]) => [
+        key,
+        {
+          description: value.description,
+          defaultConfig: value.defaultConfig,
+        },
+      ])
+    );
+    
+    // Augment the input object for the prompt
+    const promptInput = {
+      ...input,
+      componentExamples,
+    };
+
+    const {output} = await editWebsitePrompt(promptInput);
     if (!output) {
       throw new Error("AI failed to generate a response.");
     }
