@@ -783,14 +783,17 @@ export default function EditorPageComponent() {
         toast({ title: "Navigation Deleted", description: `Navigation has been removed.` });
         setCurrentPages(prevPages => {
           const newPages = JSON.parse(JSON.stringify(prevPages)) as IWebsiteVersionPage[];
-          newPages.forEach(page => {
-            page.elements.forEach(el => {
-              if (el.type === 'navbar' && el.config.navigationId === navigationToDeleteId) {
-                el.config.navigationId = null;
-                el.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
-              }
-            });
-          });
+          const findAndResetNavbars = (elements: IPageComponent[]) => {
+              elements.forEach(el => {
+                if (el.type === 'navbar' && el.config.navigationId === navigationToDeleteId) {
+                  el.config.navigationId = null;
+                  el.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
+                }
+                if (el.config?.elements) findAndResetNavbars(el.config.elements);
+                if (el.config?.columns) el.config.columns.forEach((c: any) => { if (c.elements) findAndResetNavbars(c.elements); });
+              });
+          };
+          newPages.forEach(page => findAndResetNavbars(page.elements));
           return newPages;
         });
         setEditorSaveStatus('unsaved_changes');
@@ -809,14 +812,32 @@ export default function EditorPageComponent() {
 
   const handleSaveNavigationChanges = async () => {
     if (!selectedNavigationForEditing?._id) return;
+    const navIdToUpdate = selectedNavigationForEditing._id as string;
     setIsNavigationsLoading(true);
     const result = await updateNavigation({
-      navigationId: selectedNavigationForEditing._id as string,
+      navigationId: navIdToUpdate,
       name: editingNavName,
       items: editingNavItems.map(({label, url, type}) => ({label, url, type})),
     });
     if (result.success && result.data) {
       toast({ title: "Navigation Saved", description: `"${result.data?.name}" has been updated.`});
+      
+      setCurrentPages(prevPages => {
+          const newPages = JSON.parse(JSON.stringify(prevPages)) as IWebsiteVersionPage[];
+          const findAndRefreshNavbars = (elements: IPageComponent[]) => {
+              elements.forEach(el => {
+                  if (el.type === 'navbar' && el.config.navigationId === navIdToUpdate) {
+                      el.config.links = result.data?.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' })) || [];
+                  }
+                  if (el.config?.elements) findAndRefreshNavbars(el.config.elements);
+                  if (el.config?.columns) el.config.columns.forEach((c: any) => { if (c.elements) findAndRefreshNavbars(c.elements); });
+              });
+          };
+          newPages.forEach(page => findAndRefreshNavbars(page.elements));
+          return newPages;
+      });
+      setEditorSaveStatus('unsaved_changes');
+      
       await fetchSiteNavigations(websiteId);
       setSelectedNavigationForEditing(null);
       setEditingNavItems([]);
@@ -932,9 +953,9 @@ export default function EditorPageComponent() {
             <div key={path} className="space-y-2">
                 <h4 className="text-sm font-semibold text-muted-foreground capitalize border-b pb-1 mb-2">{label.replace(/_/g, ' ')}</h4>
                 {arr.map((item, index) => (
-                    <div key={`${path}.${index}`} className="p-3 border rounded-md space-y-3 bg-card relative">
-                        <div className="flex justify-between items-center">
-                            <p className="text-xs font-semibold">Item {index + 1}</p>
+                    <div key={`${path}.${index}`} className="p-2 border rounded bg-card relative">
+                        <div className="flex justify-between items-center mb-1">
+                            <p className="text-xxs text-muted-foreground">Item {index + 1}</p>
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveItem(index)}>
                                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
