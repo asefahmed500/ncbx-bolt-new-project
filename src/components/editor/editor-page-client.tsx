@@ -39,6 +39,8 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { createNavigation, getNavigationsByWebsiteId, updateNavigation, deleteNavigation } from '@/actions/navigation';
+import { AiChatAssistant } from './ai-chat-assistant';
+import { editWebsite, type EditWebsiteInput } from '@/ai/flows/edit-website-flow';
 
 
 interface SelectedElementData extends IPageComponent {
@@ -93,6 +95,8 @@ export default function EditorPageComponent() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetKey, setUploadTargetKey] = useState<string | null>(null);
+  
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
 
 
   const fetchSiteNavigations = useCallback(async (currentWebsiteId: string | null) => {
@@ -739,6 +743,51 @@ export default function EditorPageComponent() {
     setEditingNavItems(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleAiPromptSubmit = async (prompt: string): Promise<string | null> => {
+    if (!websiteId) {
+        toast({ title: "No Website Selected", description: "Please save your website first before using the AI assistant.", variant: "destructive"});
+        return "I can't edit until the website is saved. Please save your work first.";
+    }
+
+    setIsAiProcessing(true);
+
+    try {
+        const input: EditWebsiteInput = {
+            prompt,
+            currentPages: getEditorContentForSave(),
+            activePageSlug: currentPages[activePageIndex]?.slug || '/',
+        };
+
+        const result = await editWebsite(input);
+
+        if (result.modifiedPages) {
+            const sanitizedPages = result.modifiedPages.map(p => ({
+                ...p,
+                _id: (p._id || newObjectId()).toString(),
+                elements: (p.elements || []).map(el => ({
+                ...el,
+                _id: (el._id || newObjectId()).toString(),
+                }))
+            })) as IWebsiteVersionPage[];
+            
+            setCurrentPages(sanitizedPages);
+            setEditorSaveStatus('unsaved_changes');
+            setSelectedElement(null);
+            toast({ title: "AI Assistant", description: result.explanation });
+            return result.explanation;
+        } else {
+             toast({ title: "AI Assistant", description: "The AI did not return a valid page structure.", variant: "destructive"});
+            return "Sorry, I couldn't process that request properly.";
+        }
+    } catch (error: any) {
+        console.error("AI editing error:", error);
+        toast({ title: "AI Error", description: error.message, variant: "destructive" });
+        return "An error occurred while I was trying to make changes.";
+    } finally {
+        setIsAiProcessing(false);
+    }
+  };
+
   const renderPropertyFields = () => {
     const activePageData = currentPages[activePageIndex];
 
@@ -1064,6 +1113,8 @@ export default function EditorPageComponent() {
           </aside>
         </div>
         
+        <AiChatAssistant onPromptSubmit={handleAiPromptSubmit} isProcessing={isAiProcessing} />
+
         {websiteId && <SaveTemplateModal isOpen={isSaveTemplateModalOpen} onOpenChange={setIsSaveTemplateModalOpen} currentDesignData={getEditorContentForSave()} />}
         <TemplateGalleryModal isOpen={isTemplateGalleryModalOpen} onOpenChange={setIsTemplateGalleryModalOpen} onApplyTemplate={handleApplyTemplate} />
         
@@ -1089,5 +1140,3 @@ export default function EditorPageComponent() {
     </DndContext>
   );
 }
-
-    
