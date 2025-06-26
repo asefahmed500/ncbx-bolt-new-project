@@ -33,6 +33,11 @@ import InputRenderer from './components/InputRenderer';
 import TextareaFieldRenderer from './components/TextareaFieldRenderer';
 import MapEmbedRenderer from './components/MapEmbedRenderer';
 import CustomCodeRenderer from './components/CustomCodeRenderer';
+import SpacerRenderer from './components/SpacerRenderer';
+import TabsRenderer from './components/TabsRenderer';
+import SliderRenderer from './components/SliderRenderer';
+import LoginSignupRenderer from './components/LoginSignupRenderer';
+import LockedContentRenderer from './components/LockedContentRenderer';
 
 
 interface ElementRendererProps {
@@ -101,6 +106,16 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
         return <MapEmbedRenderer config={element.config} />;
     case 'customCode':
         return <CustomCodeRenderer config={element.config} />;
+    case 'spacer':
+        return <SpacerRenderer config={element.config} />;
+    case 'tabs':
+        return <TabsRenderer config={element.config} />;
+    case 'slider':
+        return <SliderRenderer config={element.config} />;
+    case 'login_signup':
+        return <LoginSignupRenderer config={element.config} />;
+    case 'locked_content':
+        return <LockedContentRenderer config={element.config} />;
     default:
       return (
         <div className="my-2 p-3 border border-dashed border-destructive/50 bg-destructive/10 rounded">
@@ -116,4 +131,3 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
 };
 
 export default ElementRenderer;
-

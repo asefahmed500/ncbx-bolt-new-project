@@ -1,8 +1,12 @@
 
+// Helper function to handle mongoose ObjectId weirdness on client and in server-side logic that doesn't need real DB IDs.
+// It's defined at the top to be available for the componentRegistry definition.
+const mongoose = { Types: { ObjectId: () => Math.random().toString(36).substring(2, 15) }};
+
 import type { LucideIcon } from 'lucide-react';
 import {
   Type,
-  Image as ImageIcon,
+  ImageIcon,
   Square as ButtonIconElement,
   Box,
   Columns,
@@ -20,7 +24,6 @@ import {
   Sparkles, 
   MessageSquareText, 
   BadgeDollarSign, 
-  MailQuestion, 
   HelpCircle,
   Images,
   TrendingUp,
@@ -30,6 +33,17 @@ import {
   Newspaper, 
   Briefcase, 
   Info,
+  Star,
+  Waypoints,
+  PanelRight,
+  RectangleHorizontal,
+  MousePointerClick,
+  TextCursorInput,
+  GalleryThumbnails,
+  Palette,
+  EyeOff,
+  UserPlus,
+  MailQuestion
 } from "lucide-react";
 
 export interface ComponentConfig {
@@ -42,25 +56,48 @@ export interface ComponentConfig {
 }
 
 export const componentRegistry: Record<string, ComponentConfig> = {
+  section: {
+    id: "section",
+    label: "Section",
+    icon: Box,
+    description: "Group content into distinct sections.",
+    isContainer: true,
+    defaultConfig: { backgroundColor: "transparent", paddingTop: "60px", paddingBottom: "60px", elements: [] },
+  },
+   columns: {
+    id: "columns",
+    label: "Columns Layout",
+    icon: Columns,
+    description: "Arrange content in responsive columns.",
+    isContainer: true,
+    defaultConfig: { 
+      count: 2, 
+      gap: "1rem", 
+      columns: [
+        { id: mongoose.Types.ObjectId(), elements: [] },
+        { id: mongoose.Types.ObjectId(), elements: [] }
+      ]
+    },
+  },
   heading: {
     id: "heading",
     label: "Heading",
     icon: Heading1,
     description: "For titles and subheadings (H1-H6).",
-    defaultConfig: { text: "New Heading", level: "h2", color: "#333333", fontSize: "2rem", alignment: "left" },
+    defaultConfig: { text: "New Heading", level: "h2", color: "#111827", fontSize: "3rem", alignment: "left" },
   },
   text: {
     id: "text",
-    label: "Rich Text Block",
+    label: "Rich Text",
     icon: Type,
     description: "Paragraphs, lists, and formatted text.",
-    defaultConfig: { htmlContent: "<p>Start writing your content here...</p>", alignment: "left" },
+    defaultConfig: { htmlContent: "<p>Start writing your content here. Use this for paragraphs, lists, and other text formatting.</p>", alignment: "left" },
   },
   image: {
     id: "image",
     label: "Image",
     icon: ImageIcon,
-    description: "Embed single images or create galleries.",
+    description: "Embed single images.",
     defaultConfig: { src: "https://placehold.co/600x400.png", alt: "Placeholder Image", width: "100%", height: "auto", dataAiHint: "placeholder" },
   },
   button: {
@@ -70,32 +107,23 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     description: "Interactive call-to-action links.",
     defaultConfig: { text: "Click Me", link: "#", style: "primary", alignment: "left" },
   },
-  section: {
-    id: "section",
-    label: "Section / Container",
-    icon: Box,
-    description: "Group content into distinct sections.",
-    isContainer: true,
-    defaultConfig: { backgroundColor: "#FFFFFF", paddingTop: "20px", paddingBottom: "20px", elements: [] },
+   divider: {
+    id: "divider",
+    label: "Divider",
+    icon: Minus,
+    description: "A visual horizontal separator.",
+    defaultConfig: { style: "solid", color: "#e5e7eb", height: "1px", marginY: "2rem" },
   },
-  columns: {
-    id: "columns",
-    label: "Columns Layout",
-    icon: Columns,
-    description: "Arrange content in responsive columns.",
-    isContainer: true,
-    defaultConfig: { 
-      count: 2, 
-      gap: "16px", 
-      columns: [
-        { id: 'col-placeholder-1', elements: [] },
-        { id: 'col-placeholder-2', elements: [] }
-      ]
-    },
+  spacer: {
+    id: "spacer",
+    label: "Spacer",
+    icon: RectangleHorizontal,
+    description: "Adds vertical empty space.",
+    defaultConfig: { height: "4rem" },
   },
   navbar: {
     id: "navbar",
-    label: "Navbar Section",
+    label: "Navbar",
     icon: PanelTop,
     description: "Responsive top navigation bar.",
     defaultConfig: {
@@ -103,14 +131,15 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       brandLink: "/", 
       navigationId: null, 
       links: [{ text: "Home", href: "/", type: "internal" }, { text: "About", href: "/about", type: "internal" }],
-      backgroundColor: "bg-neutral-100", textColor: "text-neutral-800"
+      backgroundColor: "transparent", 
+      textColor: "#374151"
     },
   },
   hero: {
     id: "hero",
     label: "Hero Section",
     icon: AppWindow,
-    description: "Large hero section with heading + CTA.",
+    description: "Large intro section with heading + CTA.",
     defaultConfig: {
       title: "Welcome to Our Site!",
       subtitle: "Amazing things happen here.",
@@ -118,7 +147,22 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       buttonLink: "#",
       backgroundImage: "https://placehold.co/1200x600.png",
       dataAiHint: "abstract background",
-      backgroundColor: "bg-primary/10", textColor: "text-neutral-800", textAlign: "text-center"
+      backgroundColor: "#f9fafb", // A light gray
+      textColor: "#111827", // Dark text
+      textAlign: "center"
+    },
+  },
+  footer: {
+    id: "footer",
+    label: "Footer",
+    icon: PanelBottom,
+    description: "Site footer with links and copyright.",
+    defaultConfig: {
+      copyrightText: `© ${new Date().getFullYear()} MySite. All rights reserved.`,
+      links: [{ text: "Privacy", href: "/privacy" }, { text: "Terms", href: "/terms" }],
+      socialLinks: [ { platform: "twitter", href: "#"}, { platform: "facebook", href: "#"}],
+      backgroundColor: "#1f2937", // Dark Gray
+      textColor: "#d1d5db" // Light Gray text
     },
   },
   card_section: {
@@ -127,33 +171,21 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     icon: CardSectionIcon,
     description: "Display content in a series of cards.",
     defaultConfig: {
-      title: "Featured Cards",
+      title: "Featured Content",
       cards: [
         { title: "Card 1", description: "Description for card 1", image: "https://placehold.co/300x200.png", dataAiHint: "feature item", link: "#" },
         { title: "Card 2", description: "Description for card 2", image: "https://placehold.co/300x200.png", dataAiHint: "product service", link: "#" },
         { title: "Card 3", description: "Description for card 3", image: "https://placehold.co/300x200.png", dataAiHint: "information block", link: "#" },
       ],
-      backgroundColor: "bg-muted/30",
-      textColor: "text-neutral-800",
-    },
-  },
-  footer: {
-    id: "footer",
-    label: "Footer Section",
-    icon: PanelBottom,
-    description: "Responsive footer with links/socials.",
-    defaultConfig: {
-      copyrightText: `© ${new Date().getFullYear()} MySite. All rights reserved.`,
-      links: [{ text: "Privacy", href: "/privacy" }, { text: "Terms", href: "/terms" }],
-      socialLinks: [ { platform: "twitter", href: "#"}, { platform: "facebook", href: "#"}],
-      backgroundColor: "bg-neutral-800", textColor: "text-neutral-300"
+      backgroundColor: "#f9fafb",
+      textColor: "#1f2937",
     },
   },
   features: {
     id: "features",
-    label: "Features Section",
+    label: "Features",
     icon: Sparkles,
-    description: "Grid/list of features.",
+    description: "Grid/list of features with icons.",
     defaultConfig: {
       title: "Our Amazing Features",
       items: [
@@ -163,11 +195,42 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       ]
     },
   },
+   contact_form: {
+    id: "contact_form",
+    label: "Contact Form",
+    icon: MailQuestion,
+    description: "A complete contact form section.",
+    defaultConfig: { title: "Get In Touch", recipientEmail: "contact@example.com", submitButtonText: "Send Message" }
+  },
+  tabs: {
+    id: "tabs",
+    label: "Tabs Section",
+    icon: PanelRight,
+    description: "Organize content into tabs.",
+    defaultConfig: {
+      items: [
+        { title: "Tab 1", content: "<p>Content for Tab 1</p>" },
+        { title: "Tab 2", content: "<p>Content for Tab 2</p>" }
+      ]
+    },
+  },
+  slider: {
+    id: "slider",
+    label: "Image Slider",
+    icon: GalleryThumbnails,
+    description: "A carousel for images.",
+    defaultConfig: {
+      images: [
+        { src: "https://placehold.co/800x400.png?text=Slide+1", alt: "Slide 1" },
+        { src: "https://placehold.co/800x400.png?text=Slide+2", alt: "Slide 2" }
+      ]
+    },
+  },
   testimonials: {
     id: "testimonials",
-    label: "Testimonials Section",
+    label: "Testimonials",
     icon: MessageSquareText,
-    description: "Customer testimonials with avatars.",
+    description: "Customer testimonials.",
     defaultConfig: {
       title: "What Our Users Say",
       items: [
@@ -178,9 +241,9 @@ export const componentRegistry: Record<string, ComponentConfig> = {
   },
   pricing_table: {
     id: "pricing_table",
-    label: "Pricing Table/Cards",
+    label: "Pricing Table",
     icon: BadgeDollarSign,
-    description: "Pricing table or cards.",
+    description: "Display pricing plans.",
     defaultConfig: {
       title: "Our Plans",
       plans: [
@@ -189,18 +252,11 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       ]
     },
   },
-  contact_form: {
-    id: "contact_form",
-    label: "Contact Form Section",
-    icon: MailQuestion,
-    description: "Responsive contact form.",
-    defaultConfig: { title: "Get In Touch", recipientEmail: "contact@example.com" }
-  },
   faq: {
     id: "faq",
-    label: "FAQ Section",
+    label: "FAQ (Accordion)",
     icon: HelpCircle,
-    description: "Accordion or collapsible FAQ section.",
+    description: "Collapsible FAQ section.",
     defaultConfig: {
       title: "Frequently Asked Questions",
       items: [
@@ -209,125 +265,12 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       ]
     },
   },
-  gallery: {
-    id: "gallery",
-    label: "Image Gallery",
-    icon: Images,
-    description: "Image gallery with lightbox or grid.",
-    defaultConfig: {
-      title: "Our Gallery",
-      images: [
-        { src: "https://placehold.co/400x300.png?text=Image+1", alt: "Image 1", dataAiHint:"landscape" },
-        { src: "https://placehold.co/400x300.png?text=Image+2", alt: "Image 2", dataAiHint:"cityscape" },
-      ]
-    },
-  },
-  stats: {
-    id: "stats",
-    label: "Stats Section",
-    icon: TrendingUp,
-    description: "Stats or counters with icons.",
-    defaultConfig: {
-      title: "Our Achievements",
-      items: [
-        { value: "100+", label: "Projects Done", icon: "Briefcase" },
-        { value: "50+", label: "Happy Clients", icon: "Users" },
-      ]
-    },
-  },
-  call_to_action: {
-    id: "call_to_action",
-    label: "Call To Action Banner",
-    icon: Megaphone,
-    description: "Call to action banner.",
-    defaultConfig: { text: "Ready to Get Started?", buttonText: "Sign Up Now", buttonLink: "/register" }
-  },
-  team: {
-    id: "team",
-    label: "Team Section",
-    icon: Users,
-    description: "Team member cards.",
-    defaultConfig: {
-      title: "Meet Our Team",
-      members: [
-        { name: "Alice", role: "CEO", image: "https://placehold.co/200x200.png?text=Alice", dataAiHint:"person" },
-        { name: "Bob", role: "CTO", image: "https://placehold.co/200x200.png?text=Bob", dataAiHint:"person" },
-      ]
-    },
-  },
-  newsletter_signup: {
-    id: "newsletter_signup",
-    label: "Newsletter Signup",
-    icon: Mail,
-    description: "Email signup form section.",
-    defaultConfig: { title: "Subscribe to Our Newsletter", placeholder: "Enter your email" }
-  },
   video_embed: {
     id: "video_embed",
     label: "Video Embed",
     icon: Video,
     description: "Responsive video embed section.",
-    defaultConfig: { provider: "youtube", url: "VIDEO_ID_HERE", aspectRatio: "16:9" },
-  },
-  blog_posts: {
-    id: "blog_posts",
-    label: "Blog Posts Preview",
-    icon: Newspaper,
-    description: "Blog post previews or cards.",
-    defaultConfig: {
-      title: "Latest Articles",
-      count: 3,
-      showFeaturedImage: true
-    }
-  },
-  services_list: {
-    id: "services_list",
-    label: "Services List",
-    icon: Briefcase,
-    description: "List of services with icons.",
-    defaultConfig: {
-      title: "Our Services",
-      items: [
-        { name: "Web Design", description: "Creative web design.", icon: "Layout" },
-        { name: "Development", description: "Full-stack development.", icon: "Code" },
-      ]
-    }
-  },
-  about_section: {
-    id: "about_section",
-    label: "About Section",
-    icon: Info,
-    description: "Company/about info section.",
-    defaultConfig: { title: "About Us", content: "<p>We are a team dedicated to excellence.</p>", elements: [] }
-  },
-  divider: {
-    id: "divider",
-    label: "Divider",
-    icon: Minus,
-    description: "Add a visual horizontal separator.",
-    defaultConfig: { style: "solid", color: "#cccccc", height: "1px", marginY: "16px" },
-  },
-  form: {
-    id: "form",
-    label: "Form Container",
-    icon: ListChecks,
-    isContainer: true,
-    description: "Group form input fields for submissions.",
-    defaultConfig: { submitUrl: "/api/submit-form", buttonText: "Submit", elements: [] }
-  },
-  input: {
-    id: "input",
-    label: "Form Input Field",
-    icon: Edit3, 
-    description: "For text, email, number, etc. inputs.",
-    defaultConfig: { label: "Input Field", type: "text", placeholder: "Enter value", name: "inputField" }
-  },
-  textarea_field: { 
-    id: "textarea_field",
-    label: "Form Textarea",
-    icon: Edit3, 
-    description: "For multi-line text input areas.",
-    defaultConfig: { label: "Textarea", placeholder: "Enter text", name: "textareaField" }
+    defaultConfig: { provider: "youtube", url: "dQw4w9WgXcQ", aspectRatio: "16:9" },
   },
   map_embed: {
     id: "map_embed",
@@ -341,8 +284,30 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Custom Code",
     icon: Code2,
     description: "Embed HTML, CSS, or JS snippets.",
-    defaultConfig: { html: "<div>Your custom HTML here</div>" }
+    defaultConfig: { html: "<div>\n  <!-- Your custom HTML code here -->\n  <p>This is a custom code block.</p>\n</div>" }
   },
+  locked_content: {
+    id: "locked_content",
+    label: "Premium Content",
+    icon: EyeOff,
+    description: "Content visible only to premium users.",
+    defaultConfig: {
+      upgradeMessage: "Upgrade to Pro to view this content",
+      elements: []
+    }
+  },
+  login_signup: {
+    id: "login_signup",
+    label: "Login/Signup Section",
+    icon: UserPlus,
+    description: "A section prompting users to log in or register.",
+    defaultConfig: {
+      title: "Join Our Community",
+      description: "Sign up to get access to exclusive content and features.",
+      loginButtonText: "Login",
+      signupButtonText: "Sign Up Free",
+    }
+  }
 };
 
 export const getRegisteredComponents = (): ComponentConfig[] => {

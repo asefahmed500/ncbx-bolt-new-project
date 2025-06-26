@@ -748,8 +748,8 @@ export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteM
       return { error: "Website not found." };
     }
     // Allow owner or admin to see metadata even if not published
+    const websiteOwnerId = websiteDoc.userId ? websiteDoc.userId.toString() : null;
     if (websiteDoc.status !== 'published') {
-        const websiteOwnerId = websiteDoc.userId ? websiteDoc.userId.toString() : null;
         if (!session || !session.user || !websiteOwnerId || (session.user.id.toString() !== websiteOwnerId && session.user.role !== 'admin')) {
             return { error: "Website not found or not publicly available." };
         }
@@ -770,32 +770,33 @@ interface GetPublishedSiteDataResult {
 
 export async function getPublishedSiteDataByHost(host: string): Promise<GetPublishedSiteDataResult> {
   await dbConnect();
-  const appBaseDomain = process.env.NEXT_PUBLIC_APP_BASE_DOMAIN;
+  const appBaseDomain = process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || "localhost:9003";
 
   if (!appBaseDomain) {
     console.error("[getPublishedSiteDataByHost] NEXT_PUBLIC_APP_BASE_DOMAIN is not set. Subdomain parsing will fail.");
     return { error: "Application base domain not configured." };
   }
-
+  
   let websiteDoc: IWebsite | null = null;
   const hostname = host.split(':')[0]; // remove port if present, e.g., localhost:9003 -> localhost
+  const baseDomainHostname = appBaseDomain.split(':')[0]; // e.g., localhost
 
-  // Handle subdomain on base domain (e.g., mysite.localhost:9003)
-  if (hostname.endsWith(`.${appBaseDomain}`)) {
-    const subdomain = hostname.substring(0, hostname.length - (appBaseDomain.length + 1));
-    if (subdomain && subdomain !== 'www') { // Exclude www from being a user subdomain on the base domain
+  // Handle subdomain on base domain (e.g., mysite.localhost)
+  if (hostname.endsWith(`.${baseDomainHostname}`)) {
+    const subdomain = hostname.substring(0, hostname.length - (baseDomainHostname.length + 1));
+     if (subdomain && subdomain !== 'www') {
       websiteDoc = await Website.findOne({ subdomain, status: 'published' }).lean();
     }
-  } else if (hostname.endsWith(appBaseDomain)) { // Handle localhost case: e.g., mysite.localhost
-     const subdomain = hostname.substring(0, hostname.length - appBaseDomain.length).replace(/\.$/, '');
-     if (subdomain) {
-        websiteDoc = await Website.findOne({ subdomain, status: 'published' }).lean();
-     }
   } else {
-    // This handles custom domains (e.g., www.mycustomsite.com)
-    websiteDoc = await Website.findOne({ customDomain: hostname, status: 'published', domainStatus: 'verified' }).lean();
+    // This handles custom domains (e.g., www.mycustomsite.com) and the case where hostname is just `localhost`
+    websiteDoc = await Website.findOne({ 
+      $or: [
+        { customDomain: hostname, status: 'published', domainStatus: 'verified' },
+        { customDomain: `www.${hostname}`, status: 'published', domainStatus: 'verified' }
+      ]
+    }).lean();
   }
-
+  
   if (!websiteDoc) {
     return { error: "Site not found or not published." };
   }
