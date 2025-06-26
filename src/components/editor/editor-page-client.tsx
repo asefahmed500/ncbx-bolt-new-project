@@ -41,6 +41,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { createNavigation, getNavigationsByWebsiteId, updateNavigation, deleteNavigation } from '@/actions/navigation';
 import { AiChatAssistant } from './ai-chat-assistant';
 import { editWebsite, type EditWebsiteInput } from '@/ai/flows/edit-website-flow';
+import { logAiInteraction } from '@/actions/logging';
 
 
 interface SelectedElementData extends IPageComponent {
@@ -860,10 +861,13 @@ export default function EditorPageComponent() {
         }
         if (result.modifiedGlobalSettings) { setGlobalSettings(result.modifiedGlobalSettings); setEditorSaveStatus('unsaved_changes'); }
         toast({ title: "AI Assistant", description: result.explanation });
+        
+        logAiInteraction({ websiteId, prompt, response: result.explanation, status: 'success' });
         return result.explanation;
     } catch (error: any) {
         console.error("AI editing error:", error);
         toast({ title: "AI Error", description: error.message, variant: "destructive" });
+        logAiInteraction({ websiteId, prompt, response: "An error occurred.", status: 'error', errorDetails: error.message });
         return "An error occurred while I was trying to make changes.";
     } finally { setIsAiProcessing(false); }
   };
