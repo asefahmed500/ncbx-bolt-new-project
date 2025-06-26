@@ -38,21 +38,36 @@ export async function generateMetadata(
   };
 }
 
-export default function SiteLayout({
+export default async function SiteLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const host = headers().get('host') || '';
+  const { publishedVersion } = await getPublishedSiteDataByHost(host);
+
+  // Set default fonts if not specified in globalSettings
+  const fontBody = publishedVersion?.globalSettings?.fontFamily || 'Inter';
+  const fontHeadline = publishedVersion?.globalSettings?.fontHeadline || 'Poppins';
+  
+  // Create Google Fonts URL
+  const googleFontsUrl = `https://fonts.googleapis.com/css2?family=${fontBody.replace(/ /g, '+')}:wght@400;500;600;700&family=${fontHeadline.replace(/ /g, '+')}:wght@400;500;600;700&display=swap`;
+
   return (
     <html lang="en">
       <head>
         {/* Favicon link can be dynamically set here based on globalSettings.faviconUrl */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link href={googleFontsUrl} rel="stylesheet" />
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root {
+            --font-body: "${fontBody}";
+            --font-headline: "${fontHeadline}";
+          }
+        `}} />
       </head>
-      <body>
+      <body className="font-body antialiased">
         {children}
       </body>
     </html>

@@ -30,7 +30,8 @@ export interface IWebsiteVersion extends Document {
     primaryColor?: string;
     secondaryColor?: string;
     fontFamily?: string;
-    siteName?: string; // Added siteName to global settings
+    fontHeadline?: string;
+    siteName?: string;
   };
   createdAt: Date;
   createdByUserId?: Types.ObjectId;

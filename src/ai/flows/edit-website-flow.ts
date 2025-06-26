@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent that edits a website structure based on a user prompt.
@@ -28,16 +29,25 @@ const PageSchema_Zod = z.object({
   seoDescription: z.string().optional().describe('The SEO description for the page.'),
 });
 
+const GlobalSettingsSchema_Zod = z.object({
+  siteName: z.string().optional().describe('The name of the entire website.'),
+  fontFamily: z.string().optional().describe('The main body font for the website (e.g., "Inter", "Lato", "Merriweather").'),
+  fontHeadline: z.string().optional().describe('The headline font for the website (e.g., "Poppins", "Playfair Display", "Oswald").'),
+}).describe('Global style settings for the entire website.');
+
+
 // Input and Output types for the flow
 export const EditWebsiteInputSchema = z.object({
   prompt: z.string().describe('The user\'s command for editing the website.'),
   currentPages: z.array(PageSchema_Zod).describe('The current JSON structure of all pages on the website.'),
+  globalSettings: GlobalSettingsSchema_Zod.optional().describe('The current global settings of the website.'),
   activePageSlug: z.string().describe('The slug of the page currently being viewed by the user in the editor.'),
 });
 export type EditWebsiteInput = z.infer<typeof EditWebsiteInputSchema>;
 
 export const EditWebsiteOutputSchema = z.object({
   modifiedPages: z.array(PageSchema_Zod).describe('The complete, modified JSON structure of the pages.'),
+  modifiedGlobalSettings: GlobalSettingsSchema_Zod.optional().describe('The complete, modified JSON structure for the global settings.'),
   explanation: z.string().describe('A brief, user-facing explanation of what changes were made.'),
 });
 export type EditWebsiteOutput = z.infer<typeof EditWebsiteOutputSchema>;
@@ -53,8 +63,7 @@ const editWebsitePrompt = ai.definePrompt({
   output: {schema: EditWebsiteOutputSchema},
   model: 'googleai/gemini-1.5-flash-latest',
   prompt: `You are an expert web designer AI assistant integrated into a website builder.
-A user has provided a prompt to edit their current website.
-Your task is to analyze the user's prompt and the current website structure (provided as 'currentPages' JSON), and then return the complete, modified JSON structure that reflects the requested changes.
+Your task is to analyze the user's prompt and the current website structure (provided as 'currentPages' and 'globalSettings' JSON), and then return the complete, modified JSON structure that reflects the requested changes.
 
 User's Prompt: "{{{prompt}}}"
 Currently Active Page Slug: "{{{activePageSlug}}}"
@@ -63,21 +72,28 @@ Available Components and their default structures:
 \`\`\`json
 {{{jsonEncode componentExamples}}}
 \`\`\`
+A list of recommended Google Fonts: "Inter", "Poppins", "Roboto", "Lato", "Montserrat", "Oswald", "Raleway", "Merriweather", "Playfair Display".
 
 Instructions:
-1.  **Analyze the Request**: Understand if the user wants to add, delete, or modify a component, change a style, add a page, or perform a general restructuring. Most changes should be applied to the currently active page unless the user specifies otherwise (e.g., "add a contact page").
-2.  **Modify the JSON**: Directly manipulate the 'currentPages' JSON to apply the changes. Do not just describe the changes; you must return the full, updated JSON object.
-3.  **Return Modified Structure**: Your primary output is the 'modifiedPages' field, which should contain the entire, updated array of page objects.
-4.  **Explain Your Actions**: In the 'explanation' field, provide a short, friendly message to the user explaining what you did. For example, "I've added a pricing table to your Services page," or "I've changed the background color of the hero section."
-5.  **Be Smart**:
+1.  **Analyze the Request**: Understand if the user wants to add, delete, or modify a component, change a style, add a page, or perform a general restructuring.
+2.  **Handle Global Style Changes**: If the user asks to change a site-wide style like "change the font to Roboto", you MUST modify the 'globalSettings' object. Update 'fontFamily' for body text and 'fontHeadline' for headings. Do NOT attempt to change styles inside individual components for a global request.
+3.  **Handle Page/Component Changes**: Most changes should be applied to the currently active page unless the user specifies otherwise (e.g., "add a contact page").
+4.  **Return Modified Structure**: Your primary output is the 'modifiedPages' field and the 'modifiedGlobalSettings' field. You must return the *entire*, updated structure for both, even if one of them was not changed.
+5.  **Explain Your Actions**: In the 'explanation' field, provide a short, friendly message to the user explaining what you did.
+6.  **Be Smart**:
     - When adding a new component (e.g., "add a hero section"), use the default structure from the 'Available Components' list above as a starting point. Then, populate it with relevant placeholder content based on the user's prompt and the website's context.
     - For images, you MUST use placeholder URLs from "https://placehold.co" and add a "dataAiHint" property with keywords.
-    - If changing a style (e.g., "make the background dark blue"), find the relevant component (like a 'section' or 'hero') and update its 'backgroundColor' in the config. Use hex color codes.
+    - If changing a style on a specific component (e.g., "make the background dark blue"), find the relevant component (like a 'section' or 'hero') and update its 'backgroundColor' in the config. Use hex color codes.
     - If adding a new page (e.g., "create an 'About Us' page"), add a new page object to the 'pages' array with a suitable name and slug, and add some basic components to it.
     - **IMPORTANT**: When you add a new component or a new page, you must generate a new unique '_id' for it. An ID can be a short random string of letters and numbers.
-6.  **If Unsure**: If the prompt is too vague or you cannot fulfill it, return the original, unmodified 'currentPages' structure and use the 'explanation' field to ask for clarification. For example: "I can do that, but which section's background color would you like to change?"
+7.  **If Unsure**: If the prompt is too vague or you cannot fulfill it, return the original, unmodified 'currentPages' and 'globalSettings' structures and use the 'explanation' field to ask for clarification.
 
-Current Website JSON:
+Current Global Settings JSON:
+\`\`\`json
+{{{jsonEncode globalSettings}}}
+\`\`\`
+
+Current Website Pages JSON:
 \`\`\`json
 {{{jsonEncode currentPages}}}
 \`\`\`
@@ -112,6 +128,15 @@ const editWebsiteFlow = ai.defineFlow(
     if (!output) {
       throw new Error("AI failed to generate a response.");
     }
+    
+    // Ensure original data is returned if AI fails to modify it, preventing data loss
+    if (!output.modifiedPages) {
+        output.modifiedPages = input.currentPages;
+    }
+    if (!output.modifiedGlobalSettings) {
+        output.modifiedGlobalSettings = input.globalSettings;
+    }
+
     return output;
   }
 );

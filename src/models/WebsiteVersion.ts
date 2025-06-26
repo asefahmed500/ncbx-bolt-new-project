@@ -33,6 +33,7 @@ export interface IWebsiteVersion extends Document {
     primaryColor?: string;
     secondaryColor?: string;
     fontFamily?: string;
+    fontHeadline?: string;
     siteName?: string;
   };
   createdAt: Date;
@@ -80,5 +81,3 @@ const WebsiteVersion =
   models.WebsiteVersion || model<IWebsiteVersion>('WebsiteVersion', WebsiteVersionSchema);
 
 export default WebsiteVersion;
-
-    

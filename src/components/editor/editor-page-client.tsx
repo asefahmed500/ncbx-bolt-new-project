@@ -69,6 +69,7 @@ export default function EditorPageComponent() {
   const [websiteData, setWebsiteData] = useState<IWebsite | null>(null);
 
   const [currentPages, setCurrentPages] = useState<IWebsiteVersionPage[]>([JSON.parse(JSON.stringify(defaultInitialPage))]);
+  const [globalSettings, setGlobalSettings] = useState<IWebsiteVersion['globalSettings']>({});
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [selectedElement, setSelectedElement] = useState<SelectedElementData | null>(null);
 
@@ -150,23 +151,30 @@ export default function EditorPageComponent() {
         toast({ title: "Error Loading Website", description: result.error, variant: "destructive" });
         setWebsiteData(null);
         setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+        setGlobalSettings({});
         setActivePageIndex(0);
         await fetchSiteNavigations(null);
       } else if (result.website) {
         setWebsiteData(result.website);
         await fetchSiteNavigations(id);
-        if (result.currentVersion && result.currentVersion.pages.length > 0) {
-          const sanitizedPages = result.currentVersion.pages.map(p => ({
-            ...p,
-            _id: (p._id || newObjectId()).toString(),
-            elements: p.elements.map(el => ({
-              ...el,
-              _id: (el._id || newObjectId()).toString(),
-            }))
-          })) as IWebsiteVersionPage[];
-          setCurrentPages(sanitizedPages);
+        if (result.currentVersion) {
+          if (result.currentVersion.pages.length > 0) {
+            const sanitizedPages = result.currentVersion.pages.map(p => ({
+              ...p,
+              _id: (p._id || newObjectId()).toString(),
+              elements: p.elements.map(el => ({
+                ...el,
+                _id: (el._id || newObjectId()).toString(),
+              }))
+            })) as IWebsiteVersionPage[];
+            setCurrentPages(sanitizedPages);
+          } else {
+             setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+          }
+           setGlobalSettings(result.currentVersion.globalSettings || {});
         } else {
           setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+          setGlobalSettings({});
         }
         setActivePageIndex(0);
         setEditorSaveStatus('saved');
@@ -175,6 +183,7 @@ export default function EditorPageComponent() {
       toast({ title: "Error", description: `Failed to load website: ${err.message}`, variant: "destructive" });
       setWebsiteData(null);
       setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+      setGlobalSettings({});
       setActivePageIndex(0);
       await fetchSiteNavigations(null);
     } finally {
@@ -192,6 +201,7 @@ export default function EditorPageComponent() {
       setIsLoadingWebsite(false);
       setWebsiteData(null);
       setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+      setGlobalSettings({});
       setActivePageIndex(0);
       setSelectedElement(null);
       fetchSiteNavigations(null);
@@ -409,6 +419,7 @@ export default function EditorPageComponent() {
     const contentToSave: SaveWebsiteContentInput = {
       websiteId: websiteId,
       pages: getEditorContentForSave(),
+      globalSettings: globalSettings,
     };
 
     try {
@@ -976,6 +987,7 @@ export default function EditorPageComponent() {
         const input: EditWebsiteInput = {
             prompt,
             currentPages: getEditorContentForSave(),
+            globalSettings: globalSettings,
             activePageSlug: currentPages[activePageIndex]?.slug || '/',
         };
 
@@ -994,12 +1006,15 @@ export default function EditorPageComponent() {
             setCurrentPages(sanitizedPages);
             setEditorSaveStatus('unsaved_changes');
             setSelectedElement(null);
-            toast({ title: "AI Assistant", description: result.explanation });
-            return result.explanation;
-        } else {
-             toast({ title: "AI Assistant", description: "The AI did not return a valid page structure.", variant: "destructive"});
-            return "Sorry, I couldn't process that request properly.";
         }
+        if (result.modifiedGlobalSettings) {
+          setGlobalSettings(result.modifiedGlobalSettings);
+          setEditorSaveStatus('unsaved_changes');
+        }
+
+        toast({ title: "AI Assistant", description: result.explanation });
+        return result.explanation;
+
     } catch (error: any) {
         console.error("AI editing error:", error);
         toast({ title: "AI Error", description: error.message, variant: "destructive" });
@@ -1008,6 +1023,37 @@ export default function EditorPageComponent() {
         setIsAiProcessing(false);
     }
   };
+
+  const handleGlobalSettingsChange = (key: keyof NonNullable<IWebsiteVersion['globalSettings']>, value: any) => {
+    setGlobalSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+    setEditorSaveStatus('unsaved_changes');
+  };
+
+  const renderGlobalStyleFields = () => {
+    return (
+        <Card>
+            <CardHeader><CardTitle className="text-base font-semibold">Global Styles</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+                 <div>
+                    <Label htmlFor="siteName" className="text-xs">Site Name</Label>
+                    <Input id="siteName" value={globalSettings?.siteName || ''} onChange={(e) => handleGlobalSettingsChange('siteName', e.target.value)} className="text-xs bg-input"/>
+                </div>
+                 <div>
+                    <Label htmlFor="fontFamily" className="text-xs">Body Font</Label>
+                    <Input id="fontFamily" placeholder="e.g. Inter" value={globalSettings?.fontFamily || ''} onChange={(e) => handleGlobalSettingsChange('fontFamily', e.target.value)} className="text-xs bg-input"/>
+                </div>
+                <div>
+                    <Label htmlFor="fontHeadline" className="text-xs">Headline Font</Label>
+                    <Input id="fontHeadline" placeholder="e.g. Poppins" value={globalSettings?.fontHeadline || ''} onChange={(e) => handleGlobalSettingsChange('fontHeadline', e.target.value)} className="text-xs bg-input"/>
+                </div>
+                {/* Add other global settings fields here like primaryColor */}
+            </CardContent>
+        </Card>
+    );
+  }
 
   const renderPropertyFields = () => {
     const activePageData = currentPages[activePageIndex];
@@ -1228,9 +1274,10 @@ export default function EditorPageComponent() {
         }
         return (
             <Tabs defaultValue="page-settings" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4 h-auto">
-                <TabsTrigger value="page-settings" className="text-xs px-2 py-1.5 h-auto">Page Settings</TabsTrigger>
-                <TabsTrigger value="site-navigations" className="text-xs px-2 py-1.5 h-auto">Site Navigations</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
+                <TabsTrigger value="page-settings" className="text-xs px-2 py-1.5 h-auto">Page</TabsTrigger>
+                <TabsTrigger value="global-styles" className="text-xs px-2 py-1.5 h-auto">Global Styles</TabsTrigger>
+                <TabsTrigger value="site-navigations" className="text-xs px-2 py-1.5 h-auto">Navigations</TabsTrigger>
             </TabsList>
             <TabsContent value="page-settings">
                 <Card><CardHeader><CardTitle className="text-base font-semibold">Page: {activePageData.name}</CardTitle></CardHeader>
@@ -1240,6 +1287,9 @@ export default function EditorPageComponent() {
                     <div><Label htmlFor="seoTitle" className="text-xs">SEO Title</Label><Input type="text" id="seoTitle" value={activePageData.seoTitle || ""} placeholder="Page Title for SEO" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, e.target.value, activePageData.seoDescription)} /></div>
                     <div><Label htmlFor="seoDescription" className="text-xs">SEO Description</Label><Textarea id="seoDescription" value={activePageData.seoDescription || ""} placeholder="Page description for SEO" className="text-xs bg-input" rows={3} onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, activePageData.seoTitle, e.target.value)} /></div>
                 </CardContent></Card>
+            </TabsContent>
+            <TabsContent value="global-styles">
+                {renderGlobalStyleFields()}
             </TabsContent>
             <TabsContent value="site-navigations">
                 <Card><CardHeader><CardTitle className="text-base font-semibold flex items-center"><NavigationIcon className="mr-2 h-4 w-4" />Manage Site Navigations</CardTitle></CardHeader>
