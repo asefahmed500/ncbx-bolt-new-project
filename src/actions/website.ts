@@ -776,28 +776,34 @@ export async function getPublishedSiteDataByHost(host: string): Promise<GetPubli
     console.error("[getPublishedSiteDataByHost] NEXT_PUBLIC_APP_BASE_DOMAIN is not set. Subdomain parsing will fail.");
     return { error: "Application base domain not configured." };
   }
-  
-  let websiteDoc: IWebsite | null = null;
-  const hostname = host.split(':')[0]; // remove port if present, e.g., localhost:9003 -> localhost
-  const baseDomainHostname = appBaseDomain.split(':')[0]; // e.g., localhost
 
-  // Handle subdomain on base domain (e.g., mysite.localhost)
-  if (hostname.endsWith(`.${baseDomainHostname}`)) {
-    const subdomain = hostname.substring(0, hostname.length - (baseDomainHostname.length + 1));
-     if (subdomain && subdomain !== 'www') {
-      websiteDoc = await Website.findOne({ subdomain, status: 'published' }).lean();
-    }
-  } else {
-    // This handles custom domains (e.g., www.mycustomsite.com) and the case where hostname is just `localhost`
-    websiteDoc = await Website.findOne({ 
-      $or: [
-        { customDomain: hostname, status: 'published', domainStatus: 'verified' },
-        { customDomain: `www.${hostname}`, status: 'published', domainStatus: 'verified' }
-      ]
-    }).lean();
-  }
-  
+  const hostname = host.split(':')[0].toLowerCase(); // Use lowercase for consistency
+
+  // Step 1: Check for a matching custom domain first.
+  // Handles both "www.domain.com" and "domain.com" lookups.
+  const nakedDomain = hostname.replace(/^www\./, '');
+  let websiteDoc: IWebsite | null = await Website.findOne({
+    $or: [
+      { customDomain: hostname },
+      { customDomain: nakedDomain }
+    ],
+    status: 'published',
+    domainStatus: 'verified'
+  }).lean();
+
+  // Step 2: If no custom domain matches, check for a subdomain of the app's base domain.
   if (!websiteDoc) {
+    const baseDomainHostname = appBaseDomain.split(':')[0].toLowerCase();
+    if (hostname.endsWith(`.${baseDomainHostname}`)) {
+      const subdomain = hostname.substring(0, hostname.length - (baseDomainHostname.length + 1));
+      if (subdomain && subdomain !== 'www') { // 'www' should be handled as part of the main app domain, not a user site.
+        websiteDoc = await Website.findOne({ subdomain: subdomain, status: 'published' }).lean();
+      }
+    }
+  }
+
+  if (!websiteDoc) {
+    console.log(`[getPublishedSiteDataByHost] Site not found for host: "${hostname}". Looked for custom domain and subdomain of "${appBaseDomain}".`);
     return { error: "Site not found or not published." };
   }
 
@@ -813,5 +819,3 @@ export async function getPublishedSiteDataByHost(host: string): Promise<GetPubli
 
   return { website: serializeObject(websiteDoc), publishedVersion: serializeObject(publishedVersionDoc) };
 }
-
-    
