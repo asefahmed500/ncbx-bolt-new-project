@@ -136,4 +136,3 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
 
 export default ElementRenderer;
 
-    
