@@ -58,10 +58,10 @@ export default function SiteLayout({
           img { max-width: 100%; height: auto; }
           a { color: #007bff; text-decoration: none; }
           a:hover { text-decoration: underline; }
-          .container { max-width: 1100px; margin-left: auto; margin-right: auto; padding-left: 15px; padding-right: 15px; }
+          .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding-left: 15px; padding-right: 15px; }
         `}</style>
       </head>
-      <body className="container mx-auto">
+      <body>
         {children}
       </body>
     </html>

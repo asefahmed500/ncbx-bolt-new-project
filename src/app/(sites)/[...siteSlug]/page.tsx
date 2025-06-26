@@ -32,7 +32,7 @@ export default async function SiteSlugPage({ params }: SiteSlugPageProps) {
   // const siteBackgroundColor = publishedVersion.globalSettings?.backgroundColor || '#FFFFFF';
 
   return (
-    <div className="mx-auto p-4" /* style={{ backgroundColor: siteBackgroundColor }} */ >
+    <div className="mx-auto" /* style={{ backgroundColor: siteBackgroundColor }} */ >
       {/* Basic structure, real styling would come from component configs & global CSS */}
       {currentPage.elements && currentPage.elements.length > 0 ? (
         currentPage.elements.sort((a, b) => a.order - b.order).map((element) => (

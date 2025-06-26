@@ -11,31 +11,21 @@ interface Column {
 
 interface ColumnsRendererProps {
   config: IPageComponent['config'];
-  isEditor?: boolean;
 }
 
-const ColumnDropArea = ({ column, isEditor }: { column: Column, isEditor: boolean }) => {
-  const { setNodeRef, isOver } = useDroppable({ id: column.id });
-
+const ColumnDropArea = ({ column }: { column: Column }) => {
+  // isEditor functionality is handled in the main editor component
+  // This renderer is now just for display
   return (
-    <div
-      ref={isEditor ? setNodeRef : undefined}
-      className={`flex flex-col min-w-0 h-full transition-colors ${
-        isEditor && isOver ? 'bg-primary/10' : ''
-      } ${isEditor && !column.elements.length ? 'p-4 border-2 border-dashed border-muted rounded-md min-h-[100px] items-center justify-center text-muted-foreground text-xs' : ''}`}
-    >
-      {column.elements.length > 0 ? (
-        (column.elements || []).map((element) => (
-          <ElementRenderer key={element._id as string} element={element}/>
-        ))
-      ) : isEditor ? (
-        <span>Drop Here</span>
-      ) : null}
+    <div className="flex flex-col min-w-0 h-full">
+      {(column.elements || []).map((element) => (
+        <ElementRenderer key={element._id as string} element={element}/>
+      ))}
     </div>
   );
 }
 
-const ColumnsRenderer: React.FC<ColumnsRendererProps> = ({ config, isEditor = false }) => {
+const ColumnsRenderer: React.FC<ColumnsRendererProps> = ({ config }) => {
   const gap = config?.gap || '1rem';
   const columnsData: Column[] = config?.columns || [];
   const columnCount = columnsData.length;
@@ -49,12 +39,10 @@ const ColumnsRenderer: React.FC<ColumnsRendererProps> = ({ config, isEditor = fa
   return (
     <div className={`grid ${gridClasses} w-full`} style={{ gap }}>
       {columnsData.map((column, index) => (
-        <ColumnDropArea key={column.id || index} column={column} isEditor={isEditor} />
+        <ColumnDropArea key={column.id || index} column={column} />
       ))}
     </div>
   );
 };
 
 export default ColumnsRenderer;
-
-    

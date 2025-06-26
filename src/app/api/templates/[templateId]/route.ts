@@ -1,7 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/auth';
-import { updateTemplateMetadataByAdmin, updateTemplateStatusByAdmin } from '@/actions/admin';
+import { updateTemplateMetadataByAdmin, updateTemplateStatusByAdmin, getTemplateDataForExport } from '@/actions/admin';
 import Template from '@/models/Template'; // For GET
 import dbConnect from '@/lib/dbConnect';
 import mongoose from 'mongoose';
@@ -44,10 +44,10 @@ export async function GET(
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
-    
+    // Public can view approved templates. Admins or owners might view others.
+    // For simplicity, this public GET will only show approved or if admin is requesting.
     const session = await auth();
-    const isOwner = template.createdByUserId && session?.user?.id && (template.createdByUserId as any)._id.toString() === session.user.id;
-    if (template.status !== 'approved' && session?.user?.role !== 'admin' && !isOwner) {
+    if (template.status !== 'approved' && session?.user?.role !== 'admin' && template.createdByUserId?.toString() !== session?.user?.id) {
         return NextResponse.json({ error: 'Template not found or not available.' }, { status: 404 });
     }
 
@@ -72,7 +72,7 @@ export async function PUT(
     if (!mongoose.Types.ObjectId.isValid(templateId)) {
       return NextResponse.json({ error: 'Invalid Template ID format' }, { status: 400 });
     }
-    
+
     const body = await request.json();
     let result;
 
@@ -112,13 +112,14 @@ export async function DELETE(
     }
 
     await dbConnect();
-    // This is a direct DB delete. In a real app, you might soft delete or cascade deletes.
     const deletedTemplate = await Template.findByIdAndDelete(templateId);
+    // TODO: Also delete related TemplateReviews and ModerationQueueItems if necessary
 
     if (!deletedTemplate) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
-
+    // Note: Admin actions for delete might be more complex (e.g., cascade deletes)
+    // This is a direct DB delete.
     return NextResponse.json({ success: `Template ${templateId} deleted successfully.` }, { status: 200 });
   } catch (error: any) {
     console.error(`[API_DELETE_TEMPLATE_${params.templateId}] Error:`, error);
