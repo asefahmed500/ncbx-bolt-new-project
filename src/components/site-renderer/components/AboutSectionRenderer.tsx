@@ -18,11 +18,11 @@ const AboutSectionRenderer: React.FC<AboutSectionRendererProps> = ({ config }) =
         <div className="text-center mb-10">
           <h2 className="text-3xl md:text-4xl font-bold font-headline">{title}</h2>
         </div>
-        <div className={`grid gap-12 ${imageUrl ? 'md:grid-cols-2 items-center' : 'grid-cols-1'}`}>
-          {imageUrl && (
+        <div className={`grid gap-12 ${imageUrl !== undefined ? 'md:grid-cols-2 items-center' : 'grid-cols-1'}`}>
+          {imageUrl !== undefined && (
             <div className="text-center md:text-left">
               <Image 
-                src={imageUrl as string || "https://placehold.co/500x350.png?text=About+Image"} 
+                src={(imageUrl as string) || "https://placehold.co/500x350.png?text=About+Image"} 
                 alt={imageAlt as string} 
                 width={500}
                 height={350}
@@ -31,7 +31,7 @@ const AboutSectionRenderer: React.FC<AboutSectionRendererProps> = ({ config }) =
               />
             </div>
           )}
-          <div className={imageUrl ? '' : 'max-w-3xl mx-auto text-center md:text-left'}>
+          <div className={imageUrl !== undefined ? '' : 'max-w-3xl mx-auto text-center md:text-left'}>
             <div className="prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: content as string }} />
           </div>
         </div>

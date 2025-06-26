@@ -7,7 +7,7 @@ interface TeamMember {
   role: string;
   image?: string;
   bio?: string;
-  socialLinks?: { platform: string; url: string }[];
+  socialLinks?: { platform: string; url:string }[];
   dataAiHint?: string;
 }
 
@@ -30,17 +30,15 @@ const TeamRenderer: React.FC<TeamRendererProps> = ({ config }) => {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {members.map((member, index) => (
             <div key={index} className="bg-card rounded-xl shadow-lg overflow-hidden text-center p-6 border border-border hover:shadow-2xl transition-shadow">
-              {member.image && (
-                <div className="relative w-32 h-32 md:w-40 md:h-40 mx-auto mb-4 rounded-full overflow-hidden border-2 border-primary">
-                  <Image
-                    src={member.image}
-                    alt={member.name}
-                    layout="fill"
-                    objectFit="cover"
-                    data-ai-hint={member.dataAiHint || "team member person"}
-                  />
-                </div>
-              )}
+              <div className="relative w-32 h-32 md:w-40 md:h-40 mx-auto mb-4 rounded-full overflow-hidden border-2 border-primary">
+                <Image
+                  src={member.image || "https://placehold.co/300x300.png"}
+                  alt={member.name}
+                  layout="fill"
+                  objectFit="cover"
+                  data-ai-hint={member.dataAiHint || "team member person"}
+                />
+              </div>
               <h3 className="text-xl font-semibold font-headline mb-1 text-card-foreground">{member.name}</h3>
               <p className="text-primary text-sm font-medium mb-2">{member.role}</p>
               {member.bio && <p className="text-xs text-muted-foreground mb-4">{member.bio}</p>}

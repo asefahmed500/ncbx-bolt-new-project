@@ -31,17 +31,15 @@ const CardSectionRenderer: React.FC<CardSectionRendererProps> = ({ config }) => 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {cards.map((card, index) => (
             <div key={index} className="bg-card rounded-lg shadow-lg overflow-hidden flex flex-col border border-border">
-              {card.image && (
-                <div className="relative w-full h-48">
-                  <Image
-                    src={card.image}
-                    alt={card.title}
-                    layout="fill"
-                    objectFit="cover"
-                    data-ai-hint={card.dataAiHint || card.title.toLowerCase().replace(/\s+/g, ' ')}
-                  />
-                </div>
-              )}
+              <div className="relative w-full h-48">
+                <Image
+                  src={card.image || "https://placehold.co/300x200.png"}
+                  alt={card.title}
+                  layout="fill"
+                  objectFit="cover"
+                  data-ai-hint={card.dataAiHint || card.title.toLowerCase().replace(/\s+/g, ' ')}
+                />
+              </div>
               <div className="p-6 flex-grow flex flex-col">
                 <h3 className="text-xl font-semibold font-headline mb-2 text-card-foreground">{card.title}</h3>
                 <p className="text-muted-foreground text-sm flex-grow">{card.description}</p>

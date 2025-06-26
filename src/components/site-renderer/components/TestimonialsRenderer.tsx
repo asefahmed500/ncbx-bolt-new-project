@@ -29,17 +29,15 @@ const TestimonialsRenderer: React.FC<TestimonialsRendererProps> = ({ config }) =
         <div className={`gap-8 ${layout === 'grid' ? 'grid md:grid-cols-1 lg:grid-cols-2' : 'space-y-8'}`}>
           {items.map((item, index) => (
             <div key={index} className="bg-card p-8 rounded-xl shadow-xl border border-border">
-              {item.avatar && (
-                <div className="relative w-16 h-16 mx-auto md:mx-0 md:float-left md:mr-6 mb-4 md:mb-0 rounded-full overflow-hidden border-2 border-accent">
-                  <Image
-                    src={item.avatar}
-                    alt={item.author}
-                    layout="fill"
-                    objectFit="cover"
-                    data-ai-hint={item.dataAiHint || "client avatar person"}
-                  />
-                </div>
-              )}
+              <div className="relative w-16 h-16 mx-auto md:mx-0 md:float-left md:mr-6 mb-4 md:mb-0 rounded-full overflow-hidden border-2 border-accent">
+                <Image
+                  src={item.avatar || "https://placehold.co/100x100.png"}
+                  alt={item.author}
+                  layout="fill"
+                  objectFit="cover"
+                  data-ai-hint={item.dataAiHint || "client avatar person"}
+                />
+              </div>
               <blockquote className="text-lg italic text-card-foreground mb-4">
                 &ldquo;{item.quote}&rdquo;
               </blockquote>
