@@ -99,6 +99,21 @@ export default function EditorPageComponent() {
   const [isAiProcessing, setIsAiProcessing] = useState(false);
 
 
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (editorSaveStatus === 'unsaved_changes') {
+        e.preventDefault();
+        e.returnValue = ''; // Required for Chrome and some other browsers
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [editorSaveStatus]);
+
   const fetchSiteNavigations = useCallback(async (currentWebsiteId: string | null) => {
     if (!currentWebsiteId) {
       setAllSiteNavigations([]);
