@@ -37,9 +37,10 @@ import AboutSectionRenderer from './components/AboutSectionRenderer';
 
 interface ElementRendererProps {
   element: IPageComponent;
+  isEditor?: boolean; // Pass this down to know if we are in editor mode
 }
 
-const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
+const ElementRenderer: React.FC<ElementRendererProps> = ({ element, isEditor = false }) => {
   if (!element || !element.type) {
     return (
       <div className="my-2 p-3 border border-dashed border-destructive/50 bg-destructive/10 rounded">
@@ -53,69 +54,74 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
     );
   }
   
+  const componentProps = {
+    config: element.config,
+    isEditor, // Pass the isEditor flag to all renderers
+  };
+
   switch (element.type) {
     case 'heading':
-      return <HeadingRenderer config={element.config} />;
+      return <HeadingRenderer {...componentProps} />;
     case 'text':
-      return <TextRenderer config={element.config} />;
+      return <TextRenderer {...componentProps} />;
     case 'image':
-      return <ImageRenderer config={element.config} />;
+      return <ImageRenderer {...componentProps} />;
     case 'button':
-      return <ButtonRenderer config={element.config} />;
+      return <ButtonRenderer {...componentProps} />;
     case 'navbar':
-      return <NavbarRenderer config={element.config} />;
+      return <NavbarRenderer {...componentProps} />;
     case 'hero':
-      return <HeroRenderer config={element.config} />;
+      return <HeroRenderer {...componentProps} />;
     case 'card_section':
-      return <CardSectionRenderer config={element.config} />;
+      return <CardSectionRenderer {...componentProps} />;
     case 'footer':
-      return <FooterRenderer config={element.config} />;
+      return <FooterRenderer {...componentProps} />;
     case 'features':
-      return <FeaturesRenderer config={element.config} />;
+      return <FeaturesRenderer {...componentProps} />;
     case 'testimonials':
-      return <TestimonialsRenderer config={element.config} />;
+      return <TestimonialsRenderer {...componentProps} />;
     case 'pricing_table':
-      return <PricingTableRenderer config={element.config} />;
+      return <PricingTableRenderer {...componentProps} />;
     case 'contact_form':
-      return <ContactFormRenderer config={element.config} />;
+      return <ContactFormRenderer {...componentProps} />;
     case 'faq':
-      return <FAQRenderer config={element.config} />;
+      return <FAQRenderer {...componentProps} />;
     case 'video_embed':
-      return <VideoEmbedRenderer config={element.config} />;
+      return <VideoEmbedRenderer {...componentProps} />;
     case 'map_embed':
-        return <MapEmbedRenderer config={element.config} />;
+        return <MapEmbedRenderer {...componentProps} />;
     case 'customCode':
-        return <CustomCodeRenderer config={element.config} />;
+        return <CustomCodeRenderer {...componentProps} />;
     case 'divider':
-        return <DividerRenderer config={element.config} />;
+        return <DividerRenderer {...componentProps} />;
     case 'section':
-        return <SectionRenderer config={element.config} />;
+        return <SectionRenderer {...componentProps} />;
     case 'columns':
-        return <ColumnsRenderer config={element.config} />;
+        return <ColumnsRenderer {...componentProps} />;
     case 'spacer':
-        return <SpacerRenderer config={element.config} />;
+        return <SpacerRenderer {...componentProps} />;
     case 'tabs':
-        return <TabsRenderer config={element.config} />;
+        return <TabsRenderer {...componentProps} />;
     case 'slider':
-        return <SliderRenderer config={element.config} />;
+        return <SliderRenderer {...componentProps} />;
     case 'login_signup':
-        return <LoginSignupRenderer config={element.config} />;
+        return <LoginSignupRenderer {...componentProps} />;
     case 'locked_content':
-        return <LockedContentRenderer config={element.config} />;
+        return <LockedContentRenderer {...componentProps} />;
     case 'call_to_action':
-      return <CallToActionRenderer config={element.config} />;
+      return <CallToActionRenderer {...componentProps} />;
     case 'stats':
-      return <StatsRenderer config={element.config} />;
+      return <StatsRenderer {...componentProps} />;
     case 'team':
-      return <TeamRenderer config={element.config} />;
+      return <TeamRenderer {...componentProps} />;
     case 'newsletter_signup':
-      return <NewsletterSignupRenderer config={element.config} />;
+      return <NewsletterSignupRenderer {...componentProps} />;
     case 'blog_posts':
-      return <BlogPostsRenderer config={element.config} />;
+      return <BlogPostsRenderer {...componentProps} />;
     case 'services_list':
-      return <ServicesListRenderer config={element.config} />;
+      return <ServicesListRenderer {...componentProps} />;
     case 'about_section':
-      return <AboutSectionRenderer config={element.config} />;
+      return <AboutSectionRenderer {...componentProps} />;
     default:
       return (
         <div className="my-2 p-3 border border-dashed border-destructive/50 bg-destructive/10 rounded">
@@ -131,3 +137,5 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
 };
 
 export default ElementRenderer;
+
+    

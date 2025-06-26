@@ -176,3 +176,5 @@ export function PremiumTemplatePaymentModal({ isOpen, onOpenChange, template, on
     </Dialog>
   );
 }
+
+    
