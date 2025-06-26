@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { SaveTemplateModal } from '@/components/editor/save-template-modal';
 import { TemplateGalleryModal } from '@/components/editor/template-gallery-modal';
 import mongoose from 'mongoose';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getComponentConfig } from '@/components/editor/componentRegistry';
 import {
   DndContext,
@@ -956,7 +956,7 @@ function EditorPageComponent() {
                             <span className="text-xs font-medium truncate" title={nav.name}>{nav.name}</span>
                             <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedNavigationForEditing(nav); setEditingNavName(nav.name); setEditingNavItems(nav.items); }}><Edit className="h-3.5 w-3.5"/></Button>
-                                <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setNavigationToDeleteId(nav._id as string)}><Trash2 className="h-3.5 w-3.5 text-destructive"/></Button></AlertDialogTrigger>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setNavigationToDeleteId(nav._id as string)}><Trash2 className="h-3.5 w-3.5 text-destructive"/></Button>
                             </div>
                         </div>
                         ))}
@@ -1042,11 +1042,9 @@ function EditorPageComponent() {
                     <TabsTrigger key={page._id as string || index} value={index.toString()} className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none rounded-t-md border-b-2 border-transparent data-[state=active]:border-primary">
                       {page.name}
                       {currentPages.length > 1 && (
-                        <AlertDialogTrigger asChild onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToDeleteIndex(index); }}>
-                          <button className="ml-1.5 p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}>
-                            <Trash2 className="h-3 w-3 text-destructive/70 hover:text-destructive" />
-                          </button>
-                        </AlertDialogTrigger>
+                        <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToDeleteIndex(index); }} className="ml-1.5 p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}>
+                          <Trash2 className="h-3 w-3 text-destructive/70 hover:text-destructive" />
+                        </button>
                       )}
                     </TabsTrigger>
                   ))}
