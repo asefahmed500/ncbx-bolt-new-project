@@ -32,6 +32,7 @@ const EditorCanvasElement = ({
   isSelected: boolean;
 }) => {
   const handleSelect = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent default browser actions (e.g., following a link) when selecting in the editor.
     e.stopPropagation();
     onElementSelect(element._id as string, pageIndex);
   };
@@ -42,7 +43,7 @@ const EditorCanvasElement = ({
         onClick={handleSelect}
         className={`relative p-1 my-1 cursor-pointer transition-all ${ isSelected ? 'ring-2 ring-primary ring-offset-2' : 'hover:ring-1 hover:ring-primary/50' }`}
       >
-        <div className="pointer-events-none">
+        <div>
           <ElementRenderer element={element} />
         </div>
         {isSelected && (
@@ -86,7 +87,7 @@ export function CanvasEditor({ devicePreview, page, pageIndex, selectedElementId
         <div ref={setNodeRef} className="h-full">
           <SortableContext items={elementsToRender.map(el => el._id as string)} strategy={verticalListSortingStrategy}>
             {elementsToRender.length === 0 ? (
-              <div className={`flex flex-col items-center justify-center h-full text-muted-foreground pointer-events-none select-none min-h-[300px] rounded-md transition-colors ${isOver && isDragging ? 'bg-primary/10 border-2 border-dashed border-primary' : ''}`}>
+              <div className={`flex flex-col items-center justify-center h-full text-muted-foreground select-none min-h-[300px] rounded-md transition-colors ${isOver && isDragging ? 'bg-primary/10 border-2 border-dashed border-primary' : ''}`}>
                 <LayoutGrid className="w-16 h-16 mb-4 text-muted-foreground/50" />
                 <p className="text-lg font-medium">Canvas Editor ({page?.name || 'Page'})</p>
                 <p className="text-sm">Drag components here to build your page.</p>
