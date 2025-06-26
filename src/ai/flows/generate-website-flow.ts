@@ -16,12 +16,14 @@ import {componentRegistry} from '@/components/editor/componentRegistry';
 const PageComponentConfigSchema_Zod = z.record(z.any()).describe('A flexible object for component configuration. For images, use `src` for the URL and `dataAiHint` for a 1-2 word hint for image search. For text, use `text` or `htmlContent`.');
 
 const PageComponentSchema_Zod = z.object({
+  _id: z.string().optional().describe("A unique identifier for the component."),
   type: z.string().describe('The type of the component to render.'),
   config: PageComponentConfigSchema_Zod,
   order: z.number().describe('The vertical order of the component on the page.'),
 });
 
 const PageSchema_Zod = z.object({
+  _id: z.string().optional().describe("A unique identifier for the page."),
   name: z.string().describe('The name of the page, e.g., "Home", "About Us".'),
   slug: z.string().describe('The URL slug for the page, e.g., "/", "/about". The homepage must have a slug of "/".'),
   elements: z.array(PageComponentSchema_Zod).describe('The list of components that make up this page.'),
@@ -71,20 +73,24 @@ For each component, provide a 'type', 'order', and a 'config' object.
 - For text properties (like 'text', 'title', 'subtitle', 'htmlContent'), generate creative and relevant placeholder text.
 - For image 'src' properties, you MUST use placeholder URLs from "https://placehold.co". For example: "https://placehold.co/1200x600.png" for a hero background or "https://placehold.co/400x300.png" for a card image.
 - For every placeholder image you use, you MUST also add a "dataAiHint" property to its config object with one or two keywords that describe the desired image (e.g., { "src": "...", "dataAiHint": "bakery interior" }).
+- **IMPORTANT**: For every page and every component element you generate, you MUST create a new and unique '_id' for it. An ID can be a short random string of letters and numbers.
 
 Here is an example for a simple "About Us" page component structure:
 "elements": [
   {
+    "_id": "nav123",
     "type": "navbar",
     "order": 0,
     "config": { "brandText": "Jane's Bakery" }
   },
   {
+    "_id": "head456",
     "type": "heading",
     "order": 1,
     "config": { "text": "About Jane's Bakery", "level": "h1" }
   },
   {
+    "_id": "text789",
     "type": "text",
     "order": 2,
     "config": { "htmlContent": "<p>We started with a passion for baking...</p>" }
@@ -109,7 +115,7 @@ const generateWebsiteFlow = ai.defineFlow(
     }
     // Ensure at least one page exists and one is a homepage
     if (output.pages.length === 0) {
-        output.pages.push({ name: "Home", slug: "/", elements: [], seoTitle: "Home", seoDescription: "" });
+        output.pages.push({ _id: "page" + Math.random(), name: "Home", slug: "/", elements: [], seoTitle: "Home", seoDescription: "" });
     }
     if (!output.pages.some(p => p.slug === "/")) {
         output.pages[0].slug = "/";
@@ -118,5 +124,3 @@ const generateWebsiteFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
