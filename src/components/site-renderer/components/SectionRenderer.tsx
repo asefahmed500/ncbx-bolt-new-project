@@ -34,7 +34,7 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ config, isEditor = fa
       >
         {elements.length > 0 ? (
           elements.map((element) => (
-            <ElementRenderer key={element._id as string} element={element} isEditor={isEditor}/>
+            <ElementRenderer key={element._id as string} element={element}/>
           ))
         ) : isEditor ? (
             <span>Drop Components Here</span>

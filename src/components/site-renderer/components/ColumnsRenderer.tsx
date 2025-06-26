@@ -11,6 +11,7 @@ interface Column {
 
 interface ColumnsRendererProps {
   config: IPageComponent['config'];
+  isEditor?: boolean;
 }
 
 const ColumnDropArea = ({ column, isEditor }: { column: Column, isEditor: boolean }) => {
@@ -25,7 +26,7 @@ const ColumnDropArea = ({ column, isEditor }: { column: Column, isEditor: boolea
     >
       {column.elements.length > 0 ? (
         (column.elements || []).map((element) => (
-          <ElementRenderer key={element._id as string} element={element} isEditor={isEditor}/>
+          <ElementRenderer key={element._id as string} element={element}/>
         ))
       ) : isEditor ? (
         <span>Drop Here</span>
