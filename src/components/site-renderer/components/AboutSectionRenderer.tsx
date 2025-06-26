@@ -1,3 +1,4 @@
+
 import type { IPageComponent } from '@/models/PageComponent';
 
 interface AboutSectionRendererProps {

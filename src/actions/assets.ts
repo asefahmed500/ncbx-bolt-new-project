@@ -5,11 +5,8 @@ import { v2 as cloudinary } from 'cloudinary';
 import { auth } from '@/auth';
 
 // Configure Cloudinary with your credentials from .env
-// This configuration should ideally happen once, e.g., in a separate config file or at app startup,
-// but for server actions, configuring it here is also acceptable.
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
   console.error("Cloudinary environment variables (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) are not fully set.");
-  // Depending on strictness, you might throw an error or allow proceeding with limited functionality.
 } else {
     cloudinary.config({
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,

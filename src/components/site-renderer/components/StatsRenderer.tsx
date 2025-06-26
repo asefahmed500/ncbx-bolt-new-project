@@ -1,3 +1,4 @@
+
 import type { IPageComponent } from '@/models/PageComponent';
 // For icons, you'd typically map string names to actual Lucide icon components
 

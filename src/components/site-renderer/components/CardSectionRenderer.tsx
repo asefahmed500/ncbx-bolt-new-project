@@ -1,3 +1,4 @@
+
 import type { IPageComponent } from '@/models/PageComponent';
 import Image from 'next/image'; // Using next/image for card images
 

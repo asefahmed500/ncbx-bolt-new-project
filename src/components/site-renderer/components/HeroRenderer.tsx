@@ -1,3 +1,4 @@
+
 import type { IPageComponent } from '@/models/PageComponent';
 // No NextImage needed if only background image for now
 
