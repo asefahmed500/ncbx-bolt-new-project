@@ -22,7 +22,7 @@ NCBX is a full-featured, no-code website builder that empowers users to create p
 -   **AI**: Google AI via Genkit
 -   **Drag & Drop**: `@dnd-kit`
 -   **Payments**: Stripe
--   **Asset Management**: Cloudinary (optional, for image uploads)
+-   **Asset Management**: Cloudinary (for image uploads)
 
 ---
 
@@ -34,7 +34,8 @@ NCBX is a full-featured, no-code website builder that empowers users to create p
 -   [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
 -   A MongoDB database instance (e.g., from [MongoDB Atlas](https://www.mongodb.com/atlas))
 -   A [Stripe](https://stripe.com/) account for payment processing.
--   A [Cloudinary](https://cloudinary.com/) account (optional, for image uploads).
+-   A [Cloudinary](https://cloudinary.com/) account for image uploads.
+-   A [Google AI (Gemini)](https://ai.google.dev/) API Key for AI features.
 
 ### 1. Clone the Repository
 
@@ -57,18 +58,19 @@ Create a `.env` file in the root of the project by copying the example file:
 cp .env.example .env
 ```
 
-Now, open the `.env` file and fill in the placeholder values with your actual credentials and keys:
+Now, open the `.env` file and fill in the placeholder values with your actual credentials and keys. This is a critical step.
 
--   `MONGODB_URI`: Your full MongoDB connection string, including the database name.
--   `NEXTAUTH_SECRET`: A secret key for session encryption. Generate one with `openssl rand -base64 32`.
--   `NEXTAUTH_URL`: The full URL of your application (e.g., `http://localhost:9003` for local development).
--   `APP_URL`: Should be the same as `NEXTAUTH_URL`.
--   `NEXT_PUBLIC_APP_BASE_DOMAIN`: The base domain for subdomains (e.g., `notthedomain.com` for local testing).
--   `STRIPE_SECRET_KEY`: Your Stripe secret key.
--   `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook signing secret.
--   `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: Your Stripe publishable key.
--   `NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY`: The Stripe Price ID for your "Pro Monthly" plan.
--   `CLOUDINARY_*`: Your Cloudinary cloud name, API key, and secret (if you plan to use image uploading).
+-   **`MONGODB_URI`**: Your full MongoDB connection string. **IMPORTANT**: Make sure to replace `YOUR_DB_NAME` in the URI with your actual database name.
+-   **`NEXTAUTH_SECRET`**: A secret key for session encryption. Generate one with `openssl rand -base64 32`.
+-   **`NEXTAUTH_URL`**: The full URL of your application. For local development, this should be `http://localhost:9003`.
+-   **`APP_URL`**: Same as `NEXTAUTH_URL`.
+-   **`NEXT_PUBLIC_APP_BASE_DOMAIN`**: The base domain for subdomains. For local testing, you can use a fake domain like `notthedomain.com`.
+-   **`STRIPE_SECRET_KEY`**: Your Stripe secret key (e.g., `sk_test_...`).
+-   **`STRIPE_WEBHOOK_SECRET`**: Your Stripe webhook signing secret (e.g., `whsec_...`).
+-   **`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`**: Your Stripe publishable key (e.g., `pk_test_...`).
+-   **`NEXT_PUBLIC_STRIPE_PRICE_ID_*`**: The Stripe Price IDs for your subscription plans. You need to create these products in your Stripe dashboard first.
+-   **`CLOUDINARY_*`**: Your Cloudinary cloud name, API key, and secret for image uploading.
+-   **`GEMINI_API_KEY`**: Your API key from Google AI Studio for AI features.
 
 ### 4. Run the Application
 
@@ -76,7 +78,7 @@ Now, open the `.env` file and fill in the placeholder values with your actual cr
 npm run dev
 ```
 
-The application will be available at `http://localhost:9003` (or your configured port).
+The application will be available at `http://localhost:9003`.
 
 ---
 
