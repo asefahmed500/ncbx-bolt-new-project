@@ -1,3 +1,4 @@
+
 // @ts-nocheck
 "use client";
 
@@ -24,6 +25,14 @@ import VideoEmbedRenderer from './components/VideoEmbedRenderer';
 import BlogPostsRenderer from './components/BlogPostsRenderer';
 import ServicesListRenderer from './components/ServicesListRenderer';
 import AboutSectionRenderer from './components/AboutSectionRenderer';
+import DividerRenderer from './components/DividerRenderer';
+import ColumnsRenderer from './components/ColumnsRenderer';
+import SectionRenderer from './components/SectionRenderer';
+import FormRenderer from './components/FormRenderer';
+import InputRenderer from './components/InputRenderer';
+import TextareaFieldRenderer from './components/TextareaFieldRenderer';
+import MapEmbedRenderer from './components/MapEmbedRenderer';
+import CustomCodeRenderer from './components/CustomCodeRenderer';
 
 
 interface ElementRendererProps {
@@ -76,23 +85,35 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
       return <ServicesListRenderer config={element.config} />;
     case 'about_section':
       return <AboutSectionRenderer config={element.config} />;
-    // Placeholder for components like section, columns, divider, customCode etc.
-    // case 'section':
-    //   return <SectionRenderer config={element.config} elements={element.config?.children || []} />; 
-    // case 'columns':
-    //   return <ColumnsRenderer config={element.config} columnsData={element.config?.columns || []} />; 
+    case 'divider':
+        return <DividerRenderer config={element.config} />;
+    case 'section':
+        return <SectionRenderer config={element.config} />;
+    case 'columns':
+        return <ColumnsRenderer config={element.config} />;
+    case 'form':
+        return <FormRenderer config={element.config} />;
+    case 'input':
+        return <InputRenderer config={element.config} />;
+    case 'textarea_field':
+        return <TextareaFieldRenderer config={element.config} />;
+    case 'map_embed':
+        return <MapEmbedRenderer config={element.config} />;
+    case 'customCode':
+        return <CustomCodeRenderer config={element.config} />;
     default:
       return (
-        <div className="my-2 p-3 border border-dashed border-neutral-300 bg-neutral-50 rounded">
-          <p className="text-xs text-neutral-500">
-            Render for: <strong>{element.type}</strong> (Not fully implemented)
+        <div className="my-2 p-3 border border-dashed border-destructive/50 bg-destructive/10 rounded">
+          <p className="text-xs text-destructive font-semibold">
+            Unknown Component: <strong>{element.type}</strong>
           </p>
-          <pre className="mt-1 text-xs bg-neutral-100 p-1 overflow-auto max-h-32">
-            {JSON.stringify(element.config, null, 2)}
-          </pre>
+          <p className="text-xs text-destructive/80 mt-1">
+            This component type does not have a renderer. Please check the component registry and ensure a corresponding renderer exists.
+          </p>
         </div>
       );
   }
 };
 
 export default ElementRenderer;
+

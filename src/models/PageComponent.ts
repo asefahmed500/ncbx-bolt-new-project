@@ -19,10 +19,10 @@ export const PageComponentSchema = new Schema<IPageComponent>(
       enum: [
         'heading', 'text', 'image', 'button', 'section', 'columns', 'divider',
         'customCode', 'video_embed', 'form', 'input', 'textarea_field', 'map_embed',
-        'navbar', 'hero', 'footer', 'card_section', // Existing new ones
-        'features', 'testimonials', 'pricing_table', 'contact_form', // From user list
-        'faq', 'gallery', 'stats', 'call_to_action', 'team', // From user list
-        'newsletter_signup', 'blog_posts', 'services_list', 'about_section' // From user list
+        'navbar', 'hero', 'footer', 'card_section',
+        'features', 'testimonials', 'pricing_table', 'contact_form',
+        'faq', 'gallery', 'stats', 'call_to_action', 'team',
+        'newsletter_signup', 'blog_posts', 'services_list', 'about_section'
       ],
     },
     config: {

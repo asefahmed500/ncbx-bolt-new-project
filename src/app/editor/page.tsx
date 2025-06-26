@@ -74,6 +74,7 @@ function EditorPageComponent() {
   const [isTemplateGalleryModalOpen, setIsTemplateGalleryModalOpen] = useState(false);
   const [editorSaveStatus, setEditorSaveStatus] = useState<EditorSaveStatus>('idle');
   const [pageToDeleteIndex, setPageToDeleteIndex] = useState<number | null>(null);
+  const [showPageDeleteConfirm, setShowPageDeleteConfirm] = useState(false);
 
   const [activeDraggedItem, setActiveDraggedItem] = useState<Active | null>(null);
 
@@ -82,6 +83,7 @@ function EditorPageComponent() {
   const [isNavigationsLoading, setIsNavigationsLoading] = useState(false);
   const [newNavigationName, setNewNavigationName] = useState("");
   const [navigationToDeleteId, setNavigationToDeleteId] = useState<string | null>(null);
+  const [showNavDeleteConfirm, setShowNavDeleteConfirm] = useState(false);
 
   const [selectedNavigationForEditing, setSelectedNavigationForEditing] = useState<INavigation | null>(null);
   const [editingNavItems, setEditingNavItems] = useState<INavigationItem[]>([]);
@@ -372,7 +374,7 @@ function EditorPageComponent() {
       if (result.success && result.website && result.versionId) {
         setEditorSaveStatus('saved');
         setWebsiteData(result.website);
-        await loadWebsiteData(websiteId);
+        // No need to reload, optimistic update is fine and prevents flicker
         toast({ title: "Changes Saved!", description: "Your website content has been updated." });
       } else {
         setEditorSaveStatus('error');
@@ -392,11 +394,13 @@ function EditorPageComponent() {
     while (existingPageNames.includes(newPageName)) {
       newPageName = `${newPageBaseName} ${counter++}`;
     }
+    const newPageSlug = newPageName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
 
     const newPage: IWebsiteVersionPage = {
         _id: new mongoose.Types.ObjectId().toString(),
         name: newPageName,
-        slug: `/${newPageName.toLowerCase().replace(/\s+/g, '-')}`,
+        slug: `/${newPageSlug}`,
         elements: [],
     };
     
@@ -411,6 +415,7 @@ function EditorPageComponent() {
     if (pageToDeleteIndex === null) return;
     if (currentPages.length <= 1) {
       toast({ title: "Cannot Delete Page", description: "You must have at least one page.", variant: "destructive" });
+      setShowPageDeleteConfirm(false);
       setPageToDeleteIndex(null);
       return;
     }
@@ -419,6 +424,7 @@ function EditorPageComponent() {
     setActivePageIndex(Math.max(0, pageToDeleteIndex - 1));
     setSelectedElement(null);
     setPageToDeleteIndex(null);
+    setShowPageDeleteConfirm(false);
     setEditorSaveStatus('unsaved_changes');
     toast({ title: "Page Removed", description: "Page removed from the editor. Save changes to make it permanent." });
   };
@@ -637,6 +643,7 @@ function EditorPageComponent() {
       toast({ title: "Error", description: error.message || "Could not delete navigation.", variant: "destructive" });
     } finally {
       setIsNavigationsLoading(false);
+      setShowNavDeleteConfirm(false);
       setNavigationToDeleteId(null);
     }
   };
@@ -991,7 +998,7 @@ function EditorPageComponent() {
                             <span className="text-xs font-medium truncate" title={nav.name}>{nav.name}</span>
                             <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedNavigationForEditing(nav); setEditingNavName(nav.name); setEditingNavItems(nav.items); }}><Edit className="h-3.5 w-3.5"/></Button>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setNavigationToDeleteId(nav._id as string)}><Trash2 className="h-3.5 w-3.5 text-destructive"/></Button>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setNavigationToDeleteId(nav._id as string); setShowNavDeleteConfirm(true); }}><Trash2 className="h-3.5 w-3.5 text-destructive"/></Button>
                             </div>
                         </div>
                         ))}
@@ -1054,23 +1061,9 @@ function EditorPageComponent() {
                       <TabsTrigger key={page._id as string || index} value={index.toString()} className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none rounded-t-md border-b-2 border-transparent data-[state=active]:border-primary">
                         {page.name}
                         {currentPages.length > 1 && (
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); }} className="ml-1.5 p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}>
-                                      <X className="h-3 w-3 text-destructive/70 hover:text-destructive" />
-                                    </button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>This action cannot be undone. This will delete the page "{page.name}".</AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => confirmDeletePage()} className="bg-destructive hover:bg-destructive/90">Delete Page</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                            <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToDeleteIndex(index); setShowPageDeleteConfirm(true); }} className="ml-1.5 p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}>
+                              <X className="h-3 w-3 text-destructive/70 hover:text-destructive" />
+                            </button>
                         )}
                       </TabsTrigger>
                     ))}
@@ -1093,8 +1086,21 @@ function EditorPageComponent() {
         {websiteId && <SaveTemplateModal isOpen={isSaveTemplateModalOpen} onOpenChange={setIsSaveTemplateModalOpen} currentDesignData={getEditorContentForSave()} />}
         <TemplateGalleryModal isOpen={isTemplateGalleryModalOpen} onOpenChange={setIsTemplateGalleryModalOpen} onApplyTemplate={handleApplyTemplate} />
         
-        <AlertDialog open={navigationToDeleteId !== null} onOpenChange={(open) => !open && setNavigationToDeleteId(null)}>
-            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Navigation?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the navigation: "{allSiteNavigations.find(n => n._id === navigationToDeleteId)?.name || ''}"? This cannot be undone and may affect Navbars using it.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel onClick={() => setNavigationToDeleteId(null)} disabled={isNavigationsLoading}>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteNavigation} className="bg-destructive hover:bg-destructive/90" disabled={isNavigationsLoading}>{isNavigationsLoading ? <Loader2 className="animate-spin h-4 w-4"/> : "Delete"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialog open={showPageDeleteConfirm} onOpenChange={setShowPageDeleteConfirm}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>This action cannot be undone. This will delete the page "{pageToDeleteIndex !== null ? currentPages[pageToDeleteIndex]?.name : ''}".</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setShowPageDeleteConfirm(false)}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmDeletePage} className="bg-destructive hover:bg-destructive/90">Delete Page</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={showNavDeleteConfirm} onOpenChange={setShowNavDeleteConfirm}>
+            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Navigation?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the navigation: "{allSiteNavigations.find(n => n._id === navigationToDeleteId)?.name || ''}"? This cannot be undone and may affect Navbars using it.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel onClick={() => setShowNavDeleteConfirm(false)} disabled={isNavigationsLoading}>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteNavigation} className="bg-destructive hover:bg-destructive/90" disabled={isNavigationsLoading}>{isNavigationsLoading ? <Loader2 className="animate-spin h-4 w-4"/> : "Delete"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
         </AlertDialog>
       </div>
     </DndContext>
