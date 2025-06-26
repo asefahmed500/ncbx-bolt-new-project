@@ -15,7 +15,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import Image from 'next/image';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { getApprovedTemplates } from '@/actions/templates';
+import { getApprovedTemplates, grantTemplateAccess } from '@/actions/templates';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ShoppingCart, Search, ExternalLink, Tags, LayoutGrid } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -113,11 +113,24 @@ export function TemplateGalleryModal({ isOpen, onOpenChange, onApplyTemplate }: 
   };
 
   const onPaymentSuccess = async (purchasedTemplate: ITemplate) => {
-      toast({ title: "Purchase Successful!", description: `You can now use the "${purchasedTemplate.name}" template.` });
-      await updateSession({ refreshSubscription: true }); // A generic way to trigger a session refresh
-      onApplyTemplate(purchasedTemplate); // Apply it to the editor
-      setIsPaymentModalOpen(false); // Close payment modal
-      onOpenChange(false); // Close gallery modal
+    toast({ title: "Purchase Successful!", description: `Granting you access to "${purchasedTemplate.name}"...` });
+    
+    // Call server action to grant access immediately
+    const grantResult = await grantTemplateAccess((purchasedTemplate._id as unknown as string).toString());
+
+    if (grantResult.error) {
+        toast({ title: "Access Grant Failed", description: `There was an issue granting you access. Please contact support. Error: ${grantResult.error}`, variant: "destructive", duration: 10000 });
+        setIsPaymentModalOpen(false);
+        onOpenChange(false);
+        return;
+    }
+
+    // Now that DB is updated, refresh the session to get the new purchasedTemplateIds
+    await updateSession({ refreshSubscription: true });
+    
+    onApplyTemplate(purchasedTemplate); // Apply it to the editor
+    setIsPaymentModalOpen(false); // Close payment modal
+    onOpenChange(false); // Close gallery modal
   };
 
   const isLoadingSession = sessionStatus === 'loading';

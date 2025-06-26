@@ -250,4 +250,37 @@ export async function getApprovedTemplates(input: z.infer<typeof GetTemplatesInp
   }
 }
 
+export async function grantTemplateAccess(templateId: string): Promise<{ success?: string; error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "User not authenticated." };
+  }
+  const userId = session.user.id;
+  
+  if (!mongoose.Types.ObjectId.isValid(templateId)) {
+    return { error: "Invalid Template ID." };
+  }
+
+  try {
+    await dbConnect();
+    const user = await User.findById(userId);
+    if (!user) {
+      return { error: "User not found." };
+    }
+    
+    const templateObjectId = new mongoose.Types.ObjectId(templateId);
+    if (!user.purchasedTemplateIds.some(id => id.equals(templateObjectId))) {
+      user.purchasedTemplateIds.push(templateObjectId);
+      await user.save();
+      console.log(`[GrantTemplateAccess] User ${userId} granted access to template ${templateId}.`);
+    } else {
+      console.log(`[GrantTemplateAccess] User ${userId} already has access to template ${templateId}.`);
+    }
+    
+    return { success: "Template access granted." };
+  } catch (error: any) {
+    console.error(`[GrantTemplateAccess] Error granting access for user ${userId} to template ${templateId}:`, error);
+    return { error: "Failed to grant template access." };
+  }
+}
     
