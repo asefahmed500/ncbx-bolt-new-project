@@ -2,6 +2,7 @@
 "use client";
 
 import type { IPageComponent } from '@/models/PageComponent';
+import type { INavigation } from '@/models/Navigation';
 import HeadingRenderer from './components/HeadingRenderer';
 import TextRenderer from './components/TextRenderer';
 import ImageRenderer from './components/ImageRenderer';
@@ -37,9 +38,10 @@ import AboutSectionRenderer from './components/AboutSectionRenderer';
 
 interface ElementRendererProps {
   element: IPageComponent;
+  allNavigations?: INavigation[];
 }
 
-const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
+const ElementRenderer: React.FC<ElementRendererProps> = ({ element, allNavigations }) => {
   if (!element || !element.type) {
     return (
       <div className="my-2 p-3 border border-dashed border-destructive/50 bg-destructive/10 rounded">
@@ -55,6 +57,7 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
   
   const componentProps = {
     config: element.config,
+    allNavigations: allNavigations,
   };
 
   switch (element.type) {
@@ -135,4 +138,3 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
 };
 
 export default ElementRenderer;
-

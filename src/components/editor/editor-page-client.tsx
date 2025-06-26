@@ -811,33 +811,15 @@ export default function EditorPageComponent() {
   };
 
   const handleSaveNavigationChanges = async () => {
-    if (!selectedNavigationForEditing?._id) return;
-    const navIdToUpdate = selectedNavigationForEditing._id as string;
+    if (!selectedNavigationForEditing?._id || !websiteId) return;
     setIsNavigationsLoading(true);
     const result = await updateNavigation({
-      navigationId: navIdToUpdate,
+      navigationId: selectedNavigationForEditing._id as string,
       name: editingNavName,
       items: editingNavItems.map(({label, url, type}) => ({label, url, type})),
     });
     if (result.success && result.data) {
       toast({ title: "Navigation Saved", description: `"${result.data?.name}" has been updated.`});
-      
-      setCurrentPages(prevPages => {
-          const newPages = JSON.parse(JSON.stringify(prevPages)) as IWebsiteVersionPage[];
-          const findAndRefreshNavbars = (elements: IPageComponent[]) => {
-              elements.forEach(el => {
-                  if (el.type === 'navbar' && el.config.navigationId === navIdToUpdate) {
-                      el.config.links = result.data?.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' })) || [];
-                  }
-                  if (el.config?.elements) findAndRefreshNavbars(el.config.elements);
-                  if (el.config?.columns) el.config.columns.forEach((c: any) => { if (c.elements) findAndRefreshNavbars(c.elements); });
-              });
-          };
-          newPages.forEach(page => findAndRefreshNavbars(page.elements));
-          return newPages;
-      });
-      setEditorSaveStatus('unsaved_changes');
-      
       await fetchSiteNavigations(websiteId);
       setSelectedNavigationForEditing(null);
       setEditingNavItems([]);
@@ -1217,7 +1199,16 @@ export default function EditorPageComponent() {
                 <Button size="sm" onClick={handleEditorSaveChanges} disabled={editorSaveStatus === 'saving' || editorSaveStatus === 'saved' || editorSaveStatus === 'idle'}><Save className="mr-2 h-4 w-4" />Save Site</Button>
               </div>
             </div>
-            <CanvasEditor devicePreview={currentDevice} page={currentEditorPage} pageIndex={activePageIndex} onElementSelect={handleElementSelect} isDragging={!!activeDraggedItem} activeDragId={activeDraggedItem?.id as string | null} selectedElementId={selectedElement?._id as string | null}/>
+            <CanvasEditor 
+                devicePreview={currentDevice} 
+                page={currentEditorPage} 
+                pageIndex={activePageIndex} 
+                onElementSelect={handleElementSelect} 
+                isDragging={!!activeDraggedItem} 
+                activeDragId={activeDraggedItem?.id as string | null} 
+                selectedElementId={selectedElement?._id as string | null}
+                allNavigations={allSiteNavigations}
+            />
           </main>
           <aside className="w-80 bg-card border-l border-border p-4 shadow-sm flex flex-col overflow-y-auto">
             <Card className="flex-1"><CardHeader><CardTitle className="font-headline text-lg flex items-center">{selectedElement ? <><MousePointerSquareDashed className="w-5 h-5 mr-2 text-primary" />Properties</> : <><Settings className="w-5 h-5 mr-2 text-primary" />Page & Site Settings</>}</CardTitle></CardHeader>

@@ -14,7 +14,7 @@ export default async function SiteSlugPage({ params }: SiteSlugPageProps) {
   // params.siteSlug is guaranteed to be an array of strings here, e.g., ['about'] or ['products', 'item']
   const slug = `/${params.siteSlug.join('/')}`;
 
-  const { website, publishedVersion, error } = await getPublishedSiteDataByHost(host);
+  const { website, publishedVersion, navigations, error } = await getPublishedSiteDataByHost(host);
 
   if (error || !website || !publishedVersion) {
     console.warn(`[SiteSlugPage] Site not found or error for host "${host}", slug "${slug}":`, error);
@@ -36,7 +36,7 @@ export default async function SiteSlugPage({ params }: SiteSlugPageProps) {
       {/* Basic structure, real styling would come from component configs & global CSS */}
       {currentPage.elements && currentPage.elements.length > 0 ? (
         currentPage.elements.sort((a, b) => a.order - b.order).map((element) => (
-          <ElementRenderer key={element._id as string} element={element} />
+          <ElementRenderer key={element._id as string} element={element} allNavigations={navigations} />
         ))
       ) : (
         <div className="text-center py-10">

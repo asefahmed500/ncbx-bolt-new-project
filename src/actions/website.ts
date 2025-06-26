@@ -6,6 +6,7 @@ import Website, { type IWebsite, type WebsiteStatus, type DomainConnectionStatus
 import WebsiteVersion, { type IWebsiteVersion, type IWebsiteVersionPage } from "@/models/WebsiteVersion"; 
 import User from "@/models/User";
 import Template from "@/models/Template";
+import Navigation, { type INavigation } from "@/models/Navigation";
 import { auth } from "@/auth";
 import mongoose from "mongoose";
 import { z } from "zod";
@@ -765,6 +766,7 @@ export async function getWebsiteMetadata(websiteId: string): Promise<GetWebsiteM
 interface GetPublishedSiteDataResult {
   website?: IWebsite;
   publishedVersion?: IWebsiteVersion;
+  navigations?: INavigation[];
   error?: string;
 }
 
@@ -817,5 +819,11 @@ export async function getPublishedSiteDataByHost(host: string): Promise<GetPubli
     return { error: "Published version content not found." };
   }
 
-  return { website: serializeObject(websiteDoc), publishedVersion: serializeObject(publishedVersionDoc) };
+  const navigations = await Navigation.find({ websiteId: websiteDoc._id }).lean();
+
+  return { 
+      website: serializeObject(websiteDoc), 
+      publishedVersion: serializeObject(publishedVersionDoc),
+      navigations: serializeObject(navigations) 
+    };
 }

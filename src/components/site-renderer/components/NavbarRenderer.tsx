@@ -2,6 +2,7 @@
 "use client";
 
 import type { IPageComponent } from '@/models/PageComponent';
+import type { INavigation } from '@/models/Navigation';
 
 interface NavbarLinkItem {
   text: string;
@@ -11,16 +12,31 @@ interface NavbarLinkItem {
 
 interface NavbarRendererProps {
   config: IPageComponent['config'];
+  allNavigations?: INavigation[];
 }
 
-const NavbarRenderer: React.FC<NavbarRendererProps> = ({ config }) => {
+const NavbarRenderer: React.FC<NavbarRendererProps> = ({ config, allNavigations }) => {
   const brandText = config?.brandText || 'MySite';
   const brandLink = config?.brandLink || '/';
-  
-  const linksToRender: NavbarLinkItem[] = config?.links || [];
-  
   const backgroundColor = config?.backgroundColor || 'bg-neutral-100'; 
   const textColor = config?.textColor || 'text-neutral-800';
+
+  let linksToRender: NavbarLinkItem[] = [];
+  const navigationId = config?.navigationId;
+
+  if (navigationId && allNavigations) {
+    const navData = allNavigations.find(nav => nav._id === navigationId);
+    if (navData) {
+      linksToRender = navData.items.map(item => ({
+        text: item.label,
+        href: item.url,
+        type: item.type || 'internal'
+      }));
+    }
+  } else if (config?.links) {
+    // Fallback to links stored in the component config itself
+    linksToRender = config.links;
+  }
 
   return (
     <nav className={`p-4 shadow-md ${backgroundColor} ${textColor}`}>

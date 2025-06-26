@@ -5,6 +5,7 @@ import React from 'react';
 import type { DeviceType } from './app-header';
 import { LayoutGrid } from 'lucide-react';
 import type { IWebsiteVersionPage, IPageComponent } from '@/models/WebsiteVersion';
+import type { INavigation } from '@/models/Navigation';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from './SortableItem';
 import { useDroppable } from '@dnd-kit/core';
@@ -18,18 +19,21 @@ interface CanvasEditorProps {
   onElementSelect: (elementId: string, pageIndex: number) => void;
   isDragging: boolean;
   activeDragId: string | null;
+  allNavigations?: INavigation[];
 }
 
 const EditorCanvasElement = ({ 
   element, 
   pageIndex, 
   onElementSelect,
-  isSelected
+  isSelected,
+  allNavigations
 }: { 
   element: IPageComponent; 
   pageIndex: number; 
   onElementSelect: CanvasEditorProps['onElementSelect'];
   isSelected: boolean;
+  allNavigations?: INavigation[];
 }) => {
   const handleSelect = (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent default browser actions (e.g., following a link) when selecting in the editor.
@@ -44,7 +48,7 @@ const EditorCanvasElement = ({
         className={`relative p-1 my-1 cursor-pointer transition-all ${ isSelected ? 'ring-2 ring-primary ring-offset-2' : 'hover:ring-1 hover:ring-primary/50' }`}
       >
         <div>
-          <ElementRenderer element={element} />
+          <ElementRenderer element={element} allNavigations={allNavigations} />
         </div>
         {isSelected && (
           <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full z-10">
@@ -57,7 +61,7 @@ const EditorCanvasElement = ({
 };
 
 
-export function CanvasEditor({ devicePreview, page, pageIndex, selectedElementId, onElementSelect, isDragging, activeDragId }: CanvasEditorProps) {
+export function CanvasEditor({ devicePreview, page, pageIndex, selectedElementId, onElementSelect, isDragging, activeDragId, allNavigations }: CanvasEditorProps) {
   const { setNodeRef, isOver } = useDroppable({ id: 'canvas-drop-area' });
 
   const getCanvasWidth = () => {
@@ -100,6 +104,7 @@ export function CanvasEditor({ devicePreview, page, pageIndex, selectedElementId
                   pageIndex={pageIndex} 
                   onElementSelect={onElementSelect} 
                   isSelected={(element._id as string) === selectedElementId}
+                  allNavigations={allNavigations}
                 />
               ))
             )}
