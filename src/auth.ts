@@ -6,6 +6,7 @@ import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
+import { NextResponse } from 'next/server';
 
 import User from '@/models/User';
 import Subscription from '@/models/Subscription';
@@ -171,7 +172,48 @@ export const authOptions: NextAuthConfig = {
     strategy: 'jwt' as const,
   },
   callbacks: {
-    async jwt({ token, user, account, trigger, session }) {
+    authorized({ auth: session, request }) {
+      const { nextUrl } = request;
+      const isLoggedIn = !!session?.user;
+
+      const isApiAuthRoute = nextUrl.pathname.startsWith('/api/auth');
+      const isStripeWebhook = nextUrl.pathname === '/api/stripe/webhook';
+      
+      const publicPages = ['/login', '/register', '/', '/about', '/services', '/pricing', '/support', '/terms', '/privacy'];
+      const isPublicPage = publicPages.includes(nextUrl.pathname);
+
+      // Allow API auth routes and the Stripe webhook to be accessed without authentication
+      if (isApiAuthRoute || isStripeWebhook) {
+        return true;
+      }
+      
+      // Allow access to public pages
+      if (isPublicPage) {
+        return true;
+      }
+
+      // If the user is trying to access any other route, they must be logged in
+      if (!isLoggedIn) {
+        const loginUrl = new URL(`/login`, request.url);
+        loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
+        // For API routes, return a 401 Unauthorized response instead of redirecting
+        if (nextUrl.pathname.startsWith('/api')) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        return NextResponse.redirect(loginUrl);
+      }
+
+      // If the user is logged in, check for admin route access
+      const isAdminRoute = nextUrl.pathname.startsWith("/admin");
+      if (isAdminRoute && session.user?.role !== "admin") {
+          // Non-admin trying to access admin area, redirect to dashboard
+          return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+
+      // If all checks pass, allow the request
+      return true;
+    },
+    async jwt({ token, user, trigger, session }) {
       try {
         if (user && (trigger === "signIn" || trigger === "signUp")) {
           const authorizedUser = user as IUser & {
