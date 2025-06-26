@@ -7,7 +7,7 @@ import { AppHeader, type DeviceType, type EditorSaveStatus } from '@/components/
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X, Edit, UploadCloud, ArrowLeft, RotateCcw, Eraser } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X, Edit, UploadCloud, ArrowLeft, RotateCcw, Eraser, Undo, Redo } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -84,8 +84,9 @@ export default function EditorPageComponent() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const [activeDraggedItem, setActiveDraggedItem] = useState<Active | null>(null);
-  const [previousPageState, setPreviousPageState] = useState<IWebsiteVersionPage[] | null>(null);
-
+  
+  const [history, setHistory] = useState<IWebsiteVersionPage[][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   const [allSiteNavigations, setAllSiteNavigations] = useState<INavigation[]>([]);
   const [isNavigationsLoading, setIsNavigationsLoading] = useState(false);
@@ -102,6 +103,62 @@ export default function EditorPageComponent() {
   const [uploadTargetKey, setUploadTargetKey] = useState<string | null>(null);
   
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+
+
+  const updatePagesWithHistory = useCallback((pagesUpdater: (prevPages: IWebsiteVersionPage[]) => IWebsiteVersionPage[], actionName?: string) => {
+    const newPages = pagesUpdater(currentPages);
+    const pagesCopy = JSON.parse(JSON.stringify(newPages));
+
+    setHistory(prevHistory => {
+        const newHistory = prevHistory.slice(0, historyIndex + 1);
+        newHistory.push(pagesCopy);
+        return newHistory;
+    });
+    setHistoryIndex(prevIndex => prevIndex + 1);
+    
+    setCurrentPages(pagesCopy);
+    setEditorSaveStatus('unsaved_changes');
+  }, [currentPages, history, historyIndex]);
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  const handleUndo = useCallback(() => {
+    if (canUndo) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setCurrentPages(history[newIndex]);
+      setSelectedElement(null);
+      setEditorSaveStatus('unsaved_changes');
+    }
+  }, [canUndo, history, historyIndex]);
+
+  const handleRedo = useCallback(() => {
+    if (canRedo) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setCurrentPages(history[newIndex]);
+      setSelectedElement(null);
+      setEditorSaveStatus('unsaved_changes');
+    }
+  }, [canRedo, history, historyIndex]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleUndo, handleRedo]);
 
 
   useEffect(() => {
@@ -143,49 +200,59 @@ export default function EditorPageComponent() {
 
   const loadWebsiteData = useCallback(async (id: string) => {
     setIsLoadingWebsite(true);
-    setEditorSaveStatus('idle');
     setSelectedElement(null);
     try {
       const result = await getWebsiteEditorData(id);
       if (result.error) {
         toast({ title: "Error Loading Website", description: result.error, variant: "destructive" });
+        const initialPages = [JSON.parse(JSON.stringify(defaultInitialPage))];
         setWebsiteData(null);
-        setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+        setCurrentPages(initialPages);
         setGlobalSettings({});
         setActivePageIndex(0);
         await fetchSiteNavigations(null);
+        setHistory([initialPages]);
+        setHistoryIndex(0);
       } else if (result.website) {
         setWebsiteData(result.website);
         await fetchSiteNavigations(id);
+        let initialPages: IWebsiteVersionPage[];
         if (result.currentVersion) {
-          if (result.currentVersion.pages.length > 0) {
-            const sanitizedPages = result.currentVersion.pages.map(p => ({
-              ...p,
-              _id: (p._id || newObjectId()).toString(),
-              elements: p.elements.map(el => ({
-                ...el,
-                _id: (el._id || newObjectId()).toString(),
-              }))
-            })) as IWebsiteVersionPage[];
-            setCurrentPages(sanitizedPages);
-          } else {
-             setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
-          }
+            const pages = result.currentVersion.pages;
+            if (pages && pages.length > 0) {
+              const sanitizedPages = pages.map(p => ({
+                ...p,
+                _id: (p._id || newObjectId()).toString(),
+                elements: p.elements.map(el => ({
+                  ...el,
+                  _id: (el._id || newObjectId()).toString(),
+                }))
+              })) as IWebsiteVersionPage[];
+              initialPages = sanitizedPages;
+            } else {
+              initialPages = [JSON.parse(JSON.stringify(defaultInitialPage))];
+            }
            setGlobalSettings(result.currentVersion.globalSettings || {});
         } else {
-          setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+          initialPages = [JSON.parse(JSON.stringify(defaultInitialPage))];
           setGlobalSettings({});
         }
+        setCurrentPages(initialPages);
+        setHistory([JSON.parse(JSON.stringify(initialPages))]);
+        setHistoryIndex(0);
         setActivePageIndex(0);
         setEditorSaveStatus('saved');
       }
     } catch (err: any) {
+      const initialPages = [JSON.parse(JSON.stringify(defaultInitialPage))];
       toast({ title: "Error", description: `Failed to load website: ${err.message}`, variant: "destructive" });
       setWebsiteData(null);
-      setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+      setCurrentPages(initialPages);
       setGlobalSettings({});
       setActivePageIndex(0);
       await fetchSiteNavigations(null);
+      setHistory([initialPages]);
+      setHistoryIndex(0);
     } finally {
       setIsLoadingWebsite(false);
     }
@@ -199,12 +266,15 @@ export default function EditorPageComponent() {
       }
     } else {
       setIsLoadingWebsite(false);
+      const initialPages = [JSON.parse(JSON.stringify(defaultInitialPage))];
       setWebsiteData(null);
-      setCurrentPages([JSON.parse(JSON.stringify(defaultInitialPage))]);
+      setCurrentPages(initialPages);
       setGlobalSettings({});
       setActivePageIndex(0);
       setSelectedElement(null);
       fetchSiteNavigations(null);
+      setHistory([initialPages]);
+      setHistoryIndex(0);
     }
   }, [websiteIdFromQuery, websiteId, loadWebsiteData, fetchSiteNavigations]);
 
@@ -242,7 +312,7 @@ export default function EditorPageComponent() {
   }, [currentPages]);
 
   const handlePropertyChange = (path: string, value: any) => {
-      setCurrentPages(prevPages => {
+      updatePagesWithHistory(prevPages => {
           const newPages = JSON.parse(JSON.stringify(prevPages));
           if (!selectedElement) return newPages;
   
@@ -300,7 +370,6 @@ export default function EditorPageComponent() {
               setSelectedElement(prevSel => prevSel ? { ...prevSel, config: JSON.parse(JSON.stringify(finalUpdatedElement!.config)) } : null);
           }
   
-          setEditorSaveStatus('unsaved_changes');
           return newPages;
       });
   };
@@ -353,8 +422,7 @@ export default function EditorPageComponent() {
 
 
   const handlePageDetailsChange = async (pageId: string, newName: string, newSlug: string, seoTitle?: string, seoDescription?: string) => {
-    setCurrentPages(prev => prev.map(p => p._id === pageId ? {...p, name: newName, slug: newSlug, seoTitle, seoDescription } : p));
-    setEditorSaveStatus('unsaved_changes');
+    updatePagesWithHistory(prev => prev.map(p => p._id === pageId ? {...p, name: newName, slug: newSlug, seoTitle, seoDescription } : p));
   };
 
   const getEditorContentForSave = useCallback((): SaveWebsiteContentInput['pages'] => {
@@ -380,35 +448,20 @@ export default function EditorPageComponent() {
 
   const handleApplyTemplate = useCallback((template: ITemplate) => {
     if (template.pages && template.pages.length > 0) {
-      setPreviousPageState(JSON.parse(JSON.stringify(currentPages)));
       const newPagesWithIds = template.pages.map(p => ({
         ...p,
         _id: newObjectId(),
         elements: p.elements.map(el => ({ ...el, _id: newObjectId() }))
       })) as IWebsiteVersionPage[];
-      setCurrentPages(newPagesWithIds);
+      updatePagesWithHistory(() => newPagesWithIds, "Apply Template");
       setActivePageIndex(0);
       setSelectedElement(null);
-      setEditorSaveStatus('unsaved_changes');
-      toast({ title: "Template Applied", description: `"${template.name}" has been applied. Save your changes to persist.` });
+      toast({ title: "Template Applied", description: `"${template.name}" has been applied. Use Undo to revert.` });
     } else {
       toast({ title: "Empty Template", description: "Selected template has no content.", variant: "destructive" });
     }
     setIsTemplateGalleryModalOpen(false);
-  }, [toast, currentPages]);
-
-  const handleUndoTemplateApply = () => {
-    if (previousPageState) {
-      setCurrentPages(previousPageState);
-      setSelectedElement(null);
-      setPreviousPageState(null);
-      setEditorSaveStatus('saved');
-      toast({
-        title: "Template Application Undone",
-        description: "Your previous layout has been restored.",
-      });
-    }
-  };
+  }, [toast, updatePagesWithHistory]);
 
   const handleEditorSaveChanges = async () => {
     if (!websiteId) {
@@ -427,7 +480,10 @@ export default function EditorPageComponent() {
       if (result.success && result.website && result.versionId) {
         setEditorSaveStatus('saved');
         setWebsiteData(result.website);
-        setPreviousPageState(null);
+        // Reset history with the saved state as the new baseline
+        const savedPages = getEditorContentForSave();
+        setHistory([JSON.parse(JSON.stringify(savedPages))]);
+        setHistoryIndex(0);
         toast({ title: "Changes Saved!", description: "Your website content has been updated." });
       } else {
         setEditorSaveStatus('error');
@@ -457,10 +513,9 @@ export default function EditorPageComponent() {
         elements: [],
     };
     
-    setCurrentPages(prev => [...prev, newPage]);
+    updatePagesWithHistory(prev => [...prev, newPage], "Add Page");
     setActivePageIndex(currentPages.length);
     setSelectedElement(null);
-    setEditorSaveStatus('unsaved_changes');
     toast({ title: "Page Added", description: `Page "${newPage.name}" created. Don't forget to save.` });
   };
 
@@ -475,72 +530,37 @@ export default function EditorPageComponent() {
 
     const pageToDelete = currentPages[pageToDeleteIndex];
     const deletedSlug = pageToDelete.slug;
+    
+    updatePagesWithHistory(prev => prev.filter((_, index) => index !== pageToDeleteIndex), "Delete Page");
 
-    // Filter out the deleted page from the main state
-    const newPages = currentPages.filter((_, index) => index !== pageToDeleteIndex);
-
-    // Update any navigations that were linking to the deleted page
+    // After state update, do side effects
     const navUpdatePromises: Promise<any>[] = [];
-    const updatedNavigationsLocally: INavigation[] = [];
-
     allSiteNavigations.forEach(nav => {
       const initialItemCount = nav.items.length;
-      // Filter out internal links that match the slug of the deleted page
       const filteredItems = nav.items.filter(item => !(item.type === 'internal' && item.url === deletedSlug));
-
       if (filteredItems.length < initialItemCount) {
-        // If items were removed, queue an update to the database
         navUpdatePromises.push(updateNavigation({
           navigationId: nav._id as string,
           items: filteredItems.map(({ label, url, type }) => ({ label, url, type })),
         }));
-        updatedNavigationsLocally.push({ ...nav, items: filteredItems });
-      } else {
-        updatedNavigationsLocally.push(nav);
       }
     });
     
-    // Wait for all navigation updates to complete in the database
     try {
       await Promise.all(navUpdatePromises);
       if (navUpdatePromises.length > 0) {
         toast({ title: "Navigations Updated", description: "Removed links to the deleted page." });
+        await fetchSiteNavigations(websiteId); // Refresh navs from server
       }
     } catch(err) {
       console.error("Error updating navigations after page delete:", err);
       toast({ title: "Navigation Update Error", description: "Could not update all navigation menus.", variant: "destructive" });
     }
-
-    // Refresh the local state for navigations to be used by the editor
-    setAllSiteNavigations(updatedNavigationsLocally);
-
-    // Now, refresh any navbar components currently in the editor state to reflect the updated navigation items
-    const pagesWithRefreshedNavs = newPages.map(page => {
-      const findAndRefreshNavbars = (elements: IPageComponent[]): IPageComponent[] => {
-        return elements.map(el => {
-          const newEl = { ...el }; // create a copy
-          if (newEl.type === 'navbar' && newEl.config.navigationId) {
-            const correspondingNav = updatedNavigationsLocally.find(n => n._id === newEl.config.navigationId);
-            if (correspondingNav) {
-              newEl.config.links = correspondingNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
-            }
-          }
-          // Recurse for nested elements
-          if (newEl.config?.elements) newEl.config.elements = findAndRefreshNavbars(newEl.config.elements);
-          if (newEl.config?.columns) newEl.config.columns.forEach((c: any) => { if (c.elements) c.elements = findAndRefreshNavbars(c.elements); });
-          return newEl;
-        });
-      };
-      return { ...page, elements: findAndRefreshNavbars(page.elements) };
-    });
     
-    // Final state updates
-    setCurrentPages(pagesWithRefreshedNavs);
     setActivePageIndex(Math.max(0, pageToDeleteIndex - 1));
     setSelectedElement(null);
     setPageToDeleteIndex(null);
     setShowPageDeleteConfirm(false);
-    setEditorSaveStatus('unsaved_changes');
     toast({ title: "Page Removed", description: `Page "${pageToDelete.name}" was removed. Save changes to persist.` });
   };
   
@@ -555,20 +575,16 @@ export default function EditorPageComponent() {
       return;
     }
 
-    setCurrentPages(prev => {
+    updatePagesWithHistory(prev => {
         const newPages = [...prev];
-        newPages[pageToClearIndex] = {
-            ...newPages[pageToClearIndex],
-            elements: [],
-        };
+        newPages[pageToClearIndex] = { ...newPages[pageToClearIndex], elements: [] };
         return newPages;
-    });
+    }, "Clear Page");
 
     if (activePageIndex === pageToClearIndex) {
         setSelectedElement(null);
     }
     
-    setEditorSaveStatus('unsaved_changes');
     toast({ title: "Page Cleared", description: `All components from "${pageToClear.name}" have been removed. Save your changes.` });
     setShowClearPageConfirm(false);
     setPageToClearIndex(null);
@@ -577,7 +593,7 @@ export default function EditorPageComponent() {
   const deleteSelectedElement = () => {
     if (!selectedElement) return;
 
-    setCurrentPages(prevPages => {
+    updatePagesWithHistory(prevPages => {
       const newPages = JSON.parse(JSON.stringify(prevPages));
       const page = newPages[activePageIndex];
       if (!page) return newPages;
@@ -585,26 +601,10 @@ export default function EditorPageComponent() {
       const deleteRecursive = (elements: IPageComponent[]): IPageComponent[] => {
         const result: IPageComponent[] = [];
         for (const el of elements) {
-          if (el._id === selectedElement._id) {
-            continue; // Skip this element to delete it
-          }
-
-          const newEl = { ...el }; // Create a copy to avoid direct mutation issues
-          
-          if (newEl.config?.elements && Array.isArray(newEl.config.elements)) {
-            newEl.config = { ...newEl.config, elements: deleteRecursive(newEl.config.elements) };
-          }
-          
-          if (newEl.config?.columns && Array.isArray(newEl.config.columns)) {
-            newEl.config = {
-              ...newEl.config,
-              columns: newEl.config.columns.map((col: any) => ({
-                ...col,
-                elements: col.elements ? deleteRecursive(col.elements) : [],
-              })),
-            };
-          }
-          
+          if (el._id === selectedElement._id) continue;
+          const newEl = { ...el };
+          if (newEl.config?.elements) newEl.config = { ...newEl.config, elements: deleteRecursive(newEl.config.elements) };
+          if (newEl.config?.columns) newEl.config = { ...newEl.config, columns: newEl.config.columns.map((c: any) => ({ ...c, elements: c.elements ? deleteRecursive(c.elements) : [] })) };
           result.push(newEl);
         }
         return result;
@@ -612,9 +612,8 @@ export default function EditorPageComponent() {
       
       page.elements = deleteRecursive(page.elements);
       setSelectedElement(null);
-      setEditorSaveStatus('unsaved_changes');
       return newPages;
-    });
+    }, "Delete Component");
     toast({ title: "Component Removed", description: `Component removed from the editor. Save your changes.` });
   };
   
@@ -624,22 +623,14 @@ export default function EditorPageComponent() {
     const duplicateRecursive = (element: IPageComponent): IPageComponent => {
       const newElement = JSON.parse(JSON.stringify(element));
       newElement._id = newObjectId();
-      if (newElement.config?.elements) {
-        newElement.config.elements = newElement.config.elements.map(duplicateRecursive);
-      }
-      if (newElement.config?.columns) {
-        newElement.config.columns = newElement.config.columns.map((col: any) => ({
-          ...col,
-          id: newObjectId(), // Give new column a new drop zone id
-          elements: col.elements ? col.elements.map(duplicateRecursive) : []
-        }));
-      }
+      if (newElement.config?.elements) newElement.config.elements = newElement.config.elements.map(duplicateRecursive);
+      if (newElement.config?.columns) newElement.config.columns = newElement.config.columns.map((col: any) => ({...col, id: newObjectId(), elements: col.elements ? col.elements.map(duplicateRecursive) : [] }));
       return newElement;
     };
     
     const newElement = duplicateRecursive(selectedElement);
 
-    setCurrentPages(prevPages => {
+    updatePagesWithHistory(prevPages => {
         const newPages = JSON.parse(JSON.stringify(prevPages));
         const page = newPages[activePageIndex];
         if (!page) return newPages;
@@ -661,9 +652,8 @@ export default function EditorPageComponent() {
         };
 
         page.elements = insertRecursive(page.elements);
-        setEditorSaveStatus('unsaved_changes');
         return newPages;
-    });
+    }, "Duplicate Component");
 
     toast({ title: "Component Duplicated", description: `Component duplicated. Save your changes.` });
   };
@@ -677,65 +667,36 @@ export default function EditorPageComponent() {
         return;
     }
 
-    // Deep copy the default config to avoid mutating the registry
     const newConfig = JSON.parse(JSON.stringify(componentConfig.defaultConfig));
+    if (selectedElement.type === 'section' && selectedElement.config.id) newConfig.id = selectedElement.config.id;
+    if (selectedElement.type === 'columns' && Array.isArray(selectedElement.config.columns)) selectedElement.config.columns.forEach((oldCol: any, index: number) => { if (newConfig.columns[index]) newConfig.columns[index].id = oldCol.id; });
 
-    // Preserve IDs for droppable containers to prevent dnd-kit errors
-    if (selectedElement.type === 'section' && selectedElement.config.id) {
-        newConfig.id = selectedElement.config.id;
-    }
-    if (selectedElement.type === 'columns' && Array.isArray(selectedElement.config.columns)) {
-        selectedElement.config.columns.forEach((oldCol: any, index: number) => {
-            if (newConfig.columns[index]) {
-                newConfig.columns[index].id = oldCol.id;
-            }
-        });
-    }
-
-    setCurrentPages(prevPages => {
+    updatePagesWithHistory(prevPages => {
         const newPages = JSON.parse(JSON.stringify(prevPages));
         const page = newPages[activePageIndex];
         if (!page) return newPages;
 
         let foundAndUpdated = false;
-
         const updateRecursive = (elements: IPageComponent[]): IPageComponent[] => {
-            // Use map to return a new array, ensuring immutability
             return elements.map(el => {
-                if (foundAndUpdated) return el; // early exit if already updated
+                if (foundAndUpdated) return el;
                 if (el._id === selectedElement._id) {
                     foundAndUpdated = true;
                     return { ...el, config: newConfig };
                 }
-
-                // Create a copy for nested updates
                 const newEl = { ...el };
-                if (newEl.config?.elements && Array.isArray(newEl.config.elements)) {
-                    newEl.config = { ...newEl.config, elements: updateRecursive(newEl.config.elements) };
-                }
-                if (newEl.config?.columns && Array.isArray(newEl.config.columns)) {
-                    newEl.config = {
-                        ...newEl.config,
-                        columns: newEl.config.columns.map((col: any) => ({
-                            ...col,
-                            elements: col.elements ? updateRecursive(col.elements) : [],
-                        })),
-                    };
-                }
+                if (newEl.config?.elements) newEl.config = { ...newEl.config, elements: updateRecursive(newEl.config.elements) };
+                if (newEl.config?.columns) newEl.config = { ...newEl.config, columns: newEl.config.columns.map((col: any) => ({ ...col, elements: col.elements ? updateRecursive(col.elements) : [] })) };
                 return newEl;
             });
         };
-        
         page.elements = updateRecursive(page.elements);
         return newPages;
-    });
+    }, "Reset Component");
 
-    // Update the selectedElement state as well to reflect the change in the properties panel
     setSelectedElement(prev => prev ? { ...prev, config: newConfig } : null);
-    
-    setEditorSaveStatus('unsaved_changes');
     toast({ title: "Component Reset", description: `Component styles have been reset to their defaults.` });
-    setShowResetConfirm(false); // Close the dialog
+    setShowResetConfirm(false);
   };
 
   const sensors = useSensors(
@@ -748,14 +709,12 @@ export default function EditorPageComponent() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDraggedItem(null);
-
     if (!over) return;
-
     const activeId = active.id.toString();
     const overId = over.id.toString();
 
-    setCurrentPages(prevPages => {
-        const newPages = JSON.parse(JSON.stringify(prevPages)); // Deep copy for mutable operations
+    updatePagesWithHistory(prevPages => {
+        const newPages = JSON.parse(JSON.stringify(prevPages));
 
         const findElementAndParentList = (pages: IWebsiteVersionPage[], elementId: string): { list: IPageComponent[]; index: number; element: IPageComponent } | null => {
             for (const page of pages) {
@@ -764,31 +723,22 @@ export default function EditorPageComponent() {
                     const { list } = queue.shift()!;
                     const index = list.findIndex(el => el._id === elementId);
                     if (index !== -1) return { list, index, element: list[index] };
-
                     for (const el of list) {
                         if (el.type === 'section' && el.config?.elements) queue.push({ list: el.config.elements });
-                        else if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
-                            el.config.columns.forEach((col: any) => {
-                                if (col.elements) queue.push({ list: col.elements });
-                            });
-                        }
+                        else if (el.type === 'columns' && Array.isArray(el.config?.columns)) el.config.columns.forEach((col: any) => { if (col.elements) queue.push({ list: col.elements }); });
                     }
                 }
             }
             return null;
         };
-
         const findContainerList = (pages: IWebsiteVersionPage[], containerId: string): IPageComponent[] | null => {
             const activePage = pages[activePageIndex];
             if (!activePage) return null;
             if (containerId === 'canvas-drop-area') return activePage.elements;
-
             const queue: IPageComponent[] = [...activePage.elements];
             while (queue.length > 0) {
                 const el = queue.shift()!;
-                if (el.config.id === containerId && (el.type === 'section' || el.type === 'columns')) {
-                   if (el.type === 'section') return el.config.elements;
-                }
+                if (el.config.id === containerId && (el.type === 'section' || el.type === 'columns')) if (el.type === 'section') return el.config.elements;
                 if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
                     for (let i = 0; i < el.config.columns.length; i++) {
                         if (el.config.columns[i].id === containerId) return el.config.columns[i].elements;
@@ -800,107 +750,42 @@ export default function EditorPageComponent() {
             return null;
         };
 
-        // Case 1: Dropping a new item from the sidebar
         if (active.data.current?.isSidebarItem) {
             const componentType = active.data.current.type as string;
             const componentConfig = getComponentConfig(componentType);
             if (!componentConfig) return newPages;
-
-            const newElement: IPageComponent = {
-                _id: newObjectId(),
-                type: componentType,
-                label: componentConfig.label,
-                config: JSON.parse(JSON.stringify(componentConfig.defaultConfig || {})),
-                order: 0,
-            };
-
-            if (newElement.type === 'columns' && Array.isArray(newElement.config.columns)) {
-                newElement.config.columns.forEach((col: any) => {
-                    col.id = newObjectId();
-                });
-            }
-             if (newElement.type === 'section') {
-                newElement.config.id = newObjectId();
-            }
-            
+            const newElement: IPageComponent = { _id: newObjectId(), type: componentType, label: componentConfig.label, config: JSON.parse(JSON.stringify(componentConfig.defaultConfig || {})), order: 0 };
+            if (newElement.type === 'columns' && Array.isArray(newElement.config.columns)) newElement.config.columns.forEach((col: any) => { col.id = newObjectId(); });
+            if (newElement.type === 'section') newElement.config.id = newObjectId();
             let targetList = findContainerList(newPages, overId);
             let dropIndex = -1;
-
-            if (!targetList) {
-                const overElementInfo = findElementAndParentList(newPages, overId);
-                if (overElementInfo) {
-                    targetList = overElementInfo.list;
-                    dropIndex = overElementInfo.index + 1;
-                }
-            }
-
-            if (targetList) {
-                if (dropIndex === -1) dropIndex = targetList.length;
-                targetList.splice(dropIndex, 0, newElement);
-            }
-
-        } else { // Case 2: Reordering an existing item
+            if (!targetList) { const overElementInfo = findElementAndParentList(newPages, overId); if (overElementInfo) { targetList = overElementInfo.list; dropIndex = overElementInfo.index + 1; } }
+            if (targetList) { if (dropIndex === -1) dropIndex = targetList.length; targetList.splice(dropIndex, 0, newElement); }
+        } else {
             const sourceInfo = findElementAndParentList(newPages, activeId);
             if (!sourceInfo) return newPages;
-            
             const [movedElement] = sourceInfo.list.splice(sourceInfo.index, 1);
-
             let destinationList = findContainerList(newPages, overId);
             let destinationIndex = -1;
-            
-            if (destinationList) { // Dropped on a container
-                destinationIndex = destinationList.length;
-            } else { // Dropped on an element
-                const overElementInfo = findElementAndParentList(newPages, overId);
-                if (overElementInfo) {
-                    destinationList = overElementInfo.list;
-                    destinationIndex = overElementInfo.index;
-                }
-            }
-            
-            if (destinationList) {
-                destinationList.splice(destinationIndex, 0, movedElement);
-            } else { // Fallback: drop back to original list
-                sourceInfo.list.splice(sourceInfo.index, 0, movedElement);
-            }
+            if (destinationList) { destinationIndex = destinationList.length; } else { const overElementInfo = findElementAndParentList(newPages, overId); if (overElementInfo) { destinationList = overElementInfo.list; destinationIndex = overElementInfo.index; } }
+            if (destinationList) { destinationList.splice(destinationIndex, 0, movedElement); } else { sourceInfo.list.splice(sourceInfo.index, 0, movedElement); }
         }
         
-        const reorderRecursively = (elements: IPageComponent[]) => {
-            elements.forEach((el, index) => {
-                el.order = index;
-                if (el.type === 'section' && el.config.elements) reorderRecursively(el.config.elements);
-                if (el.type === 'columns' && Array.isArray(el.config.columns)) {
-                    el.config.columns.forEach((col: any) => reorderRecursively(col.elements || []));
-                }
-            });
-        };
+        const reorderRecursively = (elements: IPageComponent[]) => { elements.forEach((el, index) => { el.order = index; if (el.type === 'section' && el.config.elements) reorderRecursively(el.config.elements); if (el.type === 'columns' && Array.isArray(el.config.columns)) el.config.columns.forEach((col: any) => reorderRecursively(col.elements || [])); }); };
         newPages.forEach(page => reorderRecursively(page.elements));
-
-        setEditorSaveStatus('unsaved_changes');
         return newPages;
-    });
+    }, "Drag & Drop");
   };
 
   const handleCreateNavigation = async () => {
-    if (!newNavigationName.trim() || !websiteId) {
-      toast({ title: "Error", description: "Navigation name cannot be empty.", variant: "destructive" });
-      return;
-    }
+    if (!newNavigationName.trim() || !websiteId) { toast({ title: "Error", description: "Navigation name cannot be empty.", variant: "destructive" }); return; }
     setIsNavigationsLoading(true);
     try {
       const result = await createNavigation({ name: newNavigationName, websiteId, items: [] });
-      if (result.success && result.data) {
-        toast({ title: "Navigation Created", description: `Navigation "${result.data.name}" added.` });
-        setNewNavigationName("");
-        await fetchSiteNavigations(websiteId);
-      } else {
-        toast({ title: "Error", description: result.error || "Failed to create navigation.", variant: "destructive" });
-      }
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Could not create navigation.", variant: "destructive" });
-    } finally {
-      setIsNavigationsLoading(false);
-    }
+      if (result.success && result.data) { toast({ title: "Navigation Created", description: `Navigation "${result.data.name}" added.` }); setNewNavigationName(""); await fetchSiteNavigations(websiteId); }
+      else { toast({ title: "Error", description: result.error || "Failed to create navigation.", variant: "destructive" }); }
+    } catch (error: any) { toast({ title: "Error", description: error.message || "Could not create navigation.", variant: "destructive" }); }
+    finally { setIsNavigationsLoading(false); }
   };
 
   const handleDeleteNavigation = async () => {
@@ -910,507 +795,121 @@ export default function EditorPageComponent() {
       const result = await deleteNavigation(navigationToDeleteId);
       if (result.success) {
         toast({ title: "Navigation Deleted", description: `Navigation has been removed.` });
-        setCurrentPages(prevPages => {
+        updatePagesWithHistory(prevPages => {
           const newPages = JSON.parse(JSON.stringify(prevPages)) as IWebsiteVersionPage[];
           const findAndResetNavbars = (elements: IPageComponent[]) => {
               elements.forEach(el => {
-                if (el.type === 'navbar' && el.config.navigationId === navigationToDeleteId) {
-                  el.config.navigationId = null;
-                  el.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
-                }
+                if (el.type === 'navbar' && el.config.navigationId === navigationToDeleteId) { el.config.navigationId = null; el.config.links = getComponentConfig('navbar')?.defaultConfig?.links || []; }
                 if (el.config?.elements) findAndResetNavbars(el.config.elements);
                 if (el.config?.columns) el.config.columns.forEach((c: any) => { if (c.elements) findAndResetNavbars(c.elements); });
               });
           };
           newPages.forEach(page => findAndResetNavbars(page.elements));
           return newPages;
-        });
-        setEditorSaveStatus('unsaved_changes');
+        }, "Delete Navigation");
         await fetchSiteNavigations(websiteId);
-      } else {
-        toast({ title: "Error", description: result.error || "Failed to delete navigation.", variant: "destructive" });
-      }
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Could not delete navigation.", variant: "destructive" });
-    } finally {
-      setIsNavigationsLoading(false);
-      setShowNavDeleteConfirm(false);
-      setNavigationToDeleteId(null);
-    }
+      } else { toast({ title: "Error", description: result.error || "Failed to delete navigation.", variant: "destructive" }); }
+    } catch (error: any) { toast({ title: "Error", description: error.message || "Could not delete navigation.", variant: "destructive" }); }
+    finally { setIsNavigationsLoading(false); setShowNavDeleteConfirm(false); setNavigationToDeleteId(null); }
   };
 
   const handleSaveNavigationChanges = async () => {
     if (!selectedNavigationForEditing?._id || !websiteId) return;
     setIsNavigationsLoading(true);
-    const result = await updateNavigation({
-      navigationId: selectedNavigationForEditing._id as string,
-      name: editingNavName,
-      items: editingNavItems.map(({label, url, type}) => ({label, url, type})),
-    });
+    const result = await updateNavigation({ navigationId: selectedNavigationForEditing._id as string, name: editingNavName, items: editingNavItems.map(({label, url, type}) => ({label, url, type})), });
     if (result.success && result.data) {
       toast({ title: "Navigation Saved", description: `"${result.data?.name}" has been updated.`});
       await fetchSiteNavigations(websiteId);
       setSelectedNavigationForEditing(null);
       setEditingNavItems([]);
       setEditingNavName("");
-    } else {
-      toast({ title: "Error", description: result.error || "Failed to save navigation.", variant: "destructive" });
-    }
+    } else { toast({ title: "Error", description: result.error || "Failed to save navigation.", variant: "destructive" }); }
     setIsNavigationsLoading(false);
   };
   
-  const handleEditingNavItemChange = (index: number, field: keyof INavigationItem, value: string) => {
-    setEditingNavItems(prev => {
-        const newItems = [...prev];
-        newItems[index] = { ...newItems[index], [field]: value };
-        return newItems;
-    });
-  };
-
-  const handleAddEditingNavItem = () => {
-    setEditingNavItems(prev => [...prev, { label: "New Link", url: "#", type: "internal" }]);
-  };
-  
-  const handleDeleteEditingNavItem = (index: number) => {
-    setEditingNavItems(prev => prev.filter((_, i) => i !== index));
-  };
+  const handleEditingNavItemChange = (index: number, field: keyof INavigationItem, value: string) => { setEditingNavItems(prev => { const newItems = [...prev]; newItems[index] = { ...newItems[index], [field]: value }; return newItems; }); };
+  const handleAddEditingNavItem = () => { setEditingNavItems(prev => [...prev, { label: "New Link", url: "#", type: "internal" }]); };
+  const handleDeleteEditingNavItem = (index: number) => { setEditingNavItems(prev => prev.filter((_, i) => i !== index)); };
 
   const handleAiPromptSubmit = async (prompt: string): Promise<string | null> => {
-    if (!websiteId) {
-        toast({ title: "No Website Selected", description: "Please save your website first before using the AI assistant.", variant: "destructive"});
-        return "I can't edit until the website is saved. Please save your work first.";
-    }
-
+    if (!websiteId) { toast({ title: "No Website Selected", description: "Please save your website first before using the AI assistant.", variant: "destructive"}); return "I can't edit until the website is saved. Please save your work first."; }
     setIsAiProcessing(true);
-
     try {
-        const input: EditWebsiteInput = {
-            prompt,
-            currentPages: getEditorContentForSave(),
-            globalSettings: globalSettings,
-            activePageSlug: currentPages[activePageIndex]?.slug || '/',
-        };
-
+        const input: EditWebsiteInput = { prompt, currentPages: getEditorContentForSave(), globalSettings: globalSettings, activePageSlug: currentPages[activePageIndex]?.slug || '/', };
         const result = await editWebsite(input);
-
-        // --- START: Smart Navigation Update Logic ---
         const newPagesFromAI = result.modifiedPages || [];
         let finalPagesToSet = newPagesFromAI;
-
         const oldPageSlugs = new Set(input.currentPages.map(p => p.slug));
         const addedPages = newPagesFromAI.filter(p => p.slug && !oldPageSlugs.has(p.slug));
-
         if (addedPages.length > 0 && allSiteNavigations.length > 0) {
             const primaryNav = allSiteNavigations[0];
             const newNavItems = [...primaryNav.items];
-            addedPages.forEach(page => {
-                newNavItems.push({ _id: newObjectId(), label: page.name, url: page.slug, type: 'internal' });
-            });
-
-            const navUpdateResult = await updateNavigation({
-                navigationId: primaryNav._id as string,
-                items: newNavItems,
-            });
-
+            addedPages.forEach(page => { newNavItems.push({ _id: newObjectId(), label: page.name, url: page.slug, type: 'internal' }); });
+            const navUpdateResult = await updateNavigation({ navigationId: primaryNav._id as string, items: newNavItems, });
             if (navUpdateResult.success && navUpdateResult.data) {
                 toast({ title: "Navigation Updated", description: `Added ${addedPages.length} page(s) to the "${primaryNav.name}" menu.` });
-                
                 const updatedNavs = allSiteNavigations.map(n => n._id === navUpdateResult.data?._id ? navUpdateResult.data : n);
                 setAllSiteNavigations(updatedNavs);
-                
-                finalPagesToSet = newPagesFromAI.map(page => ({
-                    ...page,
-                    elements: page.elements.map(el => {
-                        if (el.type === 'navbar' && el.config.navigationId === primaryNav._id) {
-                            return {
-                                ...el,
-                                config: {
-                                    ...el.config,
-                                    links: navUpdateResult.data?.items.map(item => ({
-                                        text: item.label,
-                                        href: item.url,
-                                        type: item.type || 'internal'
-                                    }))
-                                }
-                            };
-                        }
-                        return el;
-                    })
-                }));
-            } else {
-                toast({ title: "Navigation Update Failed", description: "AI created pages, but failed to automatically update the navigation menu. Please update it manually.", variant: "destructive" });
-            }
+                finalPagesToSet = newPagesFromAI.map(page => ({ ...page, elements: page.elements.map(el => { if (el.type === 'navbar' && el.config.navigationId === primaryNav._id) { return { ...el, config: { ...el.config, links: navUpdateResult.data?.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' })) } }; } return el; }) }));
+            } else { toast({ title: "Navigation Update Failed", description: "AI created pages, but failed to automatically update the navigation menu. Please update it manually.", variant: "destructive" }); }
         }
-        // --- END: Smart Navigation Update Logic ---
-
-
         if (result.modifiedPages) {
-            const sanitizedPages = finalPagesToSet.map(p => ({
-                ...p,
-                _id: (p._id || newObjectId()).toString(),
-                elements: (p.elements || []).map(el => ({
-                ...el,
-                _id: (el._id || newObjectId()).toString(),
-                }))
-            })) as IWebsiteVersionPage[];
-            
-            setCurrentPages(sanitizedPages);
-            setEditorSaveStatus('unsaved_changes');
+            const sanitizedPages = finalPagesToSet.map(p => ({ ...p, _id: (p._id || newObjectId()).toString(), elements: (p.elements || []).map(el => ({ ...el, _id: (el._id || newObjectId()).toString(), })) })) as IWebsiteVersionPage[];
+            updatePagesWithHistory(() => sanitizedPages, "AI Edit");
             setSelectedElement(null);
         }
-        if (result.modifiedGlobalSettings) {
-          setGlobalSettings(result.modifiedGlobalSettings);
-          setEditorSaveStatus('unsaved_changes');
-        }
-
+        if (result.modifiedGlobalSettings) { setGlobalSettings(result.modifiedGlobalSettings); setEditorSaveStatus('unsaved_changes'); }
         toast({ title: "AI Assistant", description: result.explanation });
         return result.explanation;
-
     } catch (error: any) {
         console.error("AI editing error:", error);
         toast({ title: "AI Error", description: error.message, variant: "destructive" });
         return "An error occurred while I was trying to make changes.";
-    } finally {
-        setIsAiProcessing(false);
-    }
+    } finally { setIsAiProcessing(false); }
   };
 
-  const handleGlobalSettingsChange = (key: keyof NonNullable<IWebsiteVersion['globalSettings']>, value: any) => {
-    setGlobalSettings(prev => ({
-      ...prev,
-      [key]: value
-    }));
-    setEditorSaveStatus('unsaved_changes');
-  };
+  const handleGlobalSettingsChange = (key: keyof NonNullable<IWebsiteVersion['globalSettings']>, value: any) => { setGlobalSettings(prev => ({ ...prev, [key]: value })); setEditorSaveStatus('unsaved_changes'); };
 
   const renderGlobalStyleFields = () => {
-    return (
-        <Card>
-            <CardHeader><CardTitle className="text-base font-semibold">Global Styles</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-                 <div>
-                    <Label htmlFor="siteName" className="text-xs">Site Name</Label>
-                    <Input id="siteName" value={globalSettings?.siteName || ''} onChange={(e) => handleGlobalSettingsChange('siteName', e.target.value)} className="text-xs bg-input"/>
-                </div>
-                 <div>
-                    <Label htmlFor="fontFamily" className="text-xs">Body Font</Label>
-                    <Input id="fontFamily" placeholder="e.g. Inter" value={globalSettings?.fontFamily || ''} onChange={(e) => handleGlobalSettingsChange('fontFamily', e.target.value)} className="text-xs bg-input"/>
-                </div>
-                <div>
-                    <Label htmlFor="fontHeadline" className="text-xs">Headline Font</Label>
-                    <Input id="fontHeadline" placeholder="e.g. Poppins" value={globalSettings?.fontHeadline || ''} onChange={(e) => handleGlobalSettingsChange('fontHeadline', e.target.value)} className="text-xs bg-input"/>
-                </div>
-                {/* Add other global settings fields here like primaryColor */}
-            </CardContent>
-        </Card>
-    );
+    return ( <Card> <CardHeader><CardTitle className="text-base font-semibold">Global Styles</CardTitle></CardHeader> <CardContent className="space-y-3"> <div> <Label htmlFor="siteName" className="text-xs">Site Name</Label> <Input id="siteName" value={globalSettings?.siteName || ''} onChange={(e) => handleGlobalSettingsChange('siteName', e.target.value)} className="text-xs bg-input"/> </div> <div> <Label htmlFor="fontFamily" className="text-xs">Body Font</Label> <Input id="fontFamily" placeholder="e.g. Inter" value={globalSettings?.fontFamily || ''} onChange={(e) => handleGlobalSettingsChange('fontFamily', e.target.value)} className="text-xs bg-input"/> </div> <div> <Label htmlFor="fontHeadline" className="text-xs">Headline Font</Label> <Input id="fontHeadline" placeholder="e.g. Poppins" value={globalSettings?.fontHeadline || ''} onChange={(e) => handleGlobalSettingsChange('fontHeadline', e.target.value)} className="text-xs bg-input"/> </div> </CardContent> </Card> );
   }
 
   const renderPropertyFields = () => {
     const activePageData = currentPages[activePageIndex];
-
-    const renderFieldsRecursive = (configObject: any, pathPrefix = '') => {
-        return Object.entries(configObject).map(([key, value]) => {
-            if (key === 'id' || key === 'elements' || key === 'columns' || key.toLowerCase().includes('dataaihint')) return null;
-            const currentPath = pathPrefix ? `${pathPrefix}.${key}` : key;
-
-            if (Array.isArray(value) && value.every(item => typeof item === 'object' && item !== null && !Array.isArray(item))) {
-                return renderFieldsForArray(value, currentPath, key);
-            }
-            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                return (
-                    <div key={currentPath} className="p-3 border rounded-md space-y-3 bg-muted/50 mt-2">
-                        <p className="text-sm font-semibold capitalize text-muted-foreground">{key}</p>
-                        <div className="pl-2 border-l-2 border-border space-y-3">{renderFieldsRecursive(value, currentPath)}</div>
-                    </div>
-                );
-            }
-            return <RenderPropertyField key={currentPath} propKey={key} propValue={value} path={currentPath} />;
-        });
-    };
-    
-    const renderFieldsForArray = (arr: any[], path: string, label: string) => {
-        const handleAddItem = () => {
-            const newItem = arr.length > 0 ? JSON.parse(JSON.stringify(arr[0])) : {};
-            Object.keys(newItem).forEach(key => {
-                if (typeof newItem[key] === 'string') newItem[key] = `New ${key}`;
-                if (typeof newItem[key] === 'number') newItem[key] = 0;
-                if (typeof newItem[key] === 'boolean') newItem[key] = false;
-                if (key.toLowerCase().includes('image')) newItem[key] = 'https://placehold.co/300x200.png';
-            });
-            handlePropertyChange(path, [...arr, newItem]);
-        };
-        
-        const handleRemoveItem = (index: number) => {
-            const newArray = arr.filter((_, i) => i !== index);
-            handlePropertyChange(path, newArray);
-        };
-    
-        return (
-            <div key={path} className="space-y-2">
-                <h4 className="text-sm font-semibold text-muted-foreground capitalize border-b pb-1 mb-2">{label.replace(/_/g, ' ')}</h4>
-                {arr.map((item, index) => (
-                    <div key={`${path}.${index}`} className="p-2 border rounded bg-card relative">
-                        <div className="flex justify-between items-center mb-1">
-                            <p className="text-xxs text-muted-foreground">Item {index + 1}</p>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveItem(index)}>
-                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                            </Button>
-                        </div>
-                        <div className="pl-2 border-l-2 border-border space-y-3">
-                            {renderFieldsRecursive(item, `${path}.${index}`)}
-                        </div>
-                    </div>
-                ))}
-                <Button size="sm" variant="outline" className="w-full text-xs" onClick={handleAddItem}>
-                    <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Add Item
-                </Button>
-            </div>
-        );
-    };
-
+    const renderFieldsRecursive = (configObject: any, pathPrefix = '') => { return Object.entries(configObject).map(([key, value]) => { if (key === 'id' || key === 'elements' || key === 'columns' || key.toLowerCase().includes('dataaihint')) return null; const currentPath = pathPrefix ? `${pathPrefix}.${key}` : key; if (Array.isArray(value) && value.every(item => typeof item === 'object' && item !== null && !Array.isArray(item))) { return renderFieldsForArray(value, currentPath, key); } if (typeof value === 'object' && value !== null && !Array.isArray(value)) { return ( <div key={currentPath} className="p-3 border rounded-md space-y-3 bg-muted/50 mt-2"> <p className="text-sm font-semibold capitalize text-muted-foreground">{key}</p> <div className="pl-2 border-l-2 border-border space-y-3">{renderFieldsRecursive(value, currentPath)}</div> </div> ); } return <RenderPropertyField key={currentPath} propKey={key} propValue={value} path={currentPath} />; }); };
+    const renderFieldsForArray = (arr: any[], path: string, label: string) => { const handleAddItem = () => { const newItem = arr.length > 0 ? JSON.parse(JSON.stringify(arr[0])) : {}; Object.keys(newItem).forEach(key => { if (typeof newItem[key] === 'string') newItem[key] = `New ${key}`; if (typeof newItem[key] === 'number') newItem[key] = 0; if (typeof newItem[key] === 'boolean') newItem[key] = false; if (key.toLowerCase().includes('image')) newItem[key] = 'https://placehold.co/300x200.png'; }); handlePropertyChange(path, [...arr, newItem]); }; const handleRemoveItem = (index: number) => { const newArray = arr.filter((_, i) => i !== index); handlePropertyChange(path, newArray); }; return ( <div key={path} className="space-y-2"> <h4 className="text-sm font-semibold text-muted-foreground capitalize border-b pb-1 mb-2">{label.replace(/_/g, ' ')}</h4> {arr.map((item, index) => ( <div key={`${path}.${index}`} className="p-2 border rounded bg-card relative"> <div className="flex justify-between items-center mb-1"> <p className="text-xxs text-muted-foreground">Item {index + 1}</p> <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveItem(index)}> <Trash2 className="h-3.5 w-3.5 text-destructive" /> </Button> </div> <div className="pl-2 border-l-2 border-border space-y-3"> {renderFieldsRecursive(item, `${path}.${index}`)} </div> </div> ))} <Button size="sm" variant="outline" className="w-full text-xs" onClick={handleAddItem}> <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Add Item </Button> </div> ); };
     const RenderPropertyField = ({ propKey, propValue, path }: { propKey: string; propValue: any; path: string }) => {
         const label = propKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-        
-        if (propKey === 'navigationId') {
-            return (
-                <div key={path}>
-                    <Label htmlFor={path} className="text-xs">{label}</Label>
-                    <Select value={propValue || ''} onValueChange={(val) => handlePropertyChange(path, val)}>
-                        <SelectTrigger className="text-xs h-8 bg-input"><SelectValue placeholder="Select a navigation" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="">None</SelectItem>
-                            {allSiteNavigations.map(nav => (
-                                <SelectItem key={nav._id as string} value={nav._id as string}>{nav.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-            );
-        }
-
-        if (propKey.toLowerCase().includes('color')) {
-            return (
-                <div key={path} className="flex items-center justify-between">
-                    <Label htmlFor={path} className="text-xs">{label}</Label>
-                    <Input type="color" id={path} value={propValue || '#000000'} onChange={(e) => handlePropertyChange(path, e.target.value)} className="w-16 h-8 p-1 bg-input" />
-                </div>
-            );
-        }
-
-        if (propKey === 'src' || propKey.toLowerCase().includes('imageurl') || propKey.toLowerCase().includes('backgroundimage') || propKey.toLowerCase().includes('avatar')) {
-            return (
-                <div key={path}>
-                    <Label htmlFor={path} className="text-xs">{label}</Label>
-                    <div className="flex gap-2">
-                        <Input type="text" id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs h-8 bg-input" />
-                        <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => { setUploadTargetKey(path); fileInputRef.current?.click(); }} disabled={isUploading}>
-                            {isUploading && uploadTargetKey === path ? <Loader2 className="animate-spin h-4 w-4" /> : <UploadCloud className="h-4 w-4"/>}
-                        </Button>
-                    </div>
-                </div>
-            );
-        }
-
-        if (propKey === 'level') {
-            return (
-                <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Select value={propValue || 'h2'} onValueChange={(val) => handlePropertyChange(path, val)}><SelectTrigger className="text-xs h-8 bg-input"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="h1">H1</SelectItem><SelectItem value="h2">H2</SelectItem><SelectItem value="h3">H3</SelectItem><SelectItem value="h4">H4</SelectItem><SelectItem value="h5">H5</SelectItem><SelectItem value="h6">H6</SelectItem></SelectContent></Select></div>
-            );
-        }
-
-        if (propKey === 'alignment' || propKey === 'textAlign') {
-            return (
-                <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Select value={propValue || 'left'} onValueChange={(val) => handlePropertyChange(path, val)}><SelectTrigger className="text-xs h-8 bg-input capitalize"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent></Select></div>
-            );
-        }
-        
-        if (typeof propValue === 'string' && (propValue.length > 50 || propValue.includes('\n'))) {
-           return (
-                <div key={path}>
-                    <Label htmlFor={path} className="text-xs">{label}</Label>
-                    <Textarea id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs bg-input" rows={5} />
-                </div>
-            );
-        }
-
-        if (typeof propValue === 'boolean') {
-            return (
-                <div key={path} className="flex items-center justify-between rounded-md border p-2"><Label htmlFor={path} className="text-xs">{label}</Label><Switch id={path} checked={!!propValue} onCheckedChange={(checked) => handlePropertyChange(path, checked)} /></div>
-            );
-        }
-
-        if (typeof propValue === 'string' || typeof propValue === 'number') {
-            return (
-                <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Input type={typeof propValue === 'number' ? 'number' : 'text'} id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs h-8 bg-input" /></div>
-            );
-        }
-
+        if (propKey === 'navigationId') { return ( <div key={path}> <Label htmlFor={path} className="text-xs">{label}</Label> <Select value={propValue || ''} onValueChange={(val) => handlePropertyChange(path, val)}> <SelectTrigger className="text-xs h-8 bg-input"><SelectValue placeholder="Select a navigation" /></SelectTrigger> <SelectContent> <SelectItem value="">None</SelectItem> {allSiteNavigations.map(nav => ( <SelectItem key={nav._id as string} value={nav._id as string}>{nav.name}</SelectItem> ))} </SelectContent> </Select> </div> ); }
+        if (propKey.toLowerCase().includes('color')) { return ( <div key={path} className="flex items-center justify-between"> <Label htmlFor={path} className="text-xs">{label}</Label> <Input type="color" id={path} value={propValue || '#000000'} onChange={(e) => handlePropertyChange(path, e.target.value)} className="w-16 h-8 p-1 bg-input" /> </div> ); }
+        if (propKey === 'src' || propKey.toLowerCase().includes('imageurl') || propKey.toLowerCase().includes('backgroundimage') || propKey.toLowerCase().includes('avatar')) { return ( <div key={path}> <Label htmlFor={path} className="text-xs">{label}</Label> <div className="flex gap-2"> <Input type="text" id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs h-8 bg-input" /> <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => { setUploadTargetKey(path); fileInputRef.current?.click(); }} disabled={isUploading}> {isUploading && uploadTargetKey === path ? <Loader2 className="animate-spin h-4 w-4" /> : <UploadCloud className="h-4 w-4"/>} </Button> </div> </div> ); }
+        if (propKey === 'level') { return ( <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Select value={propValue || 'h2'} onValueChange={(val) => handlePropertyChange(path, val)}><SelectTrigger className="text-xs h-8 bg-input"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="h1">H1</SelectItem><SelectItem value="h2">H2</SelectItem><SelectItem value="h3">H3</SelectItem><SelectItem value="h4">H4</SelectItem><SelectItem value="h5">H5</SelectItem><SelectItem value="h6">H6</SelectItem></SelectContent></Select></div> ); }
+        if (propKey === 'alignment' || propKey === 'textAlign') { return ( <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Select value={propValue || 'left'} onValueChange={(val) => handlePropertyChange(path, val)}><SelectTrigger className="text-xs h-8 bg-input capitalize"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent></Select></div> ); }
+        if (typeof propValue === 'string' && (propValue.length > 50 || propValue.includes('\n'))) { return ( <div key={path}> <Label htmlFor={path} className="text-xs">{label}</Label> <Textarea id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs bg-input" rows={5} /> </div> ); }
+        if (typeof propValue === 'boolean') { return ( <div key={path} className="flex items-center justify-between rounded-md border p-2"><Label htmlFor={path} className="text-xs">{label}</Label><Switch id={path} checked={!!propValue} onCheckedChange={(checked) => handlePropertyChange(path, checked)} /></div> ); }
+        if (typeof propValue === 'string' || typeof propValue === 'number') { return ( <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Input type={typeof propValue === 'number' ? 'number' : 'text'} id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs h-8 bg-input" /></div> ); }
         return null;
     };
-
     if (selectedElement) {
         const componentMeta = getComponentConfig(selectedElement.type);
-        return (
-            <div className="space-y-4">
-                <div className="flex justify-between items-center mb-3">
-                    <p className="text-xs text-muted-foreground">Editing: <strong>{componentMeta?.label || selectedElement.type}</strong></p>
-                    <div className="flex items-center">
-                        <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-7 px-2" title="Reset Component Styles">
-                                    <RotateCcw className="h-3.5 w-3.5"/>
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Reset Component Styles?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will revert all properties of the "{componentMeta?.label}" component to their original defaults. Any custom content like text or images will be replaced with placeholders. This action cannot be undone, but you can choose not to save your changes.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleResetSelectedElementStyles} className="bg-destructive hover:bg-destructive/90">Reset Styles</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={duplicateSelectedElement} title="Duplicate Component"><Copy className="h-3.5 w-3.5"/></Button>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild><Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2" title="Delete Component"><Trash2 className="h-3.5 w-3.5"/></Button></AlertDialogTrigger>
-                            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently remove the "{componentMeta?.label}" component from the canvas. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteSelectedElement} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-                        </AlertDialog>
-                    </div>
-                </div>
-                {renderFieldsRecursive(selectedElement.config)}
-            </div>
-        );
+        return ( <div className="space-y-4"> <div className="flex justify-between items-center mb-3"> <p className="text-xs text-muted-foreground">Editing: <strong>{componentMeta?.label || selectedElement.type}</strong></p> <div className="flex items-center"> <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}> <AlertDialogTrigger asChild> <Button variant="ghost" size="sm" className="h-7 px-2" title="Reset Component Styles"> <RotateCcw className="h-3.5 w-3.5"/> </Button> </AlertDialogTrigger> <AlertDialogContent> <AlertDialogHeader> <AlertDialogTitle>Reset Component Styles?</AlertDialogTitle> <AlertDialogDescription> This will revert all properties of the "{componentMeta?.label}" component to their original defaults. Any custom content like text or images will be replaced with placeholders. This action cannot be undone, but you can choose not to save your changes. </AlertDialogDescription> </AlertDialogHeader> <AlertDialogFooter> <AlertDialogCancel>Cancel</AlertDialogCancel> <AlertDialogAction onClick={handleResetSelectedElementStyles} className="bg-destructive hover:bg-destructive/90">Reset Styles</AlertDialogAction> </AlertDialogFooter> </AlertDialogContent> </AlertDialog> <Button variant="ghost" size="sm" className="h-7 px-2" onClick={duplicateSelectedElement} title="Duplicate Component"><Copy className="h-3.5 w-3.5"/></Button> <AlertDialog> <AlertDialogTrigger asChild><Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2" title="Delete Component"><Trash2 className="h-3.5 w-3.5"/></Button></AlertDialogTrigger> <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently remove the "{componentMeta?.label}" component from the canvas. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteSelectedElement} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent> </AlertDialog> </div> </div> {renderFieldsRecursive(selectedElement.config)} </div> );
     } else if (activePageData) {
-        if (selectedNavigationForEditing) {
-            return (
-                <Card><CardHeader>
-                    <div className="flex items-center justify-between">
-                        <CardTitle className="text-base font-semibold flex items-center"><NavigationIcon className="mr-2 h-4 w-4" />Edit Navigation</CardTitle>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedNavigationForEditing(null)}>
-                            <ArrowLeft className="mr-2 h-4 w-4" />Back
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                        <Label htmlFor="editingNavName" className="text-xs">Navigation Name</Label>
-                        <Input id="editingNavName" value={editingNavName} onChange={(e) => setEditingNavName(e.target.value)} className="text-xs bg-input" />
-                    </div>
-                    <div className="space-y-2">
-                        {editingNavItems.map((item, index) => (
-                            <div key={index} className="p-2 border rounded bg-background shadow-sm space-y-1">
-                                <div className="flex items-center justify-between">
-                                    <p className="text-xxs text-muted-foreground">Link Item #{index + 1}</p>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteEditingNavItem(index)}><Trash2 className="h-3 w-3 text-destructive"/></Button>
-                                </div>
-                                <div><Label htmlFor={`edit-nav-text-${index}`} className="text-xxs">Label</Label><Input id={`edit-nav-text-${index}`} value={item.label} onChange={(e) => handleEditingNavItemChange(index, 'label', e.target.value)} className="text-xs h-8 bg-input" /></div>
-                                <div><Label htmlFor={`edit-nav-url-${index}`} className="text-xxs">URL</Label><Input id={`edit-nav-url-${index}`} value={item.url} onChange={(e) => handleEditingNavItemChange(index, 'url', e.target.value)} className="text-xs h-8 bg-input" /></div>
-                                <div><Label htmlFor={`edit-nav-type-${index}`} className="text-xxs">Type</Label>
-                                    <Select value={item.type || 'internal'} onValueChange={(val) => handleEditingNavItemChange(index, 'type', val)}>
-                                        <SelectTrigger className="text-xs h-8 bg-input"><SelectValue/></SelectTrigger>
-                                        <SelectContent><SelectItem value="internal">Internal</SelectItem><SelectItem value="external">External</SelectItem></SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <Button size="sm" variant="outline" onClick={handleAddEditingNavItem} className="w-full mt-2 text-xs"><PlusCircle className="mr-1.5 h-3.5 w-3.5"/>Add Link Item</Button>
-                    <Button size="sm" onClick={handleSaveNavigationChanges} disabled={isNavigationsLoading} className="w-full mt-2">{isNavigationsLoading ? <Loader2 className="animate-spin h-4 w-4"/> : <Save className="h-4 w-4 mr-2" />}Save Navigation Changes</Button>
-                </CardContent></Card>
-            );
-        }
-        return (
-            <Tabs defaultValue="page-settings" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
-                <TabsTrigger value="page-settings" className="text-xs px-2 py-1.5 h-auto">Page</TabsTrigger>
-                <TabsTrigger value="global-styles" className="text-xs px-2 py-1.5 h-auto">Global Styles</TabsTrigger>
-                <TabsTrigger value="site-navigations" className="text-xs px-2 py-1.5 h-auto">Navigations</TabsTrigger>
-            </TabsList>
-            <TabsContent value="page-settings">
-                <Card><CardHeader><CardTitle className="text-base font-semibold">Page: {activePageData.name}</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                    <div><Label htmlFor="pageName" className="text-xs">Page Name</Label><Input type="text" id="pageName" value={activePageData.name || ""} placeholder="Home" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, e.target.value, activePageData.slug, activePageData.seoTitle, activePageData.seoDescription)} /></div>
-                    <div><Label htmlFor="pageSlug" className="text-xs">Slug</Label><Input type="text" id="pageSlug" value={activePageData.slug || ""} placeholder="/home" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, e.target.value, activePageData.seoTitle, activePageData.seoDescription)} /></div>
-                    <div><Label htmlFor="seoTitle" className="text-xs">SEO Title</Label><Input type="text" id="seoTitle" value={activePageData.seoTitle || ""} placeholder="Page Title for SEO" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, e.target.value, activePageData.seoDescription)} /></div>
-                    <div><Label htmlFor="seoDescription" className="text-xs">SEO Description</Label><Textarea id="seoDescription" value={activePageData.seoDescription || ""} placeholder="Page description for SEO" className="text-xs bg-input" rows={3} onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, activePageData.seoTitle, e.target.value)} /></div>
-                </CardContent></Card>
-            </TabsContent>
-            <TabsContent value="global-styles">
-                {renderGlobalStyleFields()}
-            </TabsContent>
-            <TabsContent value="site-navigations">
-                <Card><CardHeader><CardTitle className="text-base font-semibold flex items-center"><NavigationIcon className="mr-2 h-4 w-4" />Manage Site Navigations</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                    <Label htmlFor="newNavigationName" className="text-xs">Create New Navigation</Label>
-                    <div className="flex gap-2 mt-1">
-                        <Input id="newNavigationName" value={newNavigationName} onChange={(e) => setNewNavigationName(e.target.value)} placeholder="e.g., Main Menu" className="text-xs bg-input" disabled={!websiteId || isNavigationsLoading} />
-                        <Button size="sm" onClick={handleCreateNavigation} disabled={!websiteId || isNavigationsLoading || !newNavigationName.trim()}>{isNavigationsLoading && newNavigationName ? <Loader2 className="animate-spin h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}</Button>
-                    </div>
-                    </div>
-                    {isNavigationsLoading && !allSiteNavigations.length ? <div className="text-xs text-muted-foreground py-2">Loading...</div> : allSiteNavigations.length === 0 ? <p className="text-xs text-muted-foreground py-2">No navigations created yet.</p> : (
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                        {allSiteNavigations.map(nav => (
-                        <div key={nav._id as string} className="flex items-center justify-between p-2 border rounded-md bg-input/30">
-                            <span className="text-xs font-medium truncate" title={nav.name}>{nav.name}</span>
-                            <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedNavigationForEditing(nav); setEditingNavName(nav.name); setEditingNavItems(nav.items); }}><Edit className="h-3.5 w-3.5"/></Button>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setNavigationToDeleteId(nav._id as string); setShowNavDeleteConfirm(true); }}><Trash2 className="h-3.5 w-3.5 text-destructive"/></Button>
-                            </div>
-                        </div>
-                        ))}
-                    </div>
-                    )}
-                </CardContent></Card>
-            </TabsContent>
-            </Tabs>
-      );
+        if (selectedNavigationForEditing) { return ( <Card><CardHeader> <div className="flex items-center justify-between"> <CardTitle className="text-base font-semibold flex items-center"><NavigationIcon className="mr-2 h-4 w-4" />Edit Navigation</CardTitle> <Button variant="ghost" size="sm" onClick={() => setSelectedNavigationForEditing(null)}> <ArrowLeft className="mr-2 h-4 w-4" />Back </Button> </div> </CardHeader> <CardContent className="space-y-4"> <div> <Label htmlFor="editingNavName" className="text-xs">Navigation Name</Label> <Input id="editingNavName" value={editingNavName} onChange={(e) => setEditingNavName(e.target.value)} className="text-xs bg-input" /> </div> <div className="space-y-2"> {editingNavItems.map((item, index) => ( <div key={index} className="p-2 border rounded bg-background shadow-sm space-y-1"> <div className="flex items-center justify-between"> <p className="text-xxs text-muted-foreground">Link Item #{index + 1}</p> <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteEditingNavItem(index)}><Trash2 className="h-3 w-3 text-destructive"/></Button> </div> <div><Label htmlFor={`edit-nav-text-${index}`} className="text-xxs">Label</Label><Input id={`edit-nav-text-${index}`} value={item.label} onChange={(e) => handleEditingNavItemChange(index, 'label', e.target.value)} className="text-xs h-8 bg-input" /></div> <div><Label htmlFor={`edit-nav-url-${index}`} className="text-xxs">URL</Label><Input id={`edit-nav-url-${index}`} value={item.url} onChange={(e) => handleEditingNavItemChange(index, 'url', e.target.value)} className="text-xs h-8 bg-input" /></div> <div><Label htmlFor={`edit-nav-type-${index}`} className="text-xxs">Type</Label> <Select value={item.type || 'internal'} onValueChange={(val) => handleEditingNavItemChange(index, 'type', val)}> <SelectTrigger className="text-xs h-8 bg-input"><SelectValue/></SelectTrigger> <SelectContent><SelectItem value="internal">Internal</SelectItem><SelectItem value="external">External</SelectItem></SelectContent> </Select> </div> </div> ))} </div> <Button size="sm" variant="outline" onClick={handleAddEditingNavItem} className="w-full mt-2 text-xs"><PlusCircle className="mr-1.5 h-3.5 w-3.5"/>Add Link Item</Button> <Button size="sm" onClick={handleSaveNavigationChanges} disabled={isNavigationsLoading} className="w-full mt-2">{isNavigationsLoading ? <Loader2 className="animate-spin h-4 w-4"/> : <Save className="h-4 w-4 mr-2" />}Save Navigation Changes</Button> </CardContent></Card> ); }
+        return ( <Tabs defaultValue="page-settings" className="w-full"> <TabsList className="grid w-full grid-cols-3 mb-4 h-auto"> <TabsTrigger value="page-settings" className="text-xs px-2 py-1.5 h-auto">Page</TabsTrigger> <TabsTrigger value="global-styles" className="text-xs px-2 py-1.5 h-auto">Global Styles</TabsTrigger> <TabsTrigger value="site-navigations" className="text-xs px-2 py-1.5 h-auto">Navigations</TabsTrigger> </TabsList> <TabsContent value="page-settings"> <Card><CardHeader><CardTitle className="text-base font-semibold">Page: {activePageData.name}</CardTitle></CardHeader> <CardContent className="space-y-3"> <div><Label htmlFor="pageName" className="text-xs">Page Name</Label><Input type="text" id="pageName" value={activePageData.name || ""} placeholder="Home" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, e.target.value, activePageData.slug, activePageData.seoTitle, activePageData.seoDescription)} /></div> <div><Label htmlFor="pageSlug" className="text-xs">Slug</Label><Input type="text" id="pageSlug" value={activePageData.slug || ""} placeholder="/home" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, e.target.value, activePageData.seoTitle, activePageData.seoDescription)} /></div> <div><Label htmlFor="seoTitle" className="text-xs">SEO Title</Label><Input type="text" id="seoTitle" value={activePageData.seoTitle || ""} placeholder="Page Title for SEO" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, e.target.value, activePageData.seoDescription)} /></div> <div><Label htmlFor="seoDescription" className="text-xs">SEO Description</Label><Textarea id="seoDescription" value={activePageData.seoDescription || ""} placeholder="Page description for SEO" className="text-xs bg-input" rows={3} onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, activePageData.seoTitle, e.target.value)} /></div> </CardContent></Card> </TabsContent> <TabsContent value="global-styles"> {renderGlobalStyleFields()} </TabsContent> <TabsContent value="site-navigations"> <Card><CardHeader><CardTitle className="text-base font-semibold flex items-center"><NavigationIcon className="mr-2 h-4 w-4" />Manage Site Navigations</CardTitle></CardHeader> <CardContent className="space-y-4"> <div> <Label htmlFor="newNavigationName" className="text-xs">Create New Navigation</Label> <div className="flex gap-2 mt-1"> <Input id="newNavigationName" value={newNavigationName} onChange={(e) => setNewNavigationName(e.target.value)} placeholder="e.g., Main Menu" className="text-xs bg-input" disabled={!websiteId || isNavigationsLoading} /> <Button size="sm" onClick={handleCreateNavigation} disabled={!websiteId || isNavigationsLoading || !newNavigationName.trim()}>{isNavigationsLoading && newNavigationName ? <Loader2 className="animate-spin h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}</Button> </div> </div> {isNavigationsLoading && !allSiteNavigations.length ? <div className="text-xs text-muted-foreground py-2">Loading...</div> : allSiteNavigations.length === 0 ? <p className="text-xs text-muted-foreground py-2">No navigations created yet.</p> : ( <div className="space-y-2 max-h-60 overflow-y-auto pr-1"> {allSiteNavigations.map(nav => ( <div key={nav._id as string} className="flex items-center justify-between p-2 border rounded-md bg-input/30"> <span className="text-xs font-medium truncate" title={nav.name}>{nav.name}</span> <div className="flex items-center gap-1"> <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedNavigationForEditing(nav); setEditingNavName(nav.name); setEditingNavItems(nav.items); }}><Edit className="h-3.5 w-3.5"/></Button> <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setNavigationToDeleteId(nav._id as string); setShowNavDeleteConfirm(true); }}><Trash2 className="h-3.5 w-3.5 text-destructive"/></Button> </div> </div> ))} </div> )} </CardContent></Card> </TabsContent> </Tabs> );
     }
     return <p className="text-sm text-muted-foreground p-4">Select an element or manage page settings.</p>;
   };
 
-  if (isLoadingWebsite) {
-    return (
-      <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="mt-4 text-muted-foreground">Loading editor...</p>
-      </div>
-    );
-  }
-  if (!websiteId && !isLoadingWebsite) {
-    return (
-      <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center p-8">
-        <Card className="max-w-md text-center"><CardHeader><CardTitle className="text-destructive flex items-center justify-center"><AlertTriangle className="mr-2" />Error: Website Not Specified</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">No website ID was provided. Select a website from your dashboard.</p><Button asChild className="mt-6"><a href="/dashboard">Go to Dashboard</a></Button></CardContent></Card>
-      </div>
-    );
-  }
+  if (isLoadingWebsite) { return ( <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center"> <Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="mt-4 text-muted-foreground">Loading editor...</p> </div> ); }
+  if (!websiteId && !isLoadingWebsite) { return ( <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center p-8"> <Card className="max-w-md text-center"><CardHeader><CardTitle className="text-destructive flex items-center justify-center"><AlertTriangle className="mr-2" />Error: Website Not Specified</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">No website ID was provided. Select a website from your dashboard.</p><Button asChild className="mt-6"><a href="/dashboard">Go to Dashboard</a></Button></CardContent></Card> </div> ); }
 
-  const renderEditorSaveStatus = () => {
-    if (!websiteId) return null;
-    let Icon = CheckCircle; let text = "Up to date"; let color = "text-muted-foreground";
-    switch (editorSaveStatus) {
-      case 'saving': Icon = Loader2; text = "Saving..."; color = "text-muted-foreground animate-spin"; break;
-      case 'saved': Icon = CheckCircle; text = "Saved"; color = "text-green-600"; break;
-      case 'error': Icon = AlertCircleIcon; text = "Error Saving"; color = "text-destructive"; break;
-      case 'unsaved_changes': Icon = AlertCircleIcon; text = "Unsaved Changes"; color = "text-amber-600"; break;
-    }
-    return <div className={`flex items-center text-xs ${color} mr-2`}><Icon className={`h-4 w-4 mr-1 ${editorSaveStatus === 'saving' ? 'animate-spin' : ''}`} />{text}</div>;
-  };
-
+  const renderEditorSaveStatus = () => { if (!websiteId) return null; let Icon = CheckCircle; let text = "Up to date"; let color = "text-muted-foreground"; switch (editorSaveStatus) { case 'saving': Icon = Loader2; text = "Saving..."; color = "text-muted-foreground animate-spin"; break; case 'saved': Icon = CheckCircle; text = "Saved"; color = "text-green-600"; break; case 'error': Icon = AlertCircleIcon; text = "Error Saving"; color = "text-destructive"; break; case 'unsaved_changes': Icon = AlertCircleIcon; text = "Unsaved Changes"; color = "text-amber-600"; break; } return <div className={`flex items-center text-xs ${color} mr-2`}><Icon className={`h-4 w-4 mr-1 ${editorSaveStatus === 'saving' ? 'animate-spin' : ''}`} />{text}</div>; };
   const currentEditorPage = currentPages[activePageIndex] || defaultInitialPage;
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={(event) => setActiveDraggedItem(event.active)}
-      onDragEnd={handleDragEnd}
-    >
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(event) => setActiveDraggedItem(event.active)} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-        <AppHeader currentDevice={currentDevice} onDeviceChange={setCurrentDevice} websiteId={websiteId} editorSaveStatus={editorSaveStatus} onOpenSaveTemplateModal={() => setIsSaveTemplateModalOpen(true)} onOpenTemplateGalleryModal={() => setIsTemplateGalleryModalOpen(true)} />
+        <AppHeader currentDevice={currentDevice} onDeviceChange={setCurrentDevice} websiteId={websiteId} editorSaveStatus={editorSaveStatus} onOpenSaveTemplateModal={() => setIsSaveTemplateModalOpen(true)} onOpenTemplateGalleryModal={() => setIsTemplateGalleryModalOpen(true)} onUndo={handleUndo} onRedo={handleRedo} canUndo={canUndo} canRedo={canRedo} />
         <div className="flex flex-1 overflow-hidden">
           <ComponentLibrarySidebar />
           <main className="flex-1 flex flex-col p-1 md:p-2 lg:p-4 overflow-hidden bg-muted/30">
@@ -1422,16 +921,8 @@ export default function EditorPageComponent() {
                       <TabsTrigger key={page._id as string || index} value={index.toString()} className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none rounded-t-md border-b-2 border-transparent data-[state=active]:border-primary">
                         {page.name}
                         <div className="flex items-center ml-1">
-                          {page.elements.length > 0 &&
-                            <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToClearIndex(index); setShowClearPageConfirm(true); }} className="p-0.5 rounded hover:bg-destructive/20" aria-label={`Clear page ${page.name}`} title={`Clear page ${page.name}`}>
-                              <Eraser className="h-3 w-3 text-destructive/70 hover:text-destructive" />
-                            </button>
-                          }
-                          {currentPages.length > 1 && (
-                              <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToDeleteIndex(index); setShowPageDeleteConfirm(true); }} className="p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}>
-                                <X className="h-3 w-3 text-destructive/70 hover:text-destructive" />
-                              </button>
-                          )}
+                          {page.elements.length > 0 && <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToClearIndex(index); setShowClearPageConfirm(true); }} className="p-0.5 rounded hover:bg-destructive/20" aria-label={`Clear page ${page.name}`} title={`Clear page ${page.name}`}> <Eraser className="h-3 w-3 text-destructive/70 hover:text-destructive" /> </button> }
+                          {currentPages.length > 1 && ( <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToDeleteIndex(index); setShowPageDeleteConfirm(true); }} className="p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}> <X className="h-3 w-3 text-destructive/70 hover:text-destructive" /> </button> )}
                         </div>
                       </TabsTrigger>
                     ))}
@@ -1440,31 +931,11 @@ export default function EditorPageComponent() {
                 </Tabs>
               </div>
               <div className="flex items-center flex-shrink-0">
-                {previousPageState && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mr-2 text-amber-600 border-amber-500 hover:bg-amber-500/10 hover:text-amber-600 dark:border-amber-600 dark:hover:bg-amber-600/10"
-                    onClick={handleUndoTemplateApply}
-                  >
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Undo Apply
-                  </Button>
-                )}
                 {renderEditorSaveStatus()}
                 <Button size="sm" onClick={handleEditorSaveChanges} disabled={editorSaveStatus === 'saving' || editorSaveStatus === 'saved' || editorSaveStatus === 'idle'}><Save className="mr-2 h-4 w-4" />Save Site</Button>
               </div>
             </div>
-            <CanvasEditor 
-                devicePreview={currentDevice} 
-                page={currentEditorPage} 
-                pageIndex={activePageIndex} 
-                onElementSelect={handleElementSelect} 
-                isDragging={!!activeDraggedItem} 
-                activeDragId={activeDraggedItem?.id as string | null} 
-                selectedElementId={selectedElement?._id as string | null}
-                allNavigations={allSiteNavigations}
-            />
+            <CanvasEditor devicePreview={currentDevice} page={currentEditorPage} pageIndex={activePageIndex} onElementSelect={handleElementSelect} isDragging={!!activeDraggedItem} activeDragId={activeDraggedItem?.id as string | null} selectedElementId={selectedElement?._id as string | null} allNavigations={allSiteNavigations}/>
           </main>
           <aside className="w-80 bg-card border-l border-border p-4 shadow-sm flex flex-col overflow-y-auto">
             <Card className="flex-1"><CardHeader><CardTitle className="font-headline text-lg flex items-center">{selectedElement ? <><MousePointerSquareDashed className="w-5 h-5 mr-2 text-primary" />Properties</> : <><Settings className="w-5 h-5 mr-2 text-primary" />Page & Site Settings</>}</CardTitle></CardHeader>
@@ -1480,29 +951,11 @@ export default function EditorPageComponent() {
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
 
         <AlertDialog open={showPageDeleteConfirm} onOpenChange={setShowPageDeleteConfirm}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>This action cannot be undone. This will delete the page "{pageToDeleteIndex !== null ? currentPages[pageToDeleteIndex]?.name : ''}".</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setShowPageDeleteConfirm(false)}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={confirmDeletePage} className="bg-destructive hover:bg-destructive/90">Delete Page</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
+            <AlertDialogContent> <AlertDialogHeader> <AlertDialogTitle>Are you sure?</AlertDialogTitle> <AlertDialogDescription>This action cannot be undone. This will delete the page "{pageToDeleteIndex !== null ? currentPages[pageToDeleteIndex]?.name : ''}".</AlertDialogDescription> </AlertDialogHeader> <AlertDialogFooter> <AlertDialogCancel onClick={() => setShowPageDeleteConfirm(false)}>Cancel</AlertDialogCancel> <AlertDialogAction onClick={confirmDeletePage} className="bg-destructive hover:bg-destructive/90">Delete Page</AlertDialogAction> </AlertDialogFooter> </AlertDialogContent>
         </AlertDialog>
 
         <AlertDialog open={showClearPageConfirm} onOpenChange={(isOpen) => { if (!isOpen) setPageToClearIndex(null); setShowClearPageConfirm(isOpen); }}>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure you want to clear this page?</AlertDialogTitle>
-                  <AlertDialogDescription>This will permanently remove all components from the page "{pageToClearIndex !== null ? currentPages[pageToClearIndex]?.name : ''}". This action cannot be undone, but you can choose not to save your changes.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                  <AlertDialogCancel onClick={() => { setShowClearPageConfirm(false); setPageToClearIndex(null); }}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearPage} className="bg-destructive hover:bg-destructive/90">Clear Page</AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
+          <AlertDialogContent> <AlertDialogHeader> <AlertDialogTitle>Are you sure you want to clear this page?</AlertDialogTitle> <AlertDialogDescription>This will permanently remove all components from the page "{pageToClearIndex !== null ? currentPages[pageToClearIndex]?.name : ''}". This action cannot be undone, but you can choose not to save your changes.</AlertDialogDescription> </AlertDialogHeader> <AlertDialogFooter> <AlertDialogCancel onClick={() => { setShowClearPageConfirm(false); setPageToClearIndex(null); }}>Cancel</AlertDialogCancel> <AlertDialogAction onClick={handleClearPage} className="bg-destructive hover:bg-destructive/90">Clear Page</AlertDialogAction> </AlertDialogFooter> </AlertDialogContent>
         </AlertDialog>
 
         <AlertDialog open={showNavDeleteConfirm} onOpenChange={setShowNavDeleteConfirm}>
