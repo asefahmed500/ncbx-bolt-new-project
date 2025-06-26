@@ -3,6 +3,11 @@ import { auth } from "@/auth"; // Assuming this is your NextAuth instance from s
 import { NextResponse } from 'next/server';
 // import type { NextRequest } from 'next/server'; // Not explicitly needed if only using req.nextUrl and req.auth
 
+// Force the middleware to run on the Node.js runtime instead of the Edge.
+// This is necessary because the `authorize` callback in `src/auth.ts` uses Mongoose,
+// which is not compatible with the Edge runtime.
+export const runtime = 'nodejs';
+
 export default auth((req) => {
   const { nextUrl, auth: session } = req; // In v5, req.auth is the session object (or null)
   
