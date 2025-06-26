@@ -83,6 +83,7 @@ export default function EditorPageComponent() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const [activeDraggedItem, setActiveDraggedItem] = useState<Active | null>(null);
+  const [previousPageState, setPreviousPageState] = useState<IWebsiteVersionPage[] | null>(null);
 
 
   const [allSiteNavigations, setAllSiteNavigations] = useState<INavigation[]>([]);
@@ -369,6 +370,7 @@ export default function EditorPageComponent() {
 
   const handleApplyTemplate = useCallback((template: ITemplate) => {
     if (template.pages && template.pages.length > 0) {
+      setPreviousPageState(JSON.parse(JSON.stringify(currentPages)));
       const newPagesWithIds = template.pages.map(p => ({
         ...p,
         _id: newObjectId(),
@@ -383,7 +385,20 @@ export default function EditorPageComponent() {
       toast({ title: "Empty Template", description: "Selected template has no content.", variant: "destructive" });
     }
     setIsTemplateGalleryModalOpen(false);
-  }, [toast]);
+  }, [toast, currentPages]);
+
+  const handleUndoTemplateApply = () => {
+    if (previousPageState) {
+      setCurrentPages(previousPageState);
+      setSelectedElement(null);
+      setPreviousPageState(null);
+      setEditorSaveStatus('saved');
+      toast({
+        title: "Template Application Undone",
+        description: "Your previous layout has been restored.",
+      });
+    }
+  };
 
   const handleEditorSaveChanges = async () => {
     if (!websiteId) {
@@ -401,7 +416,7 @@ export default function EditorPageComponent() {
       if (result.success && result.website && result.versionId) {
         setEditorSaveStatus('saved');
         setWebsiteData(result.website);
-        // No need to reload, optimistic update is fine and prevents flicker
+        setPreviousPageState(null);
         toast({ title: "Changes Saved!", description: "Your website content has been updated." });
       } else {
         setEditorSaveStatus('error');
@@ -1324,6 +1339,17 @@ export default function EditorPageComponent() {
                 </Tabs>
               </div>
               <div className="flex items-center flex-shrink-0">
+                {previousPageState && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mr-2 text-amber-600 border-amber-500 hover:bg-amber-500/10 hover:text-amber-600 dark:border-amber-600 dark:hover:bg-amber-600/10"
+                    onClick={handleUndoTemplateApply}
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Undo Apply
+                  </Button>
+                )}
                 {renderEditorSaveStatus()}
                 <Button size="sm" onClick={handleEditorSaveChanges} disabled={editorSaveStatus === 'saving' || editorSaveStatus === 'saved' || editorSaveStatus === 'idle'}><Save className="mr-2 h-4 w-4" />Save Site</Button>
               </div>
