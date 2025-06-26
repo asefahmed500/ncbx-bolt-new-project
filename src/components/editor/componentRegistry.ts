@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from 'lucide-react';
 
-// Helper function to handle mongoose ObjectId weirdness on client and in server-side logic that doesn't need real DB IDs.
+// Helper function to generate a unique client-side ID.
 const newObjectId = () => Math.random().toString(36).substring(2, 15);
 
 
