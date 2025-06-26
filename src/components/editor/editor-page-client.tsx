@@ -7,7 +7,7 @@ import { AppHeader, type DeviceType, type EditorSaveStatus } from '@/components/
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X, Edit, UploadCloud } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X, Edit, UploadCloud, ArrowLeft } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -332,7 +332,6 @@ export default function EditorPageComponent() {
                     el.type === 'columns' ? { ...el.config, columns: el.config.columns.map((c: any) => ({ ...c, elements: reorderAndClean(c.elements || [])})) } :
                     el.config,
             order: index,
-            label: el.label,
         }));
     };
     return currentPages.map(page => ({
@@ -884,7 +883,7 @@ export default function EditorPageComponent() {
                 )
             }
             
-            if (key.toLowerCase().includes('htmlcontent') || key.toLowerCase().includes('description') || key.toLowerCase().includes('quote')) {
+            if (key.toLowerCase().includes('htmlcontent') || key.toLowerCase().includes('description') || key.toLowerCase().includes('quote') || key.toLowerCase().includes('content')) {
                 return (
                     <div key={key}>
                         <Label htmlFor={key} className="text-xs">{label}</Label>
