@@ -69,7 +69,7 @@ Instructions:
 3.  **Return Modified Structure**: Your primary output is the 'modifiedPages' field, which should contain the entire, updated array of page objects.
 4.  **Explain Your Actions**: In the 'explanation' field, provide a short, friendly message to the user explaining what you did. For example, "I've added a pricing table to your Services page," or "I've changed the background color of the hero section."
 5.  **Be Smart**:
-    - If adding a component (e.g., "add a hero section"), populate it with relevant placeholder content based on the website's context.
+    - If adding a component (e.g., "add a hero section"), populate it with relevant placeholder content based on the website's context. For images, you MUST use placeholder URLs from "https://placehold.co" and add a "dataAiHint" property with keywords.
     - If changing a style (e.g., "make the background dark blue"), find the relevant component (like a 'section' or 'hero') and update its 'backgroundColor' in the config. Use hex color codes.
     - If adding a new page (e.g., "create an 'About Us' page"), add a new page object to the 'pages' array with a suitable name and slug, and add some basic components to it.
     - **IMPORTANT**: When you add a new component or a new page, you must generate a new unique '_id' for it. An ID can be a short random string of letters and numbers.

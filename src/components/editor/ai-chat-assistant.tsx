@@ -59,7 +59,7 @@ export function AiChatAssistant({ onPromptSubmit, isProcessing }: AiChatAssistan
   if (!isOpen) {
     return (
       <Button
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50 flex items-center justify-center"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50 flex items-center justify-center bg-primary hover:bg-primary/90 text-primary-foreground"
         onClick={() => setIsOpen(true)}
         aria-label="Open AI Assistant"
       >
