@@ -833,7 +833,7 @@ export default function EditorPageComponent() {
                     <div key={key}>
                         <Label htmlFor={key} className="text-xs">{label}</Label>
                         <div className="flex gap-2">
-                            <Input type="text" id={key} defaultValue={value || ''} onBlur={(e) => handlePropertyChange(key, e.target.value)} className="text-xs h-8 bg-input" />
+                            <Input type="text" id={key} value={value || ''} onChange={(e) => handlePropertyChange(key, e.target.value)} className="text-xs h-8 bg-input" />
                             <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => { setUploadTargetKey(key); fileInputRef.current?.click(); }} disabled={isUploading}>
                                 {isUploading && uploadTargetKey === key ? <Loader2 className="animate-spin h-4 w-4" /> : <UploadCloud className="h-4 w-4"/>}
                             </Button>
@@ -887,7 +887,7 @@ export default function EditorPageComponent() {
                 return (
                     <div key={key}>
                         <Label htmlFor={key} className="text-xs">{label}</Label>
-                        <Textarea id={key} defaultValue={value || ''} onBlur={(e) => handlePropertyChange(key, e.target.value)} className="text-xs bg-input" rows={5} />
+                        <Textarea id={key} value={value || ''} onChange={(e) => handlePropertyChange(key, e.target.value)} className="text-xs bg-input" rows={5} />
                     </div>
                 )
             }
@@ -915,7 +915,7 @@ export default function EditorPageComponent() {
             return (
                 <div key={key}>
                 <Label htmlFor={key} className="text-xs">{label}</Label>
-                <Input type={fieldType === 'number' ? 'number' : 'text'} id={key} defaultValue={value || ''} onBlur={(e) => handlePropertyChange(key, e.target.value)} className="text-xs h-8 bg-input" />
+                <Input type={fieldType === 'number' ? 'number' : 'text'} id={key} value={value || ''} onChange={(e) => handlePropertyChange(key, e.target.value)} className="text-xs h-8 bg-input" />
                 </div>
             );
             }
@@ -1003,10 +1003,10 @@ export default function EditorPageComponent() {
             <TabsContent value="page-settings">
                 <Card><CardHeader><CardTitle className="text-base font-semibold">Page: {activePageData.name}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                    <div><Label htmlFor="pageName" className="text-xs">Page Name</Label><Input type="text" id="pageName" defaultValue={activePageData.name || ""} placeholder="Home" className="text-xs bg-input" onBlur={(e) => handlePageDetailsChange(activePageData._id as string, e.target.value, activePageData.slug, activePageData.seoTitle, activePageData.seoDescription)} /></div>
-                    <div><Label htmlFor="pageSlug" className="text-xs">Slug</Label><Input type="text" id="pageSlug" defaultValue={activePageData.slug || ""} placeholder="/home" className="text-xs bg-input" onBlur={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, e.target.value, activePageData.seoTitle, activePageData.seoDescription)} /></div>
-                    <div><Label htmlFor="seoTitle" className="text-xs">SEO Title</Label><Input type="text" id="seoTitle" defaultValue={activePageData.seoTitle || ""} placeholder="Page Title for SEO" className="text-xs bg-input" onBlur={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, e.target.value, activePageData.seoDescription)} /></div>
-                    <div><Label htmlFor="seoDescription" className="text-xs">SEO Description</Label><Textarea id="seoDescription" defaultValue={activePageData.seoDescription || ""} placeholder="Page description for SEO" className="text-xs bg-input" rows={3} onBlur={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, activePageData.seoTitle, e.target.value)} /></div>
+                    <div><Label htmlFor="pageName" className="text-xs">Page Name</Label><Input type="text" id="pageName" value={activePageData.name || ""} placeholder="Home" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, e.target.value, activePageData.slug, activePageData.seoTitle, activePageData.seoDescription)} /></div>
+                    <div><Label htmlFor="pageSlug" className="text-xs">Slug</Label><Input type="text" id="pageSlug" value={activePageData.slug || ""} placeholder="/home" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, e.target.value, activePageData.seoTitle, activePageData.seoDescription)} /></div>
+                    <div><Label htmlFor="seoTitle" className="text-xs">SEO Title</Label><Input type="text" id="seoTitle" value={activePageData.seoTitle || ""} placeholder="Page Title for SEO" className="text-xs bg-input" onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, e.target.value, activePageData.seoDescription)} /></div>
+                    <div><Label htmlFor="seoDescription" className="text-xs">SEO Description</Label><Textarea id="seoDescription" value={activePageData.seoDescription || ""} placeholder="Page description for SEO" className="text-xs bg-input" rows={3} onChange={(e) => handlePageDetailsChange(activePageData._id as string, activePageData.name, activePageData.slug, activePageData.seoTitle, e.target.value)} /></div>
                 </CardContent></Card>
             </TabsContent>
             <TabsContent value="site-navigations">
