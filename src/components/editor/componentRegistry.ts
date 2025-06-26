@@ -99,7 +99,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Button",
     icon: ButtonIconElement,
     description: "Interactive call-to-action links.",
-    defaultConfig: { text: "Click Me", link: "#", style: "primary", alignment: "left" },
+    defaultConfig: { text: "Click Me", link: "#", style: "primary", alignment: "left", icon: null, iconPosition: "left" },
   },
    divider: {
     id: "divider",
