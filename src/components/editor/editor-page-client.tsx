@@ -462,12 +462,31 @@ export default function EditorPageComponent() {
       if (!page) return newPages;
 
       const deleteRecursive = (elements: IPageComponent[]): IPageComponent[] => {
-          return elements.filter(el => {
-              if (el._id === selectedElement._id) return false; // Delete this element
-              if (el.config?.elements) el.config.elements = deleteRecursive(el.config.elements);
-              if (el.config?.columns) el.config.columns.forEach((c: any) => c.elements = deleteRecursive(c.elements || []));
-              return true;
-          });
+        const result: IPageComponent[] = [];
+        for (const el of elements) {
+          if (el._id === selectedElement._id) {
+            continue; // Skip this element to delete it
+          }
+
+          const newEl = { ...el }; // Create a copy to avoid direct mutation issues
+          
+          if (newEl.config?.elements && Array.isArray(newEl.config.elements)) {
+            newEl.config = { ...newEl.config, elements: deleteRecursive(newEl.config.elements) };
+          }
+          
+          if (newEl.config?.columns && Array.isArray(newEl.config.columns)) {
+            newEl.config = {
+              ...newEl.config,
+              columns: newEl.config.columns.map((col: any) => ({
+                ...col,
+                elements: col.elements ? deleteRecursive(col.elements) : [],
+              })),
+            };
+          }
+          
+          result.push(newEl);
+        }
+        return result;
       };
       
       page.elements = deleteRecursive(page.elements);
