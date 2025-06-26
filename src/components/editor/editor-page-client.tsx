@@ -212,58 +212,57 @@ export default function EditorPageComponent() {
     }
   }, [currentPages]);
 
-  const handlePropertyChange = (propertyName: string, value: any) => {
+  const handlePropertyChange = (path: string, value: any) => {
     setCurrentPages(prevPages => {
-        const newPages = JSON.parse(JSON.stringify(prevPages)) as IWebsiteVersionPage[];
+        const newPages = JSON.parse(JSON.stringify(prevPages)); // Deep copy
         if (!selectedElement) return newPages;
 
         const pageToUpdate = newPages[activePageIndex];
         if (!pageToUpdate) return newPages;
 
-        let updatedElementForState: IPageComponent | null = null;
-        
-        const updateRecursive = (elements: IPageComponent[]): boolean => {
-          for (let el of elements) {
-            if (el._id === selectedElement._id) {
-              if (propertyName === 'config') { // Merging config objects
-                el.config = { ...el.config, ...value };
-              } else {
-                el.config[propertyName] = value;
-              }
+        let finalUpdatedElement: IPageComponent | null = null;
 
-              if (el.type === 'navbar' && propertyName === 'navigationId') {
-                  const selectedNav = allSiteNavigations.find(nav => nav._id === value);
-                  if (selectedNav) {
-                      el.config.links = selectedNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
-                  } else if (!value) {
-                      el.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
-                  }
-              }
+        const updateElementInList = (elements: IPageComponent[]): boolean => {
+            for (let el of elements) {
+                if (el._id === selectedElement._id) {
+                    const keys = path.split('.');
+                    let currentLevel = el.config;
 
-              updatedElementForState = JSON.parse(JSON.stringify(el));
-              return true;
-            }
-            if (el.config?.elements && Array.isArray(el.config.elements)) {
-              if (updateRecursive(el.config.elements)) return true;
-            }
-            if (el.config?.columns && Array.isArray(el.config.columns)) {
-              for (const col of el.config.columns) {
-                if (col.elements && Array.isArray(col.elements)) {
-                  if (updateRecursive(col.elements)) return true;
+                    for (let i = 0; i < keys.length - 1; i++) {
+                        currentLevel = currentLevel[keys[i]] = currentLevel[keys[i]] || {};
+                    }
+                    currentLevel[keys[keys.length - 1]] = value;
+                    
+                    finalUpdatedElement = el;
+                    return true;
                 }
-              }
+                
+                if (el.config?.elements && Array.isArray(el.config.elements)) {
+                    if (updateElementInList(el.config.elements)) return true;
+                }
+                if (el.config?.columns && Array.isArray(el.config.columns)) {
+                    for (const col of el.config.columns) {
+                        if (col.elements && Array.isArray(col.elements)) {
+                            if (updateElementInList(col.elements)) return true;
+                        }
+                    }
+                }
             }
-          }
-          return false;
+            return false;
         };
-        
-        updateRecursive(pageToUpdate.elements);
-        
-        if (updatedElementForState) {
-            setSelectedElement(prevSel => prevSel ? {
-                ...prevSel,
-                config: updatedElementForState!.config
-            } : null);
+
+        updateElementInList(pageToUpdate.elements);
+
+        if (finalUpdatedElement) {
+            if (finalUpdatedElement.type === 'navbar' && path === 'navigationId') {
+                const selectedNav = allSiteNavigations.find(nav => nav._id === value);
+                if (selectedNav) {
+                    finalUpdatedElement.config.links = selectedNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
+                } else if (!value) {
+                    finalUpdatedElement.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
+                }
+            }
+            setSelectedElement(prevSel => prevSel ? { ...prevSel, config: JSON.parse(JSON.stringify(finalUpdatedElement!.config)) } : null);
         }
 
         setEditorSaveStatus('unsaved_changes');
@@ -790,169 +789,126 @@ export default function EditorPageComponent() {
   const renderPropertyFields = () => {
     const activePageData = currentPages[activePageIndex];
 
+    const RenderPropertyField = ({ propKey, propValue, path }: { propKey: string; propValue: any; path: string }) => {
+        const label = propKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+        
+        if (propKey === 'navigationId') {
+            return (
+                <div key={path}>
+                    <Label htmlFor={path} className="text-xs">{label}</Label>
+                    <Select value={propValue || ''} onValueChange={(val) => handlePropertyChange(path, val)}>
+                        <SelectTrigger className="text-xs h-8 bg-input"><SelectValue placeholder="Select a navigation" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="">None</SelectItem>
+                            {allSiteNavigations.map(nav => (
+                                <SelectItem key={nav._id as string} value={nav._id as string}>{nav.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            );
+        }
+
+        if (propKey.toLowerCase().includes('color')) {
+            return (
+                <div key={path} className="flex items-center justify-between">
+                    <Label htmlFor={path} className="text-xs">{label}</Label>
+                    <Input type="color" id={path} value={propValue || '#000000'} onChange={(e) => handlePropertyChange(path, e.target.value)} className="w-16 h-8 p-1 bg-input" />
+                </div>
+            );
+        }
+
+        if (propKey === 'src' || propKey.toLowerCase().includes('imageurl') || propKey.toLowerCase().includes('backgroundimage')) {
+            return (
+                <div key={path}>
+                    <Label htmlFor={path} className="text-xs">{label}</Label>
+                    <div className="flex gap-2">
+                        <Input type="text" id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs h-8 bg-input" />
+                        <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => { setUploadTargetKey(path); fileInputRef.current?.click(); }} disabled={isUploading}>
+                            {isUploading && uploadTargetKey === path ? <Loader2 className="animate-spin h-4 w-4" /> : <UploadCloud className="h-4 w-4"/>}
+                        </Button>
+                    </div>
+                </div>
+            );
+        }
+
+        if (propKey === 'level') {
+            return (
+                <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Select value={propValue || 'h2'} onValueChange={(val) => handlePropertyChange(path, val)}><SelectTrigger className="text-xs h-8 bg-input"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="h1">H1</SelectItem><SelectItem value="h2">H2</SelectItem><SelectItem value="h3">H3</SelectItem><SelectItem value="h4">H4</SelectItem><SelectItem value="h5">H5</SelectItem><SelectItem value="h6">H6</SelectItem></SelectContent></Select></div>
+            );
+        }
+
+        if (propKey === 'alignment' || propKey === 'textAlign') {
+            return (
+                <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Select value={propValue || 'left'} onValueChange={(val) => handlePropertyChange(path, val)}><SelectTrigger className="text-xs h-8 bg-input capitalize"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent></Select></div>
+            );
+        }
+        
+        if (typeof propValue === 'string' && propValue.length > 50) {
+           return (
+                <div key={path}>
+                    <Label htmlFor={path} className="text-xs">{label}</Label>
+                    <Textarea id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs bg-input" rows={5} />
+                </div>
+            );
+        }
+
+        if (typeof propValue === 'boolean') {
+            return (
+                <div key={path} className="flex items-center justify-between rounded-md border p-2"><Label htmlFor={path} className="text-xs">{label}</Label><Switch id={path} checked={!!propValue} onCheckedChange={(checked) => handlePropertyChange(path, checked)} /></div>
+            );
+        }
+
+        if (Array.isArray(propValue)) {
+            return (
+                <div key={path}>
+                    <Label htmlFor={path} className="text-xs">{label} (JSON)</Label>
+                    <Textarea id={path} defaultValue={JSON.stringify(propValue, null, 2)} onBlur={(e) => { try { handlePropertyChange(path, JSON.parse(e.target.value)) } catch (err) { toast({title: "Invalid JSON", variant: "destructive"}) }}} className="text-xs bg-input font-mono" rows={8}/>
+                    <p className="text-xxs text-muted-foreground mt-1">Edit the JSON data directly for complex properties.</p>
+                </div>
+            );
+        }
+
+        if (typeof propValue === 'string' || typeof propValue === 'number') {
+            return (
+                <div key={path}><Label htmlFor={path} className="text-xs">{label}</Label><Input type={typeof propValue === 'number' ? 'number' : 'text'} id={path} value={propValue || ''} onChange={(e) => handlePropertyChange(path, e.target.value)} className="text-xs h-8 bg-input" /></div>
+            );
+        }
+
+        return null;
+    };
+
+    const renderFieldsRecursive = (configObject: any, pathPrefix = '') => {
+        return Object.entries(configObject).map(([key, value]) => {
+            if (key === 'id' || key === 'elements' || key === 'columns' || key.toLowerCase().includes('dataaihint')) return null;
+            const currentPath = pathPrefix ? `${pathPrefix}.${key}` : key;
+            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                return (
+                    <div key={currentPath} className="p-3 border rounded-md space-y-3 bg-muted/50 mt-2">
+                        <p className="text-sm font-semibold capitalize text-muted-foreground">{key}</p>
+                        <div className="pl-2 border-l-2 border-border space-y-3">{renderFieldsRecursive(value, currentPath)}</div>
+                    </div>
+                );
+            }
+            return <RenderPropertyField key={currentPath} propKey={key} propValue={value} path={currentPath} />;
+        });
+    };
+
     if (selectedElement) {
         const componentMeta = getComponentConfig(selectedElement.type);
-        
-        const renderField = (key: string, value: any) => {
-            if (key === 'id') return null;
-            
-            const fieldType = typeof componentMeta?.defaultConfig?.[key];
-            const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-            
-            if (key === 'navigationId') {
-                return (
-                    <div key={key}>
-                        <Label htmlFor={key} className="text-xs">{label}</Label>
-                        <Select
-                            value={value || ''}
-                            onValueChange={(val) => handlePropertyChange(key, val)}
-                        >
-                            <SelectTrigger className="text-xs h-8 bg-input"><SelectValue placeholder="Select a navigation" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="">None</SelectItem>
-                                {allSiteNavigations.map(nav => (
-                                    <SelectItem key={nav._id as string} value={nav._id as string}>{nav.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )
-            }
-            
-            if (key.toLowerCase().includes('color')) {
-            return (
-                <div key={key} className="flex items-center justify-between">
-                <Label htmlFor={key} className="text-xs">{label}</Label>
-                <Input type="color" id={key} value={value || '#000000'} onChange={(e) => handlePropertyChange(key, e.target.value)} className="w-16 h-8 p-1 bg-input" />
-                </div>
-            );
-            }
-            
-            if (key === 'src' || key.toLowerCase().includes('imageurl') || key.toLowerCase().includes('backgroundimage')) {
-                return (
-                    <div key={key}>
-                        <Label htmlFor={key} className="text-xs">{label}</Label>
-                        <div className="flex gap-2">
-                            <Input type="text" id={key} value={value || ''} onChange={(e) => handlePropertyChange(key, e.target.value)} className="text-xs h-8 bg-input" />
-                            <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => { setUploadTargetKey(key); fileInputRef.current?.click(); }} disabled={isUploading}>
-                                {isUploading && uploadTargetKey === key ? <Loader2 className="animate-spin h-4 w-4" /> : <UploadCloud className="h-4 w-4"/>}
-                            </Button>
-                        </div>
-                    </div>
-                )
-            }
-            
-            if (key === 'level') {
-                return (
-                    <div key={key}>
-                        <Label htmlFor={key} className="text-xs">{label}</Label>
-                        <Select
-                            value={value || 'h2'}
-                            onValueChange={(val) => handlePropertyChange(key, val)}
-                        >
-                            <SelectTrigger className="text-xs h-8 bg-input"><SelectValue/></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="h1">H1</SelectItem>
-                                <SelectItem value="h2">H2</SelectItem>
-                                <SelectItem value="h3">H3</SelectItem>
-                                <SelectItem value="h4">H4</SelectItem>
-                                <SelectItem value="h5">H5</SelectItem>
-                                <SelectItem value="h6">H6</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )
-            }
-            
-            if (key === 'alignment' || key === 'textAlign') {
-                return (
-                    <div key={key}>
-                        <Label htmlFor={key} className="text-xs">{label}</Label>
-                        <Select
-                            value={value || 'left'}
-                            onValueChange={(val) => handlePropertyChange(key, val)}
-                        >
-                            <SelectTrigger className="text-xs h-8 bg-input capitalize"><SelectValue/></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="left">Left</SelectItem>
-                                <SelectItem value="center">Center</SelectItem>
-                                <SelectItem value="right">Right</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )
-            }
-            
-            if (key.toLowerCase().includes('htmlcontent') || key.toLowerCase().includes('description') || key.toLowerCase().includes('quote') || key.toLowerCase().includes('content')) {
-                return (
-                    <div key={key}>
-                        <Label htmlFor={key} className="text-xs">{label}</Label>
-                        <Textarea id={key} value={value || ''} onChange={(e) => handlePropertyChange(key, e.target.value)} className="text-xs bg-input" rows={5} />
-                    </div>
-                )
-            }
-            
-            if (fieldType === 'boolean') {
-            return (
-                <div key={key} className="flex items-center justify-between rounded-md border p-2">
-                    <Label htmlFor={key} className="text-xs">{label}</Label>
-                    <Switch id={key} checked={!!value} onCheckedChange={(checked) => handlePropertyChange(key, checked)} />
-                </div>
-            )
-            }
-
-            if (Array.isArray(value)) {
-                return (
-                    <div key={key}>
-                        <Label htmlFor={key} className="text-xs">{label} (JSON)</Label>
-                        <Textarea id={key} defaultValue={JSON.stringify(value, null, 2)} onBlur={(e) => { try { handlePropertyChange(key, JSON.parse(e.target.value)) } catch (err) { toast({title: "Invalid JSON", variant: "destructive"}) }}} className="text-xs bg-input font-mono" rows={8}/>
-                        <p className="text-xxs text-muted-foreground mt-1">Edit the JSON data directly for complex properties.</p>
-                    </div>
-                )
-            }
-
-            if (fieldType === 'string' || fieldType === 'number') {
-            return (
-                <div key={key}>
-                <Label htmlFor={key} className="text-xs">{label}</Label>
-                <Input type={fieldType === 'number' ? 'number' : 'text'} id={key} value={value || ''} onChange={(e) => handlePropertyChange(key, e.target.value)} className="text-xs h-8 bg-input" />
-                </div>
-            );
-            }
-            
-            return null;
-        };
-
         return (
             <div className="space-y-4">
-            <div className="flex justify-between items-center mb-3">
-                <p className="text-xs text-muted-foreground">Editing: <strong>{componentMeta?.label || selectedElement.type}</strong></p>
-                <div className="flex items-center">
-                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={duplicateSelectedElement} title="Duplicate Component">
-                    <Copy className="h-3.5 w-3.5"/>
-                    </Button>
-                    <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2" title="Delete Component">
-                        <Trash2 className="h-3.5 w-3.5"/>
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                            This will permanently remove the "{componentMeta?.label}" component from the canvas. This action cannot be undone.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={deleteSelectedElement} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                <div className="flex justify-between items-center mb-3">
+                    <p className="text-xs text-muted-foreground">Editing: <strong>{componentMeta?.label || selectedElement.type}</strong></p>
+                    <div className="flex items-center">
+                        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={duplicateSelectedElement} title="Duplicate Component"><Copy className="h-3.5 w-3.5"/></Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild><Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2" title="Delete Component"><Trash2 className="h-3.5 w-3.5"/></Button></AlertDialogTrigger>
+                            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently remove the "{componentMeta?.label}" component from the canvas. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteSelectedElement} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                        </AlertDialog>
+                    </div>
                 </div>
-            </div>
-            {Object.entries(selectedElement.config).map(([key, value]) => renderField(key, value))}
+                {renderFieldsRecursive(selectedElement.config)}
             </div>
         );
     } else if (activePageData) {
