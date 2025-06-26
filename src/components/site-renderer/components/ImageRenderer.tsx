@@ -1,6 +1,6 @@
 
 import type { IPageComponent } from '@/models/PageComponent';
-import NextImage from 'next/image'; // Using next/image for optimization if possible
+import NextImage from 'next/image';
 
 interface ImageRendererProps {
   config: IPageComponent['config'];
@@ -9,33 +9,36 @@ interface ImageRendererProps {
 const ImageRenderer: React.FC<ImageRendererProps> = ({ config }) => {
   const src = config?.src || 'https://placehold.co/600x400.png?text=Placeholder';
   const alt = config?.alt || 'Website image';
-  const width = config?.width || '100%'; // Can be like "600px" or "100%"
-  const height = config?.height || 'auto'; // Can be like "400px" or "auto"
+  // Ensure width and height are numbers, providing a default if not.
+  const width = typeof config?.width === 'number' && config.width > 0 ? config.width : 600;
+  const height = typeof config?.height === 'number' && config.height > 0 ? config.height : 400;
   const link = config?.link;
   const openInNewTab = config?.openInNewTab === true;
   const caption = config?.caption;
-  const dataAiHint = config?.dataAiHint; // Get the AI hint if available
+  const dataAiHint = config?.dataAiHint;
 
+  const imageClasses = `
+    block 
+    my-2 
+    mx-auto 
+    ${config?.shadow === 'md' ? 'shadow-md' : ''}
+    ${config?.shadow === 'lg' ? 'shadow-lg' : ''}
+  `;
+  
   const imageStyle: React.CSSProperties = {
-    width: typeof width === 'number' ? `${width}px` : width,
-    height: typeof height === 'number' ? `${height}px` : height,
-    borderRadius: config?.cornerRadius || '0px',
-    boxShadow: config?.shadow === 'md' ? '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)' : 
-               config?.shadow === 'lg' ? '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)' : 
-               undefined,
-    display: 'block', // Good for layout control
-    margin: '0.5em auto', // Basic margin for standalone images
+     borderRadius: config?.cornerRadius || '0.5rem',
   };
 
+
   const imageElement = (
-    // Using a regular img tag for simplicity with dynamic src and styles.
-    // Next/Image requires width/height props as numbers for non-fill, and more setup for remote patterns.
-    // For production, consider how to handle user-uploaded images and optimize them.
-    <img 
-      src={src as string} 
-      alt={alt as string} 
-      style={imageStyle} 
-      data-ai-hint={dataAiHint as string || undefined} 
+    <NextImage
+      src={src as string}
+      alt={alt as string}
+      width={width}
+      height={height}
+      className={imageClasses}
+      style={imageStyle}
+      data-ai-hint={dataAiHint as string || undefined}
     />
   );
 
@@ -48,9 +51,9 @@ const ImageRenderer: React.FC<ImageRendererProps> = ({ config }) => {
   );
 
   return (
-    <figure style={{ margin: '0.5em 0' }}>
+    <figure className="my-2">
       {content}
-      {caption && <figcaption style={{ textAlign: 'center', fontSize: '0.9em', color: '#555', marginTop: '0.5em' }}>{caption as string}</figcaption>}
+      {caption && <figcaption className="text-center text-sm text-muted-foreground mt-2">{caption as string}</figcaption>}
     </figure>
   );
 };

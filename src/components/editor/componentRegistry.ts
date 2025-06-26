@@ -92,7 +92,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Image",
     icon: ImageIcon,
     description: "Embed single images.",
-    defaultConfig: { src: "https://placehold.co/600x400.png", alt: "Placeholder Image", width: "100%", height: "auto", dataAiHint: "placeholder" },
+    defaultConfig: { src: "https://placehold.co/600x400.png", alt: "Placeholder Image", width: 600, height: 400, dataAiHint: "placeholder" },
   },
   button: {
     id: "button",
