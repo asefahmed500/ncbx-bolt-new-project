@@ -1,7 +1,7 @@
 
 // Helper function to handle mongoose ObjectId weirdness on client and in server-side logic that doesn't need real DB IDs.
 // It's defined at the top to be available for the componentRegistry definition.
-const mongoose = { Types: { ObjectId: () => Math.random().toString(36).substring(2, 15) }};
+const newObjectId = () => Math.random().toString(36).substring(2, 15);
 
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -74,8 +74,8 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       count: 2, 
       gap: "1rem", 
       columns: [
-        { id: mongoose.Types.ObjectId(), elements: [] },
-        { id: mongoose.Types.ObjectId(), elements: [] }
+        { id: newObjectId(), elements: [] },
+        { id: newObjectId(), elements: [] }
       ]
     },
   },
@@ -284,7 +284,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Custom Code",
     icon: Code2,
     description: "Embed HTML, CSS, or JS snippets.",
-    defaultConfig: { html: "<div>\n  <!-- Your custom HTML code here -->\n  <p>This is a custom code block.</p>\n</div>" }
+    defaultConfig: { html: "<div>\\n  <!-- Your custom HTML code here -->\\n  <p>This is a custom code block.</p>\\n</div>" }
   },
   locked_content: {
     id: "locked_content",
