@@ -2,7 +2,7 @@
 import type { Metadata, ResolvingMetadata } from 'next';
 import { headers } from 'next/headers';
 import { getPublishedSiteDataByHost } from '@/actions/website';
-// import '@/app/globals.css'; // Potentially a different global CSS for rendered sites
+import '@/app/globals.css'; // Import the global stylesheet
 
 type Props = {
   params: { siteSlug?: string[] }; // siteSlug is optional as this layout serves (sites)/page.tsx too
@@ -51,15 +51,6 @@ export default function SiteLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
-         {/* Minimal global styles for rendered sites, or link to a site-specific stylesheet */}
-        <style>{`
-          body { margin: 0; font-family: 'Inter', sans-serif; line-height: 1.6; background-color: #fff; color: #333; }
-          h1, h2, h3, h4, h5, h6 { font-family: 'Poppins', sans-serif; margin-top: 1.5em; margin-bottom: 0.5em; }
-          img { max-width: 100%; height: auto; }
-          a { color: #007bff; text-decoration: none; }
-          a:hover { text-decoration: underline; }
-          .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding-left: 15px; padding-right: 15px; }
-        `}</style>
       </head>
       <body>
         {children}
