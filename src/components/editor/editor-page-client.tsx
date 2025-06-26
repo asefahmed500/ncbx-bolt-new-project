@@ -7,7 +7,7 @@ import { AppHeader, type DeviceType, type EditorSaveStatus } from '@/components/
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X, Edit, UploadCloud, ArrowLeft, RotateCcw } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, Copy, X, Edit, UploadCloud, ArrowLeft, RotateCcw, Eraser } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -78,6 +78,8 @@ export default function EditorPageComponent() {
   const [editorSaveStatus, setEditorSaveStatus] = useState<EditorSaveStatus>('idle');
   const [pageToDeleteIndex, setPageToDeleteIndex] = useState<number | null>(null);
   const [showPageDeleteConfirm, setShowPageDeleteConfirm] = useState(false);
+  const [pageToClearIndex, setPageToClearIndex] = useState<number | null>(null);
+  const [showClearPageConfirm, setShowClearPageConfirm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const [activeDraggedItem, setActiveDraggedItem] = useState<Active | null>(null);
@@ -514,6 +516,36 @@ export default function EditorPageComponent() {
     setShowPageDeleteConfirm(false);
     setEditorSaveStatus('unsaved_changes');
     toast({ title: "Page Removed", description: `Page "${pageToDelete.name}" was removed. Save changes to persist.` });
+  };
+  
+  const handleClearPage = async () => {
+    if (pageToClearIndex === null) return;
+
+    const pageToClear = currentPages[pageToClearIndex];
+    if (!pageToClear.elements || pageToClear.elements.length === 0) {
+      toast({ title: "Page is Already Empty", description: `The page "${pageToClear.name}" has no components to clear.` });
+      setShowClearPageConfirm(false);
+      setPageToClearIndex(null);
+      return;
+    }
+
+    setCurrentPages(prev => {
+        const newPages = [...prev];
+        newPages[pageToClearIndex] = {
+            ...newPages[pageToClearIndex],
+            elements: [],
+        };
+        return newPages;
+    });
+
+    if (activePageIndex === pageToClearIndex) {
+        setSelectedElement(null);
+    }
+    
+    setEditorSaveStatus('unsaved_changes');
+    toast({ title: "Page Cleared", description: `All components from "${pageToClear.name}" have been removed. Save your changes.` });
+    setShowClearPageConfirm(false);
+    setPageToClearIndex(null);
   };
   
   const deleteSelectedElement = () => {
@@ -1273,11 +1305,18 @@ export default function EditorPageComponent() {
                     {currentPages.map((page, index) => (
                       <TabsTrigger key={page._id as string || index} value={index.toString()} className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none rounded-t-md border-b-2 border-transparent data-[state=active]:border-primary">
                         {page.name}
-                        {currentPages.length > 1 && (
-                            <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToDeleteIndex(index); setShowPageDeleteConfirm(true); }} className="ml-1.5 p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}>
-                              <X className="h-3 w-3 text-destructive/70 hover:text-destructive" />
+                        <div className="flex items-center ml-1">
+                          {page.elements.length > 0 &&
+                            <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToClearIndex(index); setShowClearPageConfirm(true); }} className="p-0.5 rounded hover:bg-destructive/20" aria-label={`Clear page ${page.name}`} title={`Clear page ${page.name}`}>
+                              <Eraser className="h-3 w-3 text-destructive/70 hover:text-destructive" />
                             </button>
-                        )}
+                          }
+                          {currentPages.length > 1 && (
+                              <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToDeleteIndex(index); setShowPageDeleteConfirm(true); }} className="p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}>
+                                <X className="h-3 w-3 text-destructive/70 hover:text-destructive" />
+                              </button>
+                          )}
+                        </div>
                       </TabsTrigger>
                     ))}
                     <Button variant="ghost" size="sm" onClick={handleAddNewPage} className="text-xs h-auto px-2 py-1.5 ml-1"><FilePlus className="mr-1 h-3.5 w-3.5" />Add Page</Button>
@@ -1324,6 +1363,19 @@ export default function EditorPageComponent() {
                     <AlertDialogAction onClick={confirmDeletePage} className="bg-destructive hover:bg-destructive/90">Delete Page</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={showClearPageConfirm} onOpenChange={(isOpen) => { if (!isOpen) setPageToClearIndex(null); setShowClearPageConfirm(isOpen); }}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure you want to clear this page?</AlertDialogTitle>
+                  <AlertDialogDescription>This will permanently remove all components from the page "{pageToClearIndex !== null ? currentPages[pageToClearIndex]?.name : ''}". This action cannot be undone, but you can choose not to save your changes.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => { setShowClearPageConfirm(false); setPageToClearIndex(null); }}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearPage} className="bg-destructive hover:bg-destructive/90">Clear Page</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
         </AlertDialog>
 
         <AlertDialog open={showNavDeleteConfirm} onOpenChange={setShowNavDeleteConfirm}>
