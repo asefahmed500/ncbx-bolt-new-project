@@ -1,8 +1,8 @@
 
-// This component is a conceptual placeholder.
-// A real implementation would use ShadCN's Tabs component and require client-side interactivity.
+"use client";
 
 import type { IPageComponent } from '@/models/PageComponent';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface TabItem {
   title: string;
@@ -20,43 +20,36 @@ const TabsRenderer: React.FC<TabsRendererProps> = ({ config }) => {
     { title: "Tab 3", content: "<p>And this is the content for the third tab.</p>" },
   ];
 
-  // For this conceptual renderer, we'll display the tabs and the content of the first tab.
-  const firstItem = items[0];
+  if (items.length === 0) {
+    return (
+        <section className="py-8 my-4">
+            <div className="container mx-auto px-6">
+                 <p className="text-muted-foreground">No tabs configured.</p>
+            </div>
+        </section>
+    );
+  }
 
   return (
     <section className="py-8 my-4">
       <div className="container mx-auto px-6">
-        <div className="border-b border-border">
-          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-            {items.map((item, index) => (
-              <a
-                key={item.title}
-                href="#"
-                onClick={(e) => e.preventDefault()} // Disable click in editor
-                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                  index === 0
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-                }`}
-              >
+        <Tabs defaultValue={items[0].title} className="w-full">
+          <TabsList>
+            {items.map((item) => (
+              <TabsTrigger key={item.title} value={item.title}>
                 {item.title}
-              </a>
+              </TabsTrigger>
             ))}
-          </nav>
-        </div>
-        <div className="pt-6">
-          {firstItem ? (
-            <div
-              className="prose dark:prose-invert max-w-none"
-              dangerouslySetInnerHTML={{ __html: firstItem.content }}
-            />
-          ) : (
-            <p className="text-muted-foreground">No content for tabs.</p>
-          )}
-          <p className="text-center text-xs text-muted-foreground mt-4">
-            (Interactive tabs will be rendered on the live site)
-          </p>
-        </div>
+          </TabsList>
+          {items.map((item) => (
+            <TabsContent key={item.title} value={item.title} className="pt-6">
+              <div
+                className="prose dark:prose-invert max-w-none"
+                dangerouslySetInnerHTML={{ __html: item.content }}
+              />
+            </TabsContent>
+          ))}
+        </Tabs>
       </div>
     </section>
   );

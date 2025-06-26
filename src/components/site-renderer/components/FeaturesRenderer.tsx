@@ -1,8 +1,9 @@
 
+"use client";
+
 import type { IPageComponent } from '@/models/PageComponent';
-// For icons, you'd typically map string names to actual Lucide icon components
-// For simplicity here, we'll just display the name.
-// import { Zap, ShieldCheck, ThumbsUp } from 'lucide-react'; // Example
+import { createElement } from 'react';
+import * as Icons from 'lucide-react';
 
 interface FeatureItem {
   title: string;
@@ -29,20 +30,22 @@ const FeaturesRenderer: React.FC<FeaturesRendererProps> = ({ config }) => {
       <div className="container mx-auto px-6">
         <h2 className="text-3xl md:text-4xl font-bold font-headline text-center mb-12">{sectionTitle}</h2>
         <div className={`gap-8 ${layout === 'grid' ? 'grid md:grid-cols-2 lg:grid-cols-3' : 'space-y-8'}`}>
-          {items.map((item, index) => (
-            <div key={index} className="bg-card p-6 rounded-lg shadow-lg border border-border text-center md:text-left flex flex-col md:flex-row items-center md:items-start gap-4">
-              {item.icon && (
-                <div className={`p-3 rounded-full bg-primary/10 ${iconColor} mb-4 md:mb-0`}>
-                  {/* In a real app, use dynamic icon component here */}
-                  <span className="text-2xl font-bold">{item.icon.slice(0,1)}</span> 
+          {items.map((item, index) => {
+            const IconComponent = item.icon && (Icons as any)[item.icon] ? createElement((Icons as any)[item.icon], {className: 'h-8 w-8'}) : null;
+            return (
+              <div key={index} className="bg-card p-6 rounded-lg shadow-lg border border-border text-center md:text-left flex flex-col md:flex-row items-center md:items-start gap-4">
+                {IconComponent && (
+                  <div className={`p-3 rounded-full bg-primary/10 ${iconColor} mb-4 md:mb-0`}>
+                    {IconComponent}
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h3 className="text-xl font-semibold font-headline mb-2 text-card-foreground">{item.title}</h3>
+                  <p className="text-muted-foreground text-sm">{item.description}</p>
                 </div>
-              )}
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold font-headline mb-2 text-card-foreground">{item.title}</h3>
-                <p className="text-muted-foreground text-sm">{item.description}</p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
