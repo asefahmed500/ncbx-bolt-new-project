@@ -241,8 +241,9 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     defaultConfig: {
       title: "Our Plans",
       plans: [
-        { name: "Basic", price: "$10/mo", features: ["Feature A", "Feature B"] },
-        { name: "Pro", price: "$20/mo", features: ["Feature A", "Feature B", "Feature C"] },
+        { name: "Basic", price: 1000, period: "mo", features: ["Feature A", "Feature B", "Limited Support"], buttonText: "Choose Basic", buttonLink: "#", isPopular: false },
+        { name: "Pro", price: 2500, period: "mo", features: ["All Basic Features", "Feature C", "Feature D", "Priority Support"], buttonText: "Choose Pro", buttonLink: "#", isPopular: true },
+        { name: "Enterprise", price: -1, period: "mo", features: ["All Pro Features", "Dedicated Support", "Custom Integrations"], buttonText: "Contact Us", buttonLink: "#", isPopular: false },
       ]
     },
   },

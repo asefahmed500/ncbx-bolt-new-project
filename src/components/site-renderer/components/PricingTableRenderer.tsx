@@ -3,8 +3,8 @@ import type { IPageComponent } from '@/models/PageComponent';
 
 interface PricingPlan {
   name: string;
-  price: string;
-  period?: string;
+  price: number; // Price in cents, or -1 for "Custom"
+  period?: 'mo' | 'yr';
   features: string[];
   buttonText?: string;
   buttonLink?: string;
@@ -18,9 +18,9 @@ interface PricingTableRendererProps {
 const PricingTableRenderer: React.FC<PricingTableRendererProps> = ({ config }) => {
   const sectionTitle = config?.title || 'Our Pricing Plans';
   const plans: PricingPlan[] = config?.plans || [
-    { name: "Basic", price: "$19", period: "/mo", features: ["Feature 1", "Feature 2", "Limited Support"], buttonText: "Choose Basic", buttonLink: "#" },
-    { name: "Pro", price: "$49", period: "/mo", features: ["All Basic Features", "Feature 3", "Feature 4", "Priority Support"], buttonText: "Choose Pro", buttonLink: "#", isPopular: true },
-    { name: "Enterprise", price: "Custom", features: ["All Pro Features", "Dedicated Support", "Custom Integrations"], buttonText: "Contact Us", buttonLink: "#" },
+    { name: "Basic", price: 1900, period: "mo", features: ["Feature 1", "Feature 2", "Limited Support"], buttonText: "Choose Basic", buttonLink: "#" },
+    { name: "Pro", price: 4900, period: "mo", features: ["All Basic Features", "Feature 3", "Feature 4", "Priority Support"], buttonText: "Choose Pro", buttonLink: "#", isPopular: true },
+    { name: "Enterprise", price: -1, period: "mo", features: ["All Pro Features", "Dedicated Support", "Custom Integrations"], buttonText: "Contact Us", buttonLink: "#" },
   ];
   const highlightColor = config?.highlightColor || 'border-primary';
 
@@ -37,7 +37,10 @@ const PricingTableRenderer: React.FC<PricingTableRendererProps> = ({ config }) =
                 </div>
               )}
               <h3 className="text-2xl font-semibold font-headline mb-2 text-card-foreground">{plan.name}</h3>
-              <p className="text-4xl font-bold mb-1 text-primary">{plan.price}<span className="text-base font-normal text-muted-foreground">{plan.period}</span></p>
+              <p className="text-4xl font-bold mb-1 text-primary">
+                {plan.price === -1 ? 'Custom' : `$${(plan.price / 100).toFixed(0)}`}
+                {plan.price !== -1 && <span className="text-base font-normal text-muted-foreground">/{plan.period || 'mo'}</span>}
+              </p>
               <ul className="space-y-2 text-sm text-muted-foreground mt-4 mb-6 flex-grow">
                 {plan.features.map((feature, fIndex) => (
                   <li key={fIndex} className="flex items-center">
