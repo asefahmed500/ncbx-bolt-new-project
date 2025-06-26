@@ -1,6 +1,6 @@
 
 import mongoose, { Schema, model, models, type Document } from 'mongoose';
-import { PageComponentSchema, type IPageComponent } from './PageComponent'; // Assuming this is the structure for elements
+import { PageComponentSchema, type IPageComponent } from './PageComponent';
 
 // Interface for a page snapshot within a WebsiteVersion
 export interface IWebsiteVersionPage {
@@ -14,7 +14,7 @@ export interface IWebsiteVersionPage {
 
 // Schema for a page snapshot within a WebsiteVersion
 const WebsiteVersionPageSchema = new Schema<IWebsiteVersionPage>({
-  _id: { type: Schema.Types.ObjectId, auto: true }, // Explicitly define _id, auto: true is default for top-level
+  _id: { type: Schema.Types.ObjectId, auto: true }, // Explicitly define _id
   name: { type: String, required: true, trim: true },
   slug: { type: String, required: true, trim: true },
   elements: [PageComponentSchema], // Embeds the actual component data
@@ -80,3 +80,5 @@ const WebsiteVersion =
   models.WebsiteVersion || model<IWebsiteVersion>('WebsiteVersion', WebsiteVersionSchema);
 
 export default WebsiteVersion;
+
+    

@@ -37,10 +37,9 @@ import AboutSectionRenderer from './components/AboutSectionRenderer';
 
 interface ElementRendererProps {
   element: IPageComponent;
-  isEditor?: boolean; // Pass this down to know if we are in editor mode
 }
 
-const ElementRenderer: React.FC<ElementRendererProps> = ({ element, isEditor = false }) => {
+const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
   if (!element || !element.type) {
     return (
       <div className="my-2 p-3 border border-dashed border-destructive/50 bg-destructive/10 rounded">
@@ -56,7 +55,6 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({ element, isEditor = f
   
   const componentProps = {
     config: element.config,
-    isEditor, // Pass the isEditor flag to all renderers
   };
 
   switch (element.type) {

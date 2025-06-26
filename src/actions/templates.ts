@@ -249,3 +249,5 @@ export async function getApprovedTemplates(input: z.infer<typeof GetTemplatesInp
     return { error: "Failed to fetch approved templates: " + error.message };
   }
 }
+
+    

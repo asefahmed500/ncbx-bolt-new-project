@@ -814,5 +814,4 @@ export async function getPublishedSiteDataByHost(host: string): Promise<GetPubli
   return { website: serializeObject(websiteDoc), publishedVersion: serializeObject(publishedVersionDoc) };
 }
 
-
     

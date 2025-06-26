@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from 'lucide-react';
 
+
 // Helper function to generate a unique client-side ID.
 const newObjectId = () => Math.random().toString(36).substring(2, 15);
 
@@ -359,3 +360,5 @@ export const getRegisteredComponents = (): ComponentConfig[] => {
 export const getComponentConfig = (type: string): ComponentConfig | undefined => {
   return componentRegistry[type];
 };
+
+    
