@@ -3,6 +3,7 @@ import mongoose, { Schema, model, models, type Document } from 'mongoose';
 
 // Interface for a single link/item within a navigation menu
 export interface INavigationItem {
+  _id?: mongoose.Types.ObjectId; // Mongoose adds this by default
   label: string;
   url: string;
   type: 'internal' | 'external';
@@ -14,7 +15,7 @@ const NavigationItemSchema = new Schema<INavigationItem>({
   label: { type: String, required: true, trim: true },
   url: { type: String, required: true, trim: true },
   type: { type: String, enum: ['internal', 'external'], default: 'internal' },
-}, { _id: false });
+});
 
 
 // Interface for the main Navigation entity

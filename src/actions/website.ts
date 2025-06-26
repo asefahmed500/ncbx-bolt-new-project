@@ -174,7 +174,9 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
 
     if (templateId) {
       const template = await Template.findById(templateId).lean(); // Use lean for plain object
-      if (template && template.status === 'approved') {
+      const hasPurchased = session.user.purchasedTemplateIds?.includes(templateId);
+
+      if (template && template.status === 'approved' && (!template.isPremium || hasPurchased)) {
         initialPages = template.pages.map(p => ({
           _id: new mongoose.Types.ObjectId().toString(), // New ID for this instance
           name: p.name,
@@ -188,8 +190,10 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
           seoTitle: p.seoTitle,
           seoDescription: p.seoDescription,
         }));
+      } else if (template?.isPremium && !hasPurchased) {
+          return { error: "You have not purchased this premium template." };
       } else {
-        console.warn(`[CreateWebsite] Template ${templateId} not found or not approved. Creating blank website.`);
+        console.warn(`[CreateWebsite] Template ${templateId} not found, not approved, or purchase issue. Creating blank website.`);
       }
     }
 
@@ -774,15 +778,21 @@ export async function getPublishedSiteDataByHost(host: string): Promise<GetPubli
   }
 
   let websiteDoc: IWebsite | null = null;
-  const hostname = host.split(':')[0]; // remove port if present
+  const hostname = host.split(':')[0]; // remove port if present, e.g., localhost:9003 -> localhost
 
+  // Handle subdomain on base domain (e.g., mysite.localhost:9003)
   if (hostname.endsWith(`.${appBaseDomain}`)) {
     const subdomain = hostname.substring(0, hostname.length - (appBaseDomain.length + 1));
     if (subdomain && subdomain !== 'www') { // Exclude www from being a user subdomain on the base domain
       websiteDoc = await Website.findOne({ subdomain, status: 'published' }).lean();
     }
+  } else if (hostname.endsWith(appBaseDomain)) { // Handle localhost case: e.g., mysite.localhost
+     const subdomain = hostname.substring(0, hostname.length - appBaseDomain.length).replace(/\.$/, '');
+     if (subdomain) {
+        websiteDoc = await Website.findOne({ subdomain, status: 'published' }).lean();
+     }
   } else {
-    // This handles custom domains
+    // This handles custom domains (e.g., www.mycustomsite.com)
     websiteDoc = await Website.findOne({ customDomain: hostname, status: 'published', domainStatus: 'verified' }).lean();
   }
 

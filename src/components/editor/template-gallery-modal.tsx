@@ -27,8 +27,9 @@ import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 
 let stripePromise: Promise<Stripe | null> | null = null;
-if (process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY && !process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.includes("YOUR_STRIPE_PUBLISHABLE_KEY")) {
-  stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+if (stripeKey && !stripeKey.includes("YOUR_STRIPE_PUBLISHABLE_KEY")) {
+  stripePromise = loadStripe(stripeKey);
 }
 
 interface TemplateGalleryModalProps {
@@ -111,9 +112,9 @@ export function TemplateGalleryModal({ isOpen, onOpenChange, onApplyTemplate }: 
     }
   };
 
-  const onPaymentSuccess = (purchasedTemplate: ITemplate) => {
+  const onPaymentSuccess = async (purchasedTemplate: ITemplate) => {
       toast({ title: "Purchase Successful!", description: `You can now use the "${purchasedTemplate.name}" template.` });
-      updateSession(); // Refresh session to get new purchasedTemplateIds
+      await updateSession({ refreshSubscription: true }); // A generic way to trigger a session refresh
       onApplyTemplate(purchasedTemplate); // Apply it to the editor
       setIsPaymentModalOpen(false); // Close payment modal
       onOpenChange(false); // Close gallery modal

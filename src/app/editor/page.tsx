@@ -7,7 +7,7 @@ import { AppHeader, type DeviceType, type EditorSaveStatus } from '@/components/
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, ExternalLink, Text, Palette, Image as ImageIconLucide, Edit, ArrowLeft, ArrowRight, Upload } from 'lucide-react';
+import { Settings, MousePointerSquareDashed, Loader2, Save, AlertTriangle, CheckCircle, AlertCircle as AlertCircleIcon, FilePlus, Trash2, PlusCircle, Navigation as NavigationIcon, Link as LinkIcon, ExternalLink, Text, Palette, Image as ImageIconLucide, Edit, ArrowLeft, ArrowRight, Upload, X } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { SaveTemplateModal } from '@/components/editor/save-template-modal';
 import { TemplateGalleryModal } from '@/components/editor/template-gallery-modal';
 import mongoose from 'mongoose';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { getComponentConfig } from '@/components/editor/componentRegistry';
 import {
   DndContext,
@@ -172,89 +172,90 @@ function EditorPageComponent() {
     }
   }, [websiteIdFromQuery, websiteId, loadWebsiteData, fetchSiteNavigations]);
 
+  const findElementRecursive = (elements: IPageComponent[], elementId: string): { element: IPageComponent, parentList: IPageComponent[] } | null => {
+    for (let i = 0; i < elements.length; i++) {
+        const el = elements[i];
+        if (el._id === elementId) {
+            return { element: el, parentList: elements };
+        }
+        if (el.config?.elements && Array.isArray(el.config.elements)) {
+            const found = findElementRecursive(el.config.elements, elementId);
+            if (found) return found;
+        }
+        if (el.config?.columns && Array.isArray(el.config.columns)) {
+            for (const col of el.config.columns) {
+                if (col.elements && Array.isArray(col.elements)) {
+                    const found = findElementRecursive(col.elements, elementId);
+                    if (found) return found;
+                }
+            }
+        }
+    }
+    return null;
+  };
+  
   const handleElementSelect = useCallback((elementId: string, pageIndex: number) => {
     const page = currentPages[pageIndex];
     if (page) {
-        let elementToSelect: IPageComponent | null = null;
-        let elementIndex = -1;
-
-        const findElement = (elements: IPageComponent[]): IPageComponent | null => {
-            for (let i = 0; i < elements.length; i++) {
-                const el = elements[i];
-                if (el._id === elementId) {
-                    elementIndex = i;
-                    return el;
-                }
-                if (el.type === 'section' && el.config?.elements) {
-                    const found = findElement(el.config.elements);
-                    if (found) return found;
-                }
-                if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
-                    for (const col of el.config.columns) {
-                        const found = findElement(col.elements);
-                        if (found) return found;
-                    }
-                }
-            }
-            return null;
-        };
-
-        elementToSelect = findElement(page.elements);
-
-        if (elementToSelect) {
-            setSelectedElement({ ...elementToSelect, pageIndex, elementIndex });
-        } else {
-            setSelectedElement(null);
-        }
+      const result = findElementRecursive(page.elements, elementId);
+      if (result) {
+        const elementIndex = result.parentList.findIndex(e => e._id === elementId);
+        setSelectedElement({ ...result.element, pageIndex, elementIndex });
+      }
     }
   }, [currentPages]);
 
-  const handlePropertyChange = (propertyName: string, value: any, isPageSetting: boolean = false) => {
+  const handlePropertyChange = (propertyName: string, value: any) => {
     setCurrentPages(prevPages => {
         const newPages = JSON.parse(JSON.stringify(prevPages)) as IWebsiteVersionPage[];
-        const pageToUpdate = newPages[activePageIndex];
-        let updatedElementForState: IPageComponent | null = null;
+        if (!selectedElement) return newPages;
 
-        if (pageToUpdate) {
-            if (isPageSetting) {
-                (pageToUpdate as any)[propertyName] = value;
-            } else if (selectedElement) {
-                const findAndApply = (elements: IPageComponent[]): boolean => {
-                    for (let el of elements) {
-                        if (el._id === selectedElement._id) {
-                            if (propertyName === 'config' && typeof value === 'object' && value !== null) {
-                                el.config = { ...el.config, ...value };
-                            } else {
-                                el.config[propertyName] = value;
-                            }
-                            if (el.type === 'navbar' && propertyName === 'navigationId') {
-                                const selectedNav = allSiteNavigations.find(nav => nav._id === value);
-                                if (selectedNav) {
-                                    el.config.links = selectedNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
-                                } else if (!value) {
-                                    el.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
-                                }
-                            }
-                            updatedElementForState = JSON.parse(JSON.stringify(el));
-                            return true;
-                        }
-                        if (el.type === 'section' && el.config?.elements && findAndApply(el.config.elements)) return true;
-                        if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
-                            for (const col of el.config.columns) {
-                                if (col.elements && findAndApply(col.elements)) return true;
-                            }
-                        }
-                    }
-                    return false;
-                };
-                findAndApply(pageToUpdate.elements);
+        const pageToUpdate = newPages[activePageIndex];
+        if (!pageToUpdate) return newPages;
+
+        let updatedElementForState: IPageComponent | null = null;
+        
+        const updateRecursive = (elements: IPageComponent[]): boolean => {
+          for (let el of elements) {
+            if (el._id === selectedElement._id) {
+              if (propertyName === 'config') { // Merging config objects
+                el.config = { ...el.config, ...value };
+              } else {
+                el.config[propertyName] = value;
+              }
+
+              if (el.type === 'navbar' && propertyName === 'navigationId') {
+                  const selectedNav = allSiteNavigations.find(nav => nav._id === value);
+                  if (selectedNav) {
+                      el.config.links = selectedNav.items.map(item => ({ text: item.label, href: item.url, type: item.type || 'internal' }));
+                  } else if (!value) {
+                      el.config.links = getComponentConfig('navbar')?.defaultConfig?.links || [];
+                  }
+              }
+
+              updatedElementForState = JSON.parse(JSON.stringify(el));
+              return true;
             }
-        }
+            if (el.config?.elements && Array.isArray(el.config.elements)) {
+              if (updateRecursive(el.config.elements)) return true;
+            }
+            if (el.config?.columns && Array.isArray(el.config.columns)) {
+              for (const col of el.config.columns) {
+                if (col.elements && Array.isArray(col.elements)) {
+                  if (updateRecursive(col.elements)) return true;
+                }
+              }
+            }
+          }
+          return false;
+        };
+        
+        updateRecursive(pageToUpdate.elements);
         
         if (updatedElementForState) {
             setSelectedElement(prevSel => prevSel ? {
                 ...prevSel,
-                ...updatedElementForState
+                config: updatedElementForState!.config
             } : null);
         }
 
@@ -420,6 +421,31 @@ function EditorPageComponent() {
     setPageToDeleteIndex(null);
     setEditorSaveStatus('unsaved_changes');
     toast({ title: "Page Removed", description: "Page removed from the editor. Save changes to make it permanent." });
+  };
+  
+  const deleteSelectedElement = () => {
+    if (!selectedElement) return;
+
+    setCurrentPages(prevPages => {
+      const newPages = JSON.parse(JSON.stringify(prevPages));
+      const page = newPages[activePageIndex];
+      if (!page) return newPages;
+
+      const deleteRecursive = (elements: IPageComponent[]): IPageComponent[] => {
+          return elements.filter(el => {
+              if (el._id === selectedElement._id) return false; // Delete this element
+              if (el.config?.elements) el.config.elements = deleteRecursive(el.config.elements);
+              if (el.config?.columns) el.config.columns.forEach((c: any) => c.elements = deleteRecursive(c.elements));
+              return true;
+          });
+      };
+      
+      page.elements = deleteRecursive(page.elements);
+      setSelectedElement(null);
+      setEditorSaveStatus('unsaved_changes');
+      return newPages;
+    });
+    toast({ title: "Component Removed", description: `Component removed from the editor. Save your changes.` });
   };
 
   const sensors = useSensors(
@@ -621,9 +647,9 @@ function EditorPageComponent() {
     const result = await updateNavigation({
       navigationId: selectedNavigationForEditing._id as string,
       name: editingNavName,
-      items: editingNavItems,
+      items: editingNavItems.map(({label, url, type}) => ({label, url, type})), // Remove any extra properties
     });
-    if (result.success) {
+    if (result.success && result.data) {
       toast({ title: "Navigation Saved", description: `"${result.data?.name}" has been updated.`});
       await fetchSiteNavigations(websiteId);
       setSelectedNavigationForEditing(null);
@@ -655,22 +681,40 @@ function EditorPageComponent() {
     const activePageData = currentPages[activePageIndex];
 
     if (selectedElement) {
-      const currentElement = findElementAndParent(currentPages, selectedElement._id as string)?.parentArray.find(e => e._id === selectedElement._id);
-      if (!currentElement) return <p>Element not found.</p>;
-      const componentMeta = getComponentConfig(currentElement.type);
-
+      const componentMeta = getComponentConfig(selectedElement.type);
       return (
         <>
-          <p className="text-xs text-muted-foreground mb-3">Editing: <strong>{componentMeta?.label || currentElement.type}</strong></p>
+          <div className="flex justify-between items-center mb-3">
+             <p className="text-xs text-muted-foreground">Editing: <strong>{componentMeta?.label || selectedElement.type}</strong></p>
+             <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2">
+                  <Trash2 className="h-3.5 w-3.5 mr-1"/> Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently remove the "{componentMeta?.label}" component from the canvas. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={deleteSelectedElement} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+             </AlertDialog>
+          </div>
           {Object.entries(componentMeta?.defaultConfig || {}).map(([key, defaultValue]) => {
-            const currentValue = currentElement.config?.[key] !== undefined ? currentElement.config[key] : defaultValue;
+            const currentValue = selectedElement.config?.[key] !== undefined ? selectedElement.config[key] : defaultValue;
 
-            if (key === 'navigationId' && currentElement.type === 'navbar') {
+            if (key === 'navigationId' && selectedElement.type === 'navbar') {
               return (
                 <div key={key} className="space-y-1 mt-2">
                   <Label htmlFor="navbarNavigation" className="text-xs">Link to Site Navigation</Label>
                   <Select
-                    value={(currentElement.config.navigationId as string) || ""}
+                    value={(selectedElement.config.navigationId as string) || ""}
                     onValueChange={(value) => handlePropertyChange(key, value || null)}
                   >
                     <SelectTrigger id="navbarNavigation" className="w-full text-xs bg-input">
@@ -693,22 +737,9 @@ function EditorPageComponent() {
               );
             }
 
-            if (key === 'links' && currentElement.type === 'navbar') {
-              if (currentElement.config.navigationId) {
-                return (
-                  <div key={key} className="space-y-1 mt-2">
-                    <Label htmlFor={`prop-${key}`} className="text-xs capitalize">Links (from selected navigation)</Label>
-                    <Textarea
-                      id={`prop-${key}`}
-                      value={JSON.stringify(currentValue || [], null, 2)}
-                      className="text-xs bg-input/50 h-32 font-mono"
-                      readOnly
-                    />
-                    <FormDescription className="text-xs">
-                      Links are managed by the selected Site Navigation entity. To edit these links, modify the source navigation in the "Site Navigations" tab, or select "None" to manage links manually for this Navbar.
-                    </FormDescription>
-                  </div>
-                );
+            if (key === 'links' && selectedElement.type === 'navbar') {
+              if (selectedElement.config.navigationId) {
+                return null; // Don't show manual links if a navigation entity is linked
               } else {
                 return (
                   <div key={key} className="space-y-2 mt-3 p-2 border rounded-md bg-muted/20">
@@ -804,12 +835,14 @@ function EditorPageComponent() {
                     <Button 
                       type="button" 
                       variant="outline" 
-                      size="sm" 
+                      size="icon" 
+                      className="h-8 w-8"
                       onClick={() => {
                         setUploadTargetKey(key);
                         fileInputRef.current?.click();
                       }}
                       disabled={isUploading}
+                      title="Upload Image"
                     >
                       {isUploading && uploadTargetKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                     </Button>
@@ -824,11 +857,20 @@ function EditorPageComponent() {
               );
             }
 
-            if (key === 'text' || key === 'htmlContent' || key === 'subtitle' || key === 'description' || key === 'copyrightText' || key === 'content' || key === 'brandText') {
+            if (key === 'htmlContent') {
+                // This is a placeholder for a rich text editor. A textarea is used for now.
+                return (
+                     <div key={key} className="space-y-1 mt-2">
+                        <Label htmlFor={`prop-${key}`} className="text-xs capitalize flex items-center"><Text className="mr-1.5 h-3 w-3"/>Rich Text Content</Label>
+                        <Textarea id={`prop-${key}`} value={currentValue || ""} placeholder="Enter content. Supports HTML." className="text-xs bg-input h-48" onChange={(e) => handlePropertyChange(key, e.target.value)} />
+                    </div>
+                )
+            }
+            if (['text', 'subtitle', 'description', 'copyrightText', 'content', 'brandText', 'title'].includes(key)) {
               return (
                 <div key={key} className="space-y-1 mt-2">
                   <Label htmlFor={`prop-${key}`} className="text-xs capitalize flex items-center"><Text className="mr-1.5 h-3 w-3"/>{key.replace(/([A-Z])/g, ' $1')}</Label>
-                  <Textarea id={`prop-${key}`} value={currentValue || ""} placeholder={`Enter ${key}`} className="text-xs bg-input" onChange={(e) => handlePropertyChange(key, e.target.value)} />
+                  <Textarea id={`prop-${key}`} value={currentValue || ""} placeholder={`Enter ${key}`} className="text-xs bg-input" rows={key.length > 10 ? 4 : 2} onChange={(e) => handlePropertyChange(key, e.target.value)} />
                 </div>
               );
             } else if (key === 'link' || key === 'buttonLink' || key === 'brandLink') {
@@ -838,7 +880,7 @@ function EditorPageComponent() {
                   <Input type="url" id={`prop-${key}`} value={currentValue || ""} placeholder="https://example.com or /page" className="text-xs bg-input" onChange={(e) => handlePropertyChange(key, e.target.value)} />
                 </div>
               );
-            } else if (key === 'level' && currentElement.type === 'heading') {
+            } else if (key === 'level' && selectedElement.type === 'heading') {
               return (
                 <div key={key} className="space-y-1 mt-2">
                   <Label htmlFor="headingLevel" className="text-xs">Level (H1-H6)</Label>
@@ -848,7 +890,7 @@ function EditorPageComponent() {
                   </Select>
                 </div>
               );
-            } else if (key === 'style' && currentElement.type === 'button') {
+            } else if (key === 'style' && selectedElement.type === 'button') {
               return (
                 <div key={key} className="space-y-1 mt-2">
                   <Label htmlFor="buttonStyle" className="text-xs">Style</Label>
@@ -866,15 +908,8 @@ function EditorPageComponent() {
                 </div>
               );
             } else if (Array.isArray(defaultValue) || (typeof defaultValue === 'object' && defaultValue !== null)) {
-              return (
-                <div key={key} className="space-y-1 mt-2">
-                  <Label htmlFor={`prop-${key}`} className="text-xs capitalize">{key.replace(/([A-Z])/g, ' $1')} (JSON)</Label>
-                  <Textarea id={`prop-${key}`} value={JSON.stringify(currentValue, null, 2) || ""} placeholder={`Enter JSON for ${key}`} className="text-xs h-24 bg-input font-mono" onChange={(e) => { try { handlePropertyChange(key, JSON.parse(e.target.value)); } catch (err) { /* Ignore parse error on live typing */ } }} />
-                  <FormDescription className="text-xxs text-muted-foreground">
-                    (Advanced: Edit as JSON array/object. For complex structures like lists of items, a more user-friendly UI may be added in the future.)
-                  </FormDescription>
-                </div>
-              );
+              // Hide complex JSON fields for now to simplify UI
+              return null;
             }
             return (
               <div key={key} className="space-y-1 mt-2">
@@ -998,30 +1033,6 @@ function EditorPageComponent() {
   };
 
   const currentEditorPage = currentPages[activePageIndex] || defaultInitialPage;
-  
-  // Helper to find an element within the pages structure
-  const findElementAndParent = (pages: IWebsiteVersionPage[], elementId: string): { parentArray: IPageComponent[], elementIndex: number; } | null => {
-    for (const page of pages) {
-        let queue: { elements: IPageComponent[], path: string }[] = [{ elements: page.elements, path: '' }];
-        while (queue.length > 0) {
-            const { elements } = queue.shift()!;
-            const elementIndex = elements.findIndex(el => el._id === elementId);
-            if (elementIndex !== -1) {
-                return { parentArray: elements, elementIndex };
-            }
-            for (const el of elements) {
-                if (el.type === 'section' && el.config?.elements) {
-                    queue.push({ elements: el.config.elements, path: '' });
-                } else if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
-                    el.config.columns.forEach((col: any) => {
-                        if (col.elements) queue.push({ elements: col.elements, path: '' });
-                    });
-                }
-            }
-        }
-    }
-    return null;
-  };
 
   return (
     <DndContext
@@ -1036,22 +1047,38 @@ function EditorPageComponent() {
           <ComponentLibrarySidebar />
           <main className="flex-1 flex flex-col p-1 md:p-2 lg:p-4 overflow-hidden bg-muted/30">
             <div className="flex justify-between items-center p-2 border-b bg-card mb-2 gap-3">
-              <Tabs value={activePageIndex.toString()} onValueChange={(value) => { setActivePageIndex(parseInt(value)); setSelectedElement(null); }} className="max-w-[calc(100%-200px)] overflow-x-auto">
-                <TabsList className="bg-transparent p-0 h-auto">
-                  {currentPages.map((page, index) => (
-                    <TabsTrigger key={page._id as string || index} value={index.toString()} className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none rounded-t-md border-b-2 border-transparent data-[state=active]:border-primary">
-                      {page.name}
-                      {currentPages.length > 1 && (
-                        <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPageToDeleteIndex(index); }} className="ml-1.5 p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}>
-                          <Trash2 className="h-3 w-3 text-destructive/70 hover:text-destructive" />
-                        </button>
-                      )}
-                    </TabsTrigger>
-                  ))}
-                  <Button variant="ghost" size="sm" onClick={handleAddNewPage} className="text-xs h-auto px-2 py-1.5 ml-1"><FilePlus className="mr-1 h-3.5 w-3.5" />Add Page</Button>
-                </TabsList>
-              </Tabs>
-              <div className="flex items-center">
+              <div className="overflow-x-auto">
+                <Tabs value={activePageIndex.toString()} onValueChange={(value) => { setActivePageIndex(parseInt(value)); setSelectedElement(null); }} className="max-w-full">
+                  <TabsList className="bg-transparent p-0 h-auto">
+                    {currentPages.map((page, index) => (
+                      <TabsTrigger key={page._id as string || index} value={index.toString()} className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none rounded-t-md border-b-2 border-transparent data-[state=active]:border-primary">
+                        {page.name}
+                        {currentPages.length > 1 && (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); }} className="ml-1.5 p-0.5 rounded hover:bg-destructive/20" aria-label={`Delete page ${page.name}`} title={`Delete page ${page.name}`}>
+                                      <X className="h-3 w-3 text-destructive/70 hover:text-destructive" />
+                                    </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>This action cannot be undone. This will delete the page "{page.name}".</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => confirmDeletePage()} className="bg-destructive hover:bg-destructive/90">Delete Page</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
+                      </TabsTrigger>
+                    ))}
+                    <Button variant="ghost" size="sm" onClick={handleAddNewPage} className="text-xs h-auto px-2 py-1.5 ml-1"><FilePlus className="mr-1 h-3.5 w-3.5" />Add Page</Button>
+                  </TabsList>
+                </Tabs>
+              </div>
+              <div className="flex items-center flex-shrink-0">
                 {renderEditorSaveStatus()}
                 <Button size="sm" onClick={handleEditorSaveChanges} disabled={editorSaveStatus === 'saving' || editorSaveStatus === 'saved' || editorSaveStatus === 'idle'}><Save className="mr-2 h-4 w-4" />Save Site</Button>
               </div>
@@ -1059,16 +1086,13 @@ function EditorPageComponent() {
             <CanvasEditor devicePreview={currentDevice} page={currentEditorPage} pageIndex={activePageIndex} onElementSelect={handleElementSelect} isDragging={!!activeDraggedItem} activeDragId={activeDraggedItem?.id as string | null} />
           </main>
           <aside className="w-80 bg-card border-l border-border p-4 shadow-sm flex flex-col overflow-y-auto">
-            <Card className="flex-1"><CardHeader><CardTitle className="font-headline text-lg flex items-center">{selectedElement ? <><MousePointerSquareDashed className="w-5 h-5 mr-2 text-primary" />{(getComponentConfig(selectedElement.type)?.label || selectedElement.type)} Properties</> : <><Settings className="w-5 h-5 mr-2 text-primary" />Page & Site Settings</>}</CardTitle></CardHeader>
+            <Card className="flex-1"><CardHeader><CardTitle className="font-headline text-lg flex items-center">{selectedElement ? <><MousePointerSquareDashed className="w-5 h-5 mr-2 text-primary" />Properties</> : <><Settings className="w-5 h-5 mr-2 text-primary" />Page & Site Settings</>}</CardTitle></CardHeader>
               <CardContent><div className="space-y-4">{renderPropertyFields()}</div>{selectedElement && <Button variant="outline" size="sm" onClick={() => setSelectedElement(null)} className="mt-4">Deselect Element</Button>}</CardContent></Card>
           </aside>
         </div>
         {websiteId && <SaveTemplateModal isOpen={isSaveTemplateModalOpen} onOpenChange={setIsSaveTemplateModalOpen} currentDesignData={getEditorContentForSave()} />}
         <TemplateGalleryModal isOpen={isTemplateGalleryModalOpen} onOpenChange={setIsTemplateGalleryModalOpen} onApplyTemplate={handleApplyTemplate} />
-
-        <AlertDialog open={pageToDeleteIndex !== null} onOpenChange={(open) => !open && setPageToDeleteIndex(null)}>
-          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Page?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete page "{currentPages[pageToDeleteIndex as number]?.name || ''}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel onClick={() => setPageToDeleteIndex(null)}>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeletePage} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-        </AlertDialog>
+        
         <AlertDialog open={navigationToDeleteId !== null} onOpenChange={(open) => !open && setNavigationToDeleteId(null)}>
             <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Navigation?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the navigation: "{allSiteNavigations.find(n => n._id === navigationToDeleteId)?.name || ''}"? This cannot be undone and may affect Navbars using it.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel onClick={() => setNavigationToDeleteId(null)} disabled={isNavigationsLoading}>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteNavigation} className="bg-destructive hover:bg-destructive/90" disabled={isNavigationsLoading}>{isNavigationsLoading ? <Loader2 className="animate-spin h-4 w-4"/> : "Delete"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
         </AlertDialog>

@@ -24,6 +24,9 @@ const serializeObject = (obj: any): any => {
     }
     if (source._id && source._id instanceof mongoose.Types.ObjectId) plainObject._id = source._id.toString();
     if (source.websiteId && source.websiteId instanceof mongoose.Types.ObjectId) plainObject.websiteId = source.websiteId.toString();
+    if (source.items && Array.isArray(source.items)) {
+      plainObject.items = source.items.map((item: any) => serializeObject(item));
+    }
     return plainObject;
   }
   return obj;
@@ -34,6 +37,7 @@ const NavigationItemSchema = z.object({
   label: z.string().min(1, "Link label cannot be empty."),
   url: z.string().min(1, "Link URL cannot be empty."),
   type: z.enum(['internal', 'external']).default('internal'),
+  // _id is not part of the input schema from client
 });
 
 // Zod schema for creating a new navigation
@@ -128,7 +132,8 @@ export async function updateNavigation(input: UpdateNavigationInput): Promise<Ac
     }
     
     if (updateData.name) navigation.name = updateData.name;
-    if (updateData.items) navigation.items = updateData.items as [INavigationItem]; // Type assertion needed for subdocs
+    // Mongoose subdocuments need careful handling for replacement
+    if (updateData.items) navigation.items = updateData.items as any;
 
     const updatedNavigation = await navigation.save();
     return { success: true, data: serializeObject(updatedNavigation) };

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +18,8 @@ import { createOneTimePaymentIntent } from '@/actions/stripe';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { useDebounce } from 'use-debounce';
+
 
 interface PremiumTemplatePaymentModalProps {
   isOpen: boolean;
@@ -55,38 +57,44 @@ export function PremiumTemplatePaymentModal({ isOpen, onOpenChange, template, on
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState('');
+  const [debouncedCouponCode] = useDebounce(couponCode, 500);
   const [finalAmount, setFinalAmount] = useState<number | null>(template?.price || null);
+  const [discountApplied, setDiscountApplied] = useState<number>(0);
+
+
+  const createIntent = useCallback(async (code: string) => {
+    if (!template || !template.price) return;
+    setIsLoading(true);
+    setError(null);
+    const result = await createOneTimePaymentIntent(
+      template.price,
+      'usd',
+      code.trim() || undefined,
+      {
+        templateId: (template._id as unknown as string).toString(),
+        templateName: template.name,
+        description: `Purchase of premium template: "${template.name}"`,
+      }
+    );
+    if (result.error || !result.clientSecret) {
+      setError(result.error || "Failed to initialize payment.");
+      toast({ title: "Error", description: result.error, variant: "destructive" });
+      setFinalAmount(template.price);
+      setDiscountApplied(0);
+    } else {
+      setClientSecret(result.clientSecret);
+      setFinalAmount(result.finalAmount || template.price);
+      setDiscountApplied(result.discountApplied || 0);
+    }
+    setIsLoading(false);
+  }, [template, toast]);
+
 
   useEffect(() => {
-    if (isOpen && template && template.price) {
-      setError(null);
-      setIsLoading(true);
-      setClientSecret(null);
-
-      const createIntent = async () => {
-        const result = await createOneTimePaymentIntent(
-            template.price!, 
-            'usd', 
-            couponCode.trim() || undefined, 
-            {
-                templateId: (template._id as unknown as string).toString(),
-                templateName: template.name,
-                description: `Purchase of premium template: "${template.name}"`,
-            }
-        );
-        if (result.error || !result.clientSecret) {
-          setError(result.error || "Failed to initialize payment.");
-          toast({ title: "Payment Setup Error", description: result.error, variant: "destructive" });
-        } else {
-          setClientSecret(result.clientSecret);
-          setFinalAmount(result.finalAmount || template.price!);
-        }
-        setIsLoading(false);
-      };
-
-      createIntent();
+    if (isOpen) {
+      createIntent(debouncedCouponCode);
     }
-  }, [isOpen, template, couponCode, toast]);
+  }, [isOpen, debouncedCouponCode, createIntent]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -122,6 +130,7 @@ export function PremiumTemplatePaymentModal({ isOpen, onOpenChange, template, on
     setIsProcessingPayment(false);
   };
   
+  const originalPriceDisplay = template?.price ? `$${(template.price / 100).toFixed(2)}` : 'N/A';
   const priceDisplay = finalAmount !== null ? `$${(finalAmount / 100).toFixed(2)}` : '...';
 
   return (
@@ -147,6 +156,12 @@ export function PremiumTemplatePaymentModal({ isOpen, onOpenChange, template, on
                  </div>
                  <div className="p-3 border border-input rounded-md bg-background">
                     <CardElement options={cardElementOptions} />
+                 </div>
+                 <div className="text-sm space-y-1">
+                    <div className="flex justify-between"><span>Original Price:</span><span>{originalPriceDisplay}</span></div>
+                    {discountApplied > 0 && <div className="flex justify-between text-green-600"><span>Discount:</span><span>- ${(discountApplied / 100).toFixed(2)}</span></div>}
+                    <hr/>
+                    <div className="flex justify-between font-bold"><span>Total:</span><span>{priceDisplay}</span></div>
                  </div>
                  <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isProcessingPayment}>Cancel</Button>
