@@ -1,3 +1,4 @@
+
 // @ts-nocheck
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
@@ -122,6 +123,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             
             if (session.refreshSubscription) { 
                 await dbConnect();
+
+                // Re-fetch the user to get the latest data, including purchased templates
+                const dbUser = await User.findById(token.id).lean();
+                if (dbUser) {
+                    token.purchasedTemplateIds = dbUser.purchasedTemplateIds?.map(id => id.toString()) || [];
+                }
+
                 const dbSub = await Subscription.findOne({ userId: token.id }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
                 let planDetails;
                 if (dbSub) {
