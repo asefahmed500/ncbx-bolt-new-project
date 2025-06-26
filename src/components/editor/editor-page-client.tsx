@@ -993,8 +993,59 @@ export default function EditorPageComponent() {
 
         const result = await editWebsite(input);
 
+        // --- START: Smart Navigation Update Logic ---
+        const newPagesFromAI = result.modifiedPages || [];
+        let finalPagesToSet = newPagesFromAI;
+
+        const oldPageSlugs = new Set(input.currentPages.map(p => p.slug));
+        const addedPages = newPagesFromAI.filter(p => p.slug && !oldPageSlugs.has(p.slug));
+
+        if (addedPages.length > 0 && allSiteNavigations.length > 0) {
+            const primaryNav = allSiteNavigations[0];
+            const newNavItems = [...primaryNav.items];
+            addedPages.forEach(page => {
+                newNavItems.push({ _id: newObjectId(), label: page.name, url: page.slug, type: 'internal' });
+            });
+
+            const navUpdateResult = await updateNavigation({
+                navigationId: primaryNav._id as string,
+                items: newNavItems,
+            });
+
+            if (navUpdateResult.success && navUpdateResult.data) {
+                toast({ title: "Navigation Updated", description: `Added ${addedPages.length} page(s) to the "${primaryNav.name}" menu.` });
+                
+                const updatedNavs = allSiteNavigations.map(n => n._id === navUpdateResult.data?._id ? navUpdateResult.data : n);
+                setAllSiteNavigations(updatedNavs);
+                
+                finalPagesToSet = newPagesFromAI.map(page => ({
+                    ...page,
+                    elements: page.elements.map(el => {
+                        if (el.type === 'navbar' && el.config.navigationId === primaryNav._id) {
+                            return {
+                                ...el,
+                                config: {
+                                    ...el.config,
+                                    links: navUpdateResult.data?.items.map(item => ({
+                                        text: item.label,
+                                        href: item.url,
+                                        type: item.type || 'internal'
+                                    }))
+                                }
+                            };
+                        }
+                        return el;
+                    })
+                }));
+            } else {
+                toast({ title: "Navigation Update Failed", description: "AI created pages, but failed to automatically update the navigation menu. Please update it manually.", variant: "destructive" });
+            }
+        }
+        // --- END: Smart Navigation Update Logic ---
+
+
         if (result.modifiedPages) {
-            const sanitizedPages = result.modifiedPages.map(p => ({
+            const sanitizedPages = finalPagesToSet.map(p => ({
                 ...p,
                 _id: (p._id || newObjectId()).toString(),
                 elements: (p.elements || []).map(el => ({
