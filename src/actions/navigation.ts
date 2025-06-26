@@ -7,6 +7,7 @@ import Website from "@/models/Website";
 import { auth } from "@/auth";
 import mongoose from "mongoose";
 import { z } from "zod";
+import { getComponentConfig } from "@/components/editor/componentRegistry";
 
 // Helper to deeply serialize an object
 const serializeObject = (obj: any): any => {
@@ -34,10 +35,10 @@ const serializeObject = (obj: any): any => {
 
 // Zod schema for a single navigation item
 const NavigationItemSchema = z.object({
+  _id: z.string().optional(),
   label: z.string().min(1, "Link label cannot be empty."),
   url: z.string().min(1, "Link URL cannot be empty."),
   type: z.enum(['internal', 'external']).default('internal'),
-  // _id is not part of the input schema from client
 });
 
 // Zod schema for creating a new navigation
@@ -133,7 +134,13 @@ export async function updateNavigation(input: UpdateNavigationInput): Promise<Ac
     
     if (updateData.name) navigation.name = updateData.name;
     // Mongoose subdocuments need careful handling for replacement
-    if (updateData.items) navigation.items = updateData.items as any;
+    if (updateData.items) {
+      navigation.items = updateData.items.map(item => ({
+        label: item.label,
+        url: item.url,
+        type: item.type,
+      })) as any;
+    }
 
     const updatedNavigation = await navigation.save();
     return { success: true, data: serializeObject(updatedNavigation) };
