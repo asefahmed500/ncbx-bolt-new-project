@@ -3,6 +3,7 @@
 import type { IPageComponent } from '@/models/PageComponent';
 import ElementRenderer from '../ElementRenderer';
 import { useDroppable } from '@dnd-kit/core';
+import { cn } from '@/lib/utils';
 
 interface Column {
   id: string; // Unique ID for droppable
@@ -14,13 +15,31 @@ interface ColumnsRendererProps {
 }
 
 const ColumnDropArea = ({ column }: { column: Column }) => {
-  // isEditor functionality is handled in the main editor component
-  // This renderer is now just for display
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id, // Use the unique ID from the column data
+  });
+
   return (
-    <div className="flex flex-col min-w-0 h-full">
+    <div 
+      ref={setNodeRef} 
+      className={cn(
+        "flex flex-col min-w-0 h-full min-h-[100px] p-2 rounded-md transition-colors",
+        isOver ? "bg-primary/10 border-2 border-dashed border-primary" : "border-2 border-transparent"
+      )}
+    >
       {(column.elements || []).map((element) => (
         <ElementRenderer key={element._id as string} element={element}/>
       ))}
+      {column.elements.length === 0 && isOver && (
+        <div className="text-center text-primary text-sm font-semibold flex-grow flex items-center justify-center">
+            Drop here
+        </div>
+      )}
+       {column.elements.length > 0 && isOver && (
+         <div className="text-center text-primary text-sm font-semibold p-4 border-2 border-dashed border-primary rounded-md mt-2">
+          Drop here
+        </div>
+      )}
     </div>
   );
 }
