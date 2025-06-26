@@ -11,6 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {componentRegistry} from '@/components/editor/componentRegistry';
+import { applyTemplate } from '@/ai/tools/template-tools';
 
 // Re-using schemas from the generation flow for consistency.
 const PageComponentConfigSchema_Zod = z.record(z.any()).describe('A flexible object for component configuration.');
@@ -59,6 +60,7 @@ export async function editWebsite(input: EditWebsiteInput): Promise<EditWebsiteO
 
 const editWebsitePrompt = ai.definePrompt({
   name: 'editWebsitePrompt',
+  tools: [applyTemplate],
   input: {schema: EditWebsiteInputSchema.extend({ componentExamples: z.any() })},
   output: {schema: EditWebsiteOutputSchema},
   model: 'googleai/gemini-1.5-flash-latest',
@@ -75,18 +77,20 @@ Available Components and their default structures:
 A list of recommended Google Fonts: "Inter", "Poppins", "Roboto", "Lato", "Montserrat", "Oswald", "Raleway", "Merriweather", "Playfair Display".
 
 Instructions:
-1.  **Analyze the Request**: Understand if the user wants to add, delete, or modify a component, change a style, add a page, or perform a general restructuring.
+1.  **Analyze the Request**: Understand if the user wants to add, delete, modify a component, change a style, add a page, or perform a general restructuring.
 2.  **Handle Global Style Changes**: If the user asks to change a site-wide style like "change the font to Roboto", you MUST modify the 'globalSettings' object. Update 'fontFamily' for body text and 'fontHeadline' for headings. Do NOT attempt to change styles inside individual components for a global request.
 3.  **Handle Page/Component Changes**: Most changes should be applied to the currently active page unless the user specifies otherwise (e.g., "add a contact page").
-4.  **Return Modified Structure**: Your primary output is the 'modifiedPages' field and the 'modifiedGlobalSettings' field. You must return the *entire*, updated structure for both, even if one of them was not changed.
-5.  **Explain Your Actions**: In the 'explanation' field, provide a short, friendly message to the user explaining what you did.
-6.  **Be Smart**:
+4.  **Handle Deletion**: If the user asks to remove or delete a component (e.g., "remove the hero section"), find that component within the \`currentPages\` JSON and remove it from its \`elements\` array.
+5.  **Handle Template Application**: If the user asks to apply a template (e.g., "apply the 'Modern Blog' template"), you MUST use the \`applyTemplate\` tool with the provided template name. The tool will return a page structure. You MUST then replace the entire \`elements\` array of the \`activePageSlug\` with the \`elements\` from the *first page* of the returned template structure.
+6.  **Return Modified Structure**: Your primary output is the 'modifiedPages' field and the 'modifiedGlobalSettings' field. You must return the *entire*, updated structure for both, even if one of them was not changed.
+7.  **Explain Your Actions**: In the 'explanation' field, provide a short, friendly message to the user explaining what you did.
+8.  **Be Smart**:
     - When adding a new component (e.g., "add a hero section"), use the default structure from the 'Available Components' list above as a starting point. Then, populate it with relevant placeholder content based on the user's prompt and the website's context.
     - For images, you MUST use placeholder URLs from "https://placehold.co" and add a "dataAiHint" property with keywords.
     - If changing a style on a specific component (e.g., "make the background dark blue"), find the relevant component (like a 'section' or 'hero') and update its 'backgroundColor' in the config. Use hex color codes.
     - If adding a new page (e.g., "create an 'About Us' page"), add a new page object to the 'pages' array with a suitable name and slug, and add some basic components to it.
     - **IMPORTANT**: When you add a new component or a new page, you must generate a new unique '_id' for it. An ID can be a short random string of letters and numbers.
-7.  **If Unsure**: If the prompt is too vague or you cannot fulfill it, return the original, unmodified 'currentPages' and 'globalSettings' structures and use the 'explanation' field to ask for clarification.
+9.  **If Unsure**: If the prompt is too vague or you cannot fulfill it, return the original, unmodified 'currentPages' and 'globalSettings' structures and use the 'explanation' field to ask for clarification.
 
 Current Global Settings JSON:
 \`\`\`json

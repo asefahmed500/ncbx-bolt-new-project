@@ -283,4 +283,20 @@ export async function grantTemplateAccess(templateId: string): Promise<{ success
     return { error: "Failed to grant template access." };
   }
 }
+
+export async function getTemplateByName(name: string): Promise<{ template?: ITemplate, error?: string }> {
+  try {
+    await dbConnect();
+    // Use a case-insensitive regex for more flexible matching
+    const template = await Template.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') }, status: 'approved' }).lean();
+
+    if (!template) {
+      return { error: `Template with name "${name}" not found or not approved.` };
+    }
+    
+    return { template: serializeObject(template) };
+  } catch (error: any) {
+    return { error: "Failed to fetch template by name: " + error.message };
+  }
+}
     
