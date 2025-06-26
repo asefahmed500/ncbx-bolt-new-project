@@ -55,6 +55,7 @@ const generateWebsitePrompt = ai.definePrompt({
   name: 'generateWebsitePrompt',
   input: {schema: GenerateWebsiteFromPromptInputSchema},
   output: {schema: GenerateWebsiteFromPromptOutputSchema},
+  model: 'googleai/gemini-1.5-flash-latest',
   prompt: `You are an expert web designer and developer. A user wants to create a website. Your task is to generate the complete page structure for this website in JSON format based on the user's prompt.
 
 The user's request is: "{{{prompt}}}"
