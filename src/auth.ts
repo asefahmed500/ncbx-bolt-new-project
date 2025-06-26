@@ -172,6 +172,25 @@ export const authOptions: NextAuthConfig = {
     strategy: 'jwt' as const,
   },
   callbacks: {
+    authorized({ auth, request: { nextUrl } }) {
+      const isLoggedIn = !!auth?.user;
+      const protectedPaths = ['/dashboard', '/editor', '/admin'];
+      const isProtectedRoute = protectedPaths.some(path => nextUrl.pathname.startsWith(path));
+
+      // Admin route protection
+      if (nextUrl.pathname.startsWith('/admin') && auth?.user?.role !== 'admin') {
+         return Response.redirect(new URL('/dashboard', nextUrl));
+      }
+
+      // Protected route protection
+      if (isProtectedRoute && !isLoggedIn) {
+        const redirectUrl = new URL("/login", nextUrl.origin);
+        redirectUrl.searchParams.append("callbackUrl", nextUrl.href);
+        return Response.redirect(redirectUrl);
+      }
+      
+      return true; // Allow access by default
+    },
     async jwt({ token, user, trigger, session }) {
       try {
         if (user && (trigger === "signIn" || trigger === "signUp")) {

@@ -774,15 +774,16 @@ export async function getPublishedSiteDataByHost(host: string): Promise<GetPubli
   }
 
   let websiteDoc: IWebsite | null = null;
+  const hostname = host.split(':')[0]; // remove port if present
 
-  if (host.endsWith(`.${appBaseDomain}`)) {
-    const subdomain = host.substring(0, host.length - (appBaseDomain.length + 1));
+  if (hostname.endsWith(`.${appBaseDomain}`)) {
+    const subdomain = hostname.substring(0, hostname.length - (appBaseDomain.length + 1));
     if (subdomain && subdomain !== 'www') { // Exclude www from being a user subdomain on the base domain
       websiteDoc = await Website.findOne({ subdomain, status: 'published' }).lean();
     }
   } else {
     // This handles custom domains
-    websiteDoc = await Website.findOne({ customDomain: host, status: 'published', domainStatus: 'verified' }).lean();
+    websiteDoc = await Website.findOne({ customDomain: hostname, status: 'published', domainStatus: 'verified' }).lean();
   }
 
   if (!websiteDoc) {
