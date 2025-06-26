@@ -1,7 +1,6 @@
 
 import type { IPageComponent } from '@/models/PageComponent';
 import ElementRenderer from '../ElementRenderer';
-import { useDroppable } from '@dnd-kit/core';
 
 interface Column {
   id: string; // Unique ID for droppable
@@ -12,31 +11,21 @@ interface ColumnsRendererProps {
   config: IPageComponent['config'];
 }
 
-const ColumnDroppable: React.FC<{
-  id: string;
-  isOver: boolean;
-  children: React.ReactNode;
-}> = ({ id, isOver, children }) => {
-  const { setNodeRef } = useDroppable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`flex-1 p-2 transition-colors ${isOver ? 'bg-primary/10' : ''}`}
-    >
-      {children}
-    </div>
-  );
-};
-
-
 const ColumnsRenderer: React.FC<ColumnsRendererProps> = ({ config }) => {
-  const gap = config?.gap || '16px';
+  const gap = config?.gap || '1rem';
   const columnsData: Column[] = config?.columns || [];
+  const columnCount = columnsData.length;
+
+  let gridClasses = 'grid-cols-1';
+  if (columnCount === 2) gridClasses = 'md:grid-cols-2';
+  if (columnCount === 3) gridClasses = 'md:grid-cols-3';
+  if (columnCount === 4) gridClasses = 'md:grid-cols-2 lg:grid-cols-4';
+
 
   return (
-    <div className="flex flex-col md:flex-row" style={{ gap }}>
+    <div className={`grid ${gridClasses} w-full`} style={{ gap }}>
       {columnsData.map((column, index) => (
-        <div key={column.id || index} className="flex-1 min-w-0">
+        <div key={column.id || index} className="flex flex-col min-w-0">
           {(column.elements || []).map((element) => (
             <ElementRenderer key={element._id as string} element={element} />
           ))}

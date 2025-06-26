@@ -60,15 +60,15 @@ const generateWebsitePrompt = ai.definePrompt({
 
 The user's request is: "{{{prompt}}}"
 
-You must create a structure with at least a Home page, and likely an About and Contact page unless the prompt implies otherwise. The homepage MUST have the slug "/".
+You must create a structure with at least a Home page, and likely an About and Contact page unless the prompt implies otherwise. The homepage MUST have the slug "/". Create a rich and complete website with multiple sections on each page.
 
 For each page, you will create a list of components ("elements"). You must choose components from the following available types:
 [${availableComponentTypes}]
 
 For each component, provide a 'type', 'order', and a 'config' object.
 - The 'order' should be sequential starting from 0 for each page.
-- The 'config' object should contain appropriate placeholder content.
-- For text properties (like 'text', 'title', 'subtitle', 'htmlContent'), generate creative and relevant placeholder text based on the user's prompt.
+- The 'config' object should contain appropriate and creative placeholder content based on the user's prompt.
+- For text properties (like 'text', 'title', 'subtitle', 'htmlContent'), generate creative and relevant placeholder text.
 - For image 'src' properties, you MUST use placeholder URLs from "https://placehold.co". For example: "https://placehold.co/1200x600.png" for a hero background or "https://placehold.co/400x300.png" for a card image.
 - For every placeholder image you use, you MUST also add a "dataAiHint" property to its config object with one or two keywords that describe the desired image (e.g., { "src": "...", "dataAiHint": "bakery interior" }).
 
@@ -91,7 +91,7 @@ Here is an example for a simple "About Us" page component structure:
   }
 ]
 
-Generate the full JSON output for the 'pages' array now.
+Generate the full JSON output for the 'pages' array now. Be creative and generate a comprehensive multi-page site structure.
 `,
 });
 

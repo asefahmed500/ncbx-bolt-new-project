@@ -770,7 +770,7 @@ interface GetPublishedSiteDataResult {
 
 export async function getPublishedSiteDataByHost(host: string): Promise<GetPublishedSiteDataResult> {
   await dbConnect();
-  const appBaseDomain = process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || "localhost:9003";
+  const appBaseDomain = process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || "notthedomain.com";
 
   if (!appBaseDomain) {
     console.error("[getPublishedSiteDataByHost] NEXT_PUBLIC_APP_BASE_DOMAIN is not set. Subdomain parsing will fail.");

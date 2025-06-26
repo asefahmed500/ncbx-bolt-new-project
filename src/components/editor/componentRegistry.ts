@@ -1,9 +1,4 @@
 
-// Helper function to handle mongoose ObjectId weirdness on client and in server-side logic that doesn't need real DB IDs.
-// It's defined at the top to be available for the componentRegistry definition.
-const newObjectId = () => Math.random().toString(36).substring(2, 15);
-
-import type { LucideIcon } from 'lucide-react';
 import {
   Type,
   ImageIcon,
@@ -45,6 +40,11 @@ import {
   UserPlus,
   MailQuestion
 } from "lucide-react";
+import type { LucideIcon } from 'lucide-react';
+
+// Helper function to handle mongoose ObjectId weirdness on client and in server-side logic that doesn't need real DB IDs.
+const newObjectId = () => Math.random().toString(36).substring(2, 15);
+
 
 export interface ComponentConfig {
   id: string;
@@ -221,8 +221,8 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     description: "A carousel for images.",
     defaultConfig: {
       images: [
-        { src: "https://placehold.co/800x400.png?text=Slide+1", alt: "Slide 1" },
-        { src: "https://placehold.co/800x400.png?text=Slide+2", alt: "Slide 2" }
+        { src: "https://placehold.co/800x400.png", dataAiHint: "slide show one" },
+        { src: "https://placehold.co/800x400.png", dataAiHint: "slide show two" }
       ]
     },
   },

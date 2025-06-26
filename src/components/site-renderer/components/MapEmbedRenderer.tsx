@@ -11,8 +11,8 @@ const MapEmbedRenderer: React.FC<MapEmbedRendererProps> = ({ config }) => {
 
     if (!embedUrl) {
         return (
-            <div className="my-4 p-4 border border-dashed border-destructive text-destructive bg-destructive/10 rounded-md text-center" style={{ height }}>
-                Map Embed: Invalid configuration. Please provide an embed URL.
+            <div className="my-4 p-4 border border-dashed border-destructive text-destructive bg-destructive/10 rounded-md text-center flex items-center justify-center" style={{ height }}>
+                Map Embed: Invalid configuration. Please provide an embed URL in the editor.
             </div>
         );
     }
@@ -28,7 +28,6 @@ const MapEmbedRenderer: React.FC<MapEmbedRendererProps> = ({ config }) => {
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
             title="Map Embed"
-            className="pointer-events-none" // Disable interaction in editor
         ></iframe>
     </div>
   );

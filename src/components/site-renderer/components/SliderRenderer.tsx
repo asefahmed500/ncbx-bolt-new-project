@@ -10,6 +10,7 @@ interface Slide {
   src: string;
   alt: string;
   caption?: string;
+  dataAiHint?: string;
 }
 
 interface SliderRendererProps {
@@ -18,9 +19,9 @@ interface SliderRendererProps {
 
 const SliderRenderer: React.FC<SliderRendererProps> = ({ config }) => {
   const images: Slide[] = config?.images || [
-    { src: "https://placehold.co/800x400.png?text=Slide+1", alt: "Slide 1" },
-    { src: "https://placehold.co/800x400.png?text=Slide+2", alt: "Slide 2" },
-    { src: "https://placehold.co/800x400.png?text=Slide+3", alt: "Slide 3" },
+    { src: "https://placehold.co/800x400.png", alt: "Slide 1", dataAiHint: "slide show one" },
+    { src: "https://placehold.co/800x400.png", alt: "Slide 2", dataAiHint: "slide show two" },
+    { src: "https://placehold.co/800x400.png", alt: "Slide 3", dataAiHint: "slide show three" },
   ];
 
   // For this conceptual renderer, we will just display the first image.
@@ -34,10 +35,10 @@ const SliderRenderer: React.FC<SliderRendererProps> = ({ config }) => {
                 <div className="relative aspect-[2/1] w-full overflow-hidden rounded-lg shadow-lg">
                     <Image
                         src={firstImage.src}
-                        alt={firstImage.alt}
+                        alt={firstImage.alt || 'Slider image'}
                         layout="fill"
                         objectFit="cover"
-                        data-ai-hint="carousel image"
+                        data-ai-hint={firstImage.dataAiHint || "carousel image"}
                     />
                      {firstImage.caption && (
                         <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-2 text-white text-center text-sm">

@@ -1,16 +1,12 @@
 
 import type { IPageComponent } from '@/models/PageComponent';
 import ElementRenderer from '../ElementRenderer';
-import { useDroppable } from '@dnd-kit/core';
 
 interface SectionRendererProps {
   config: IPageComponent['config'];
-  id: string; // The ID of the section for dnd-kit
-  isOver: boolean;
 }
 
-const SectionRenderer: React.FC<SectionRendererProps> = ({ config, id, isOver }) => {
-  const { setNodeRef } = useDroppable({ id });
+const SectionRenderer: React.FC<SectionRendererProps> = ({ config }) => {
   const elements: IPageComponent[] = config?.elements || [];
   const backgroundColor = config?.backgroundColor || 'transparent';
   const paddingTop = config?.paddingTop || '20px';
@@ -23,13 +19,8 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ config, id, isOver })
   };
 
   return (
-    <section ref={setNodeRef} style={style} className={`transition-colors ${isOver ? 'bg-primary/10' : ''}`}>
-      <div className="container mx-auto px-6">
-        {elements.length === 0 && isOver && (
-            <div className="p-4 border-2 border-dashed border-primary rounded-md text-center text-primary">
-                Drop here
-            </div>
-        )}
+    <section style={style}>
+      <div className="container mx-auto px-4 md:px-6">
         {elements.map((element) => (
           <ElementRenderer key={element._id as string} element={element} />
         ))}

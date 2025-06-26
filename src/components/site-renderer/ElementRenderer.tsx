@@ -45,6 +45,19 @@ interface ElementRendererProps {
 }
 
 const ElementRenderer: React.FC<ElementRendererProps> = ({ element }) => {
+  if (!element || !element.type) {
+    return (
+      <div className="my-2 p-3 border border-dashed border-destructive/50 bg-destructive/10 rounded">
+        <p className="text-xs text-destructive font-semibold">
+          Error: Invalid Component Data
+        </p>
+        <p className="text-xs text-destructive/80 mt-1">
+          The component data is missing or malformed.
+        </p>
+      </div>
+    );
+  }
+  
   switch (element.type) {
     case 'heading':
       return <HeadingRenderer config={element.config} />;
