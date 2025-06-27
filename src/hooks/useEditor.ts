@@ -1,3 +1,4 @@
+
 // src/hooks/useEditor.ts
 "use client";
 
@@ -57,6 +58,97 @@ export function useEditor() {
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadInitialData() {
+      if (!websiteIdFromQuery) {
+        setIsLoadingWebsite(false);
+        const initialPages = [JSON.parse(JSON.stringify(defaultInitialPage))];
+        setWebsiteData(null);
+        setCurrentPages(initialPages);
+        setGlobalSettings({});
+        setActivePageIndex(0);
+        setSelectedElement(null);
+        setAllSiteNavigations([]);
+        setHistory([initialPages]);
+        setHistoryIndex(0);
+        return;
+      }
+
+      setIsLoadingWebsite(true);
+      setSelectedElement(null);
+      setWebsiteId(websiteIdFromQuery);
+
+      try {
+        const result = await getWebsiteEditorData(websiteIdFromQuery);
+        if (ignore) return;
+
+        if (result.error) throw new Error(result.error);
+
+        if (result.website) {
+          setWebsiteData(result.website);
+
+          // Fetch navigations
+          setIsNavigationsLoading(true);
+          const navResult = await getNavigationsByWebsiteId(websiteIdFromQuery);
+           if (ignore) return;
+          if (navResult.success && navResult.data) {
+            setAllSiteNavigations(navResult.data);
+          } else {
+            setAllSiteNavigations([]);
+            if (navResult.error) toast({ title: "Error", description: navResult.error, variant: "destructive" });
+          }
+          setIsNavigationsLoading(false);
+
+          let initialPages: IWebsiteVersionPage[] = [JSON.parse(JSON.stringify(defaultInitialPage))];
+          if (result.currentVersion) {
+            const pages = result.currentVersion.pages;
+            if (pages && pages.length > 0) {
+              initialPages = pages.map(p => ({
+                ...p,
+                _id: (p._id || newObjectId()).toString(),
+                elements: p.elements.map(el => ({ ...el, _id: (el._id || newObjectId()).toString() }))
+              })) as IWebsiteVersionPage[];
+            }
+            setGlobalSettings(result.currentVersion.globalSettings || {});
+          } else {
+            setGlobalSettings({});
+          }
+
+          const initialPagesCopy = JSON.parse(JSON.stringify(initialPages));
+          setCurrentPages(initialPagesCopy);
+          setHistory([initialPagesCopy]);
+          setHistoryIndex(0);
+          setActivePageIndex(0);
+          setEditorSaveStatus('saved');
+        }
+      } catch (err: any) {
+        if (ignore) return;
+        const initialPages = [JSON.parse(JSON.stringify(defaultInitialPage))];
+        toast({ title: "Error Loading Website", description: err.message, variant: "destructive" });
+        setWebsiteData(null);
+        setCurrentPages(initialPages);
+        setGlobalSettings({});
+        setActivePageIndex(0);
+        setAllSiteNavigations([]);
+        setHistory([initialPages]);
+        setHistoryIndex(0);
+      } finally {
+        if (!ignore) {
+          setIsLoadingWebsite(false);
+        }
+      }
+    }
+
+    loadInitialData();
+
+    return () => {
+      ignore = true;
+    };
+  }, [websiteIdFromQuery, toast]);
+
+
   const updatePagesWithHistory = useCallback((pagesUpdater: (prevPages: IWebsiteVersionPage[]) => IWebsiteVersionPage[], actionName?: string) => {
     const newPages = pagesUpdater(currentPages);
     const pagesCopy = JSON.parse(JSON.stringify(newPages));
@@ -70,7 +162,7 @@ export function useEditor() {
     
     setCurrentPages(pagesCopy);
     setEditorSaveStatus('unsaved_changes');
-  }, [currentPages, history, historyIndex]);
+  }, [currentPages, historyIndex]);
 
   const handleUndo = useCallback(() => {
     if (canUndo) {
@@ -92,71 +184,6 @@ export function useEditor() {
     }
   }, [canRedo, history, historyIndex]);
   
-  const fetchSiteNavigations = useCallback(async (currentWebsiteId: string | null) => {
-    if (!currentWebsiteId) { setAllSiteNavigations([]); return; }
-    setIsNavigationsLoading(true);
-    try {
-      const result = await getNavigationsByWebsiteId(currentWebsiteId);
-      if (result.success && result.data) setAllSiteNavigations(result.data);
-      else { setAllSiteNavigations([]); toast({ title: "Error", description: result.error || "Failed to load site navigations.", variant: "destructive" }); }
-    } catch (error) { toast({ title: "Error", description: "Could not fetch site navigations.", variant: "destructive" }); setAllSiteNavigations([]); }
-    finally { setIsNavigationsLoading(false); }
-  }, [toast]);
-
-  const loadWebsiteData = useCallback(async (id: string) => {
-    setIsLoadingWebsite(true);
-    setSelectedElement(null);
-    try {
-      const result = await getWebsiteEditorData(id);
-      if (result.error) throw new Error(result.error);
-      if (result.website) {
-        setWebsiteData(result.website);
-        await fetchSiteNavigations(id);
-        let initialPages: IWebsiteVersionPage[] = [JSON.parse(JSON.stringify(defaultInitialPage))];
-        if (result.currentVersion) {
-            const pages = result.currentVersion.pages;
-            if (pages && pages.length > 0) initialPages = pages.map(p => ({ ...p, _id: (p._id || newObjectId()).toString(), elements: p.elements.map(el => ({ ...el, _id: (el._id || newObjectId()).toString() })) })) as IWebsiteVersionPage[];
-           setGlobalSettings(result.currentVersion.globalSettings || {});
-        } else setGlobalSettings({});
-        const initialPagesCopy = JSON.parse(JSON.stringify(initialPages));
-        setCurrentPages(initialPagesCopy);
-        setHistory([initialPagesCopy]);
-        setHistoryIndex(0);
-        setActivePageIndex(0);
-        setEditorSaveStatus('saved');
-      }
-    } catch (err: any) {
-      const initialPages = [JSON.parse(JSON.stringify(defaultInitialPage))];
-      toast({ title: "Error Loading Website", description: err.message, variant: "destructive" });
-      setWebsiteData(null);
-      setCurrentPages(initialPages);
-      setGlobalSettings({});
-      setActivePageIndex(0);
-      await fetchSiteNavigations(null);
-      setHistory([initialPages]);
-      setHistoryIndex(0);
-    } finally {
-      setIsLoadingWebsite(false);
-    }
-  }, [toast, fetchSiteNavigations]);
-
-  useEffect(() => {
-    if (websiteIdFromQuery) {
-      if (websiteId !== websiteIdFromQuery) { setWebsiteId(websiteIdFromQuery); loadWebsiteData(websiteIdFromQuery); }
-    } else {
-      setIsLoadingWebsite(false);
-      const initialPages = [JSON.parse(JSON.stringify(defaultInitialPage))];
-      setWebsiteData(null);
-      setCurrentPages(initialPages);
-      setGlobalSettings({});
-      setActivePageIndex(0);
-      setSelectedElement(null);
-      fetchSiteNavigations(null);
-      setHistory([initialPages]);
-      setHistoryIndex(0);
-    }
-  }, [websiteIdFromQuery, websiteId, loadWebsiteData, fetchSiteNavigations]);
-
   const findElementRecursive = useCallback((elements: IPageComponent[], elementId: string): { element: IPageComponent, parentList: IPageComponent[] } | null => {
     for (const el of elements) {
         if (el._id === elementId) return { element: el, parentList: elements };
@@ -334,7 +361,7 @@ export function useEditor() {
     activePageIndex, setActivePageIndex, selectedElement, setSelectedElement,
     isLoadingWebsite, editorSaveStatus, setEditorSaveStatus, history, historyIndex,
     canUndo, canRedo, handleUndo, handleRedo, updatePagesWithHistory, allSiteNavigations,
-    setAllSiteNavigations, isNavigationsLoading, setIsNavigationsLoading, fetchSiteNavigations,
+    setAllSiteNavigations, isNavigationsLoading, setIsNavigationsLoading,
     handlePropertyChange, handlePageDetailsChange, handleGlobalSettingsChange, handleAddNewPage,
     getEditorContentForSave, handleEditorSaveChanges, handleDragEnd, activeDraggedItem,
     setActiveDraggedItem, handleElementSelect,

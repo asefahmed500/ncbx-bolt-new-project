@@ -12,7 +12,7 @@ export async function generateMetadata(
   { params }: Props,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const headersList = headers();
+  const headersList = await headers();
   const host = headersList.get('host') || '';
   // If params.siteSlug exists and is not empty, join it. Otherwise, it's the root page of the site.
   const slug = params.siteSlug && params.siteSlug.length > 0 ? `/${params.siteSlug.join('/')}` : '/';
@@ -44,7 +44,7 @@ export default async function SiteLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const headersList = headers();
+  const headersList = await headers();
   const host = headersList.get('host') || '';
   const { publishedVersion } = await getPublishedSiteDataByHost(host);
 
