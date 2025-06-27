@@ -1,7 +1,7 @@
 
 import type { IPageComponent } from '@/models/PageComponent';
-// For icons, you'd typically map string names to actual Lucide icon components
-// For simplicity here, we'll just display the name.
+import { createElement } from 'react';
+import * as Icons from 'lucide-react';
 
 interface ServiceItem {
   name: string;
@@ -29,23 +29,27 @@ const ServicesListRenderer: React.FC<ServicesListRendererProps> = ({ config }) =
       <div className="container mx-auto px-6">
         <h2 className="text-3xl md:text-4xl font-bold font-headline text-center mb-12">{sectionTitle}</h2>
         <div className={`gap-8 ${layout === 'grid' ? 'grid md:grid-cols-2 lg:grid-cols-3' : 'space-y-8'}`}>
-          {items.map((item, index) => (
-            <div key={index} className="bg-card p-8 rounded-xl shadow-lg border border-border hover:shadow-2xl transition-shadow">
-              {item.icon && (
-                <div className={`mb-4 inline-block p-3 rounded-full bg-accent/10 ${iconColor}`}>
-                  {/* In a real app, use dynamic icon component here */}
-                  <span className="text-3xl font-bold">{item.icon.slice(0,1)}</span> 
-                </div>
-              )}
-              <h3 className="text-xl font-semibold font-headline mb-3 text-card-foreground">{item.name}</h3>
-              <p className="text-muted-foreground text-sm mb-4">{item.description}</p>
-              {item.link && (
-                <a href={item.link} className="text-primary hover:underline font-medium text-sm">
-                  Learn More &rarr;
-                </a>
-              )}
-            </div>
-          ))}
+          {items.map((item, index) => {
+             const IconComponent = item.icon && (Icons as any)[item.icon]
+                ? createElement((Icons as any)[item.icon], { className: `h-8 w-8 ${iconColor}` })
+                : null;
+            return (
+              <div key={index} className="bg-card p-8 rounded-xl shadow-lg border border-border hover:shadow-2xl transition-shadow">
+                {IconComponent && (
+                  <div className={`mb-4 inline-block p-3 rounded-full bg-accent/10`}>
+                    {IconComponent}
+                  </div>
+                )}
+                <h3 className="text-xl font-semibold font-headline mb-3 text-card-foreground">{item.name}</h3>
+                <p className="text-muted-foreground text-sm mb-4">{item.description}</p>
+                {item.link && (
+                  <a href={item.link} className="text-primary hover:underline font-medium text-sm">
+                    Learn More &rarr;
+                  </a>
+                )}
+              </div>
+            );
+            })}
         </div>
       </div>
     </section>

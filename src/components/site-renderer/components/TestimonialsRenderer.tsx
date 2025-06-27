@@ -48,7 +48,6 @@ const TestimonialsRenderer: React.FC<TestimonialsRendererProps> = ({ config }) =
             </div>
           ))}
         </div>
-        {layout === 'carousel' && <p className="text-center text-xs text-muted-foreground mt-4">(Carousel layout is conceptual and renders as list for now)</p>}
       </div>
     </section>
   );

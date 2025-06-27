@@ -3,61 +3,58 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DraggableComponentItem } from "./draggable-component-item";
-import { getRegisteredComponents, type ComponentConfig } from "./componentRegistry"; // Import from registry
-import { Layers, Search as SearchIcon } from "lucide-react";
+import { getRegisteredComponents, type ComponentConfig } from "./componentRegistry";
+import { Layers } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
-// import { Input } from "@/components/ui/input"; // For future search functionality
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 export function ComponentLibrarySidebar() {
-  // const [searchTerm, setSearchTerm] = useState(""); // State for search functionality
-  
-  // Get components from the registry
   const availableComponents: ComponentConfig[] = getRegisteredComponents();
 
-  // const filteredComponents = availableComponents.filter(c => 
-  //   c.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //   c.description.toLowerCase().includes(searchTerm.toLowerCase())
-  // );
+  const groupedComponents = availableComponents.reduce((acc, component) => {
+    const category = component.category || 'Advanced';
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(component);
+    return acc;
+  }, {} as Record<string, ComponentConfig[]>);
+
+  const categoryOrder: ComponentConfig['category'][] = ['Layout', 'Typography', 'Media', 'Forms', 'Navigation', 'Content Sections', 'Advanced'];
 
   return (
     <aside className="w-72 bg-card border-r border-border p-4 flex flex-col shadow-sm">
       <div className="mb-4">
         <h2 className="text-lg font-headline font-semibold mb-2 text-foreground">Component Library</h2>
-        {/* Placeholder for Search Input - Future enhancement */}
-        {/* 
-        <div className="relative">
-          <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input 
-            type="search" 
-            placeholder="Search components..." 
-            className="pl-8 h-9"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)} 
-          />
-        </div> 
-        */}
       </div>
 
-      <ScrollArea className="flex-1 pr-2">
-        {/* TODO: Implement categorization rendering here if componentCategories is used in registry */}
-        <div className="space-y-2">
-          {/* Use 'availableComponents' or 'filteredComponents' when search is implemented */}
-          {availableComponents.map((component) => (
-            <DraggableComponentItem
-              key={component.id}
-              id={component.id} // Pass the component id (type)
-              icon={component.icon}
-              label={component.label}
-              description={component.description}
-            />
+      <ScrollArea className="flex-1 -mx-4 pr-1">
+        <Accordion type="multiple" defaultValue={categoryOrder} className="w-full px-4">
+          {categoryOrder.map(category => groupedComponents[category] && (
+            <AccordionItem value={category} key={category} className="border-b-0">
+              <AccordionTrigger className="text-sm font-semibold hover:no-underline py-2">
+                {category}
+              </AccordionTrigger>
+              <AccordionContent className="pb-4 space-y-2">
+                {groupedComponents[category].map((component) => (
+                  <DraggableComponentItem
+                    key={component.id}
+                    id={component.id}
+                    icon={component.icon}
+                    label={component.label}
+                    description={component.description}
+                  />
+                ))}
+              </AccordionContent>
+            </AccordionItem>
           ))}
-        </div>
+        </Accordion>
       </ScrollArea>
 
       <Separator className="my-4" />
 
-      <div className="mt-auto"> {/* Pushes Page Outline to the bottom */}
+      <div className="mt-auto">
         <h2 className="text-lg font-headline font-semibold mb-2 text-foreground flex items-center">
           <Layers className="w-5 h-5 mr-2 text-primary" />
           Page Outline

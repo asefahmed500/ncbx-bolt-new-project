@@ -45,6 +45,7 @@ export interface ComponentConfig {
   label: string;
   icon: LucideIcon;
   description: string;
+  category: 'Layout' | 'Typography' | 'Media' | 'Navigation' | 'Forms' | 'Content Sections' | 'Advanced';
   isContainer?: boolean;
   defaultConfig?: Record<string, any>;
 }
@@ -55,6 +56,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Section",
     icon: Box,
     description: "Group content into distinct sections.",
+    category: 'Layout',
     isContainer: true,
     defaultConfig: { id: newObjectId(), backgroundColor: "transparent", paddingTop: "60px", paddingBottom: "60px", elements: [] },
   },
@@ -63,6 +65,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Columns Layout",
     icon: Columns,
     description: "Arrange content in responsive columns.",
+    category: 'Layout',
     isContainer: true,
     defaultConfig: { 
       count: 2, 
@@ -73,39 +76,12 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       ]
     },
   },
-  heading: {
-    id: "heading",
-    label: "Heading",
-    icon: Heading1,
-    description: "For titles and subheadings (H1-H6).",
-    defaultConfig: { text: "New Heading", level: "h2", color: "#111827", fontSize: "3rem", alignment: "left" },
-  },
-  text: {
-    id: "text",
-    label: "Rich Text",
-    icon: Type,
-    description: "Paragraphs, lists, and formatted text.",
-    defaultConfig: { htmlContent: "<p>Start writing your content here. Use this for paragraphs, lists, and other text formatting.</p>", alignment: "left" },
-  },
-  image: {
-    id: "image",
-    label: "Image",
-    icon: ImageIcon,
-    description: "Embed single images.",
-    defaultConfig: { src: "https://placehold.co/600x400.png", alt: "Placeholder Image", width: 600, height: 400, dataAiHint: "placeholder" },
-  },
-  button: {
-    id: "button",
-    label: "Button",
-    icon: ButtonIconElement,
-    description: "Interactive call-to-action links.",
-    defaultConfig: { text: "Click Me", link: "#", style: "primary", alignment: "left", icon: null, iconPosition: "left" },
-  },
-   divider: {
+  divider: {
     id: "divider",
     label: "Divider",
     icon: Minus,
     description: "A visual horizontal separator.",
+    category: 'Layout',
     defaultConfig: { style: "solid", color: "#e5e7eb", height: "1px", marginY: "2rem" },
   },
   spacer: {
@@ -113,13 +89,60 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Spacer",
     icon: RectangleHorizontal,
     description: "Adds vertical empty space.",
+    category: 'Layout',
     defaultConfig: { height: "4rem" },
+  },
+  heading: {
+    id: "heading",
+    label: "Heading",
+    icon: Heading1,
+    description: "For titles and subheadings (H1-H6).",
+    category: 'Typography',
+    defaultConfig: { text: "New Heading", level: "h2", color: "#111827", fontSize: "3rem", alignment: "left" },
+  },
+  text: {
+    id: "text",
+    label: "Rich Text",
+    icon: Type,
+    description: "Paragraphs, lists, and formatted text.",
+    category: 'Typography',
+    defaultConfig: { htmlContent: "<p>Start writing your content here. Use this for paragraphs, lists, and other text formatting.</p>", alignment: "left" },
+  },
+  image: {
+    id: "image",
+    label: "Image",
+    icon: ImageIcon,
+    description: "Embed single images.",
+    category: 'Media',
+    defaultConfig: { src: "https://placehold.co/600x400.png", alt: "Placeholder Image", width: 600, height: 400, dataAiHint: "placeholder" },
+  },
+  video_embed: {
+    id: "video_embed",
+    label: "Video Embed",
+    icon: Video,
+    description: "Responsive video embed section.",
+    category: 'Media',
+    defaultConfig: { provider: "youtube", url: "dQw4w9WgXcQ", aspectRatio: "16:9" },
+  },
+  slider: {
+    id: "slider",
+    label: "Image Slider",
+    icon: GalleryThumbnails,
+    description: "A carousel for images.",
+    category: 'Media',
+    defaultConfig: {
+      images: [
+        { src: "https://placehold.co/800x400.png", dataAiHint: "slide show one" },
+        { src: "https://placehold.co/800x400.png", dataAiHint: "slide show two" }
+      ]
+    },
   },
   navbar: {
     id: "navbar",
     label: "Navbar",
     icon: PanelTop,
     description: "Responsive top navigation bar.",
+    category: 'Navigation',
     defaultConfig: {
       brandText: "MySite",
       brandLink: "/", 
@@ -129,11 +152,63 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       textColor: "#374151"
     },
   },
+  footer: {
+    id: "footer",
+    label: "Footer",
+    icon: PanelBottom,
+    description: "Site footer with links and copyright.",
+    category: 'Navigation',
+    defaultConfig: {
+      copyrightText: `© ${new Date().getFullYear()} MySite. All rights reserved.`,
+      links: [{ text: "Privacy", href: "/privacy" }, { text: "Terms", href: "/terms" }],
+      socialLinks: [ { platform: "twitter", href: "#"}, { platform: "facebook", href: "#"}],
+      backgroundColor: "#1f2937", // Dark Gray
+      textColor: "#d1d5db" // Light Gray text
+    },
+  },
+  button: {
+    id: "button",
+    label: "Button",
+    icon: ButtonIconElement,
+    description: "Interactive call-to-action links.",
+    category: 'Forms',
+    defaultConfig: { text: "Click Me", link: "#", style: "primary", alignment: "left", icon: null, iconPosition: "left" },
+  },
+  contact_form: {
+    id: "contact_form",
+    label: "Contact Form",
+    icon: MailQuestion,
+    description: "A complete contact form section.",
+    category: 'Forms',
+    defaultConfig: { title: "Get In Touch", recipientEmail: "contact@example.com", submitButtonText: "Send Message" }
+  },
+  newsletter_signup: {
+    id: "newsletter_signup",
+    label: "Newsletter Signup",
+    icon: Mail,
+    description: "A form to collect email subscribers.",
+    category: 'Forms',
+    defaultConfig: { title: "Subscribe", placeholder: "Enter your email", buttonText: "Join" }
+  },
+  login_signup: {
+    id: "login_signup",
+    label: "Login/Signup Section",
+    icon: UserPlus,
+    description: "A section prompting users to log in or register.",
+    category: 'Forms',
+    defaultConfig: {
+      title: "Join Our Community",
+      description: "Sign up to get access to exclusive content and features.",
+      loginButtonText: "Login",
+      signupButtonText: "Sign Up Free",
+    }
+  },
   hero: {
     id: "hero",
     label: "Hero Section",
     icon: AppWindow,
     description: "Large intro section with heading + CTA.",
+    category: 'Content Sections',
     defaultConfig: {
       title: "Welcome to Our Site!",
       subtitle: "Amazing things happen here.",
@@ -146,24 +221,12 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       textAlign: "center"
     },
   },
-  footer: {
-    id: "footer",
-    label: "Footer",
-    icon: PanelBottom,
-    description: "Site footer with links and copyright.",
-    defaultConfig: {
-      copyrightText: `© ${new Date().getFullYear()} MySite. All rights reserved.`,
-      links: [{ text: "Privacy", href: "/privacy" }, { text: "Terms", href: "/terms" }],
-      socialLinks: [ { platform: "twitter", href: "#"}, { platform: "facebook", href: "#"}],
-      backgroundColor: "#1f2937", // Dark Gray
-      textColor: "#d1d5db" // Light Gray text
-    },
-  },
   card_section: {
     id: "card_section",
     label: "Card Section",
     icon: CardSectionIcon,
     description: "Display content in a series of cards.",
+    category: 'Content Sections',
     defaultConfig: {
       title: "Featured Content",
       cards: [
@@ -180,6 +243,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Features",
     icon: Sparkles,
     description: "Grid/list of features with icons.",
+    category: 'Content Sections',
     defaultConfig: {
       title: "Our Amazing Features",
       items: [
@@ -189,34 +253,16 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       ]
     },
   },
-   contact_form: {
-    id: "contact_form",
-    label: "Contact Form",
-    icon: MailQuestion,
-    description: "A complete contact form section.",
-    defaultConfig: { title: "Get In Touch", recipientEmail: "contact@example.com", submitButtonText: "Send Message" }
-  },
   tabs: {
     id: "tabs",
     label: "Tabs Section",
     icon: PanelRight,
     description: "Organize content into tabs.",
+    category: 'Content Sections',
     defaultConfig: {
       items: [
         { title: "Tab 1", content: "<p>Content for Tab 1</p>" },
         { title: "Tab 2", content: "<p>Content for Tab 2</p>" }
-      ]
-    },
-  },
-  slider: {
-    id: "slider",
-    label: "Image Slider",
-    icon: GalleryThumbnails,
-    description: "A carousel for images.",
-    defaultConfig: {
-      images: [
-        { src: "https://placehold.co/800x400.png", dataAiHint: "slide show one" },
-        { src: "https://placehold.co/800x400.png", dataAiHint: "slide show two" }
       ]
     },
   },
@@ -225,6 +271,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Testimonials",
     icon: MessageSquareText,
     description: "Customer testimonials.",
+    category: 'Content Sections',
     defaultConfig: {
       title: "What Our Users Say",
       items: [
@@ -238,6 +285,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Pricing Table",
     icon: BadgeDollarSign,
     description: "Display pricing plans.",
+    category: 'Content Sections',
     defaultConfig: {
       title: "Our Plans",
       plans: [
@@ -252,6 +300,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "FAQ (Accordion)",
     icon: HelpCircle,
     description: "Collapsible FAQ section.",
+    category: 'Content Sections',
     defaultConfig: {
       title: "Frequently Asked Questions",
       items: [
@@ -260,54 +309,12 @@ export const componentRegistry: Record<string, ComponentConfig> = {
       ]
     },
   },
-  video_embed: {
-    id: "video_embed",
-    label: "Video Embed",
-    icon: Video,
-    description: "Responsive video embed section.",
-    defaultConfig: { provider: "youtube", url: "dQw4w9WgXcQ", aspectRatio: "16:9" },
-  },
-  map_embed: {
-    id: "map_embed",
-    label: "Map Embed",
-    icon: MapPin,
-    description: "Embed maps (e.g., Google Maps).",
-    defaultConfig: { provider: "google", embedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.521106361757!2d106.8166656147691!3d-6.194420095514903!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f5d2e764b12d%3A0x3d2c6eff0b6c2e6d!2sNational%20Monument!5e0!3m2!1sen!2sid!4v1620987473405!5m2!1sen!2sid", height: "400px" }
-  },
-  customCode: {
-    id: "customCode",
-    label: "Custom Code",
-    icon: Code2,
-    description: "Embed HTML, CSS, or JS snippets.",
-    defaultConfig: { html: "<div>\\n  <!-- Your custom HTML code here -->\\n  <p>This is a custom code block.</p>\\n</div>" }
-  },
-  locked_content: {
-    id: "locked_content",
-    label: "Premium Content",
-    icon: EyeOff,
-    description: "Content visible only to premium users.",
-    defaultConfig: {
-      upgradeMessage: "Upgrade to Pro to view this content",
-      elements: []
-    }
-  },
-  login_signup: {
-    id: "login_signup",
-    label: "Login/Signup Section",
-    icon: UserPlus,
-    description: "A section prompting users to log in or register.",
-    defaultConfig: {
-      title: "Join Our Community",
-      description: "Sign up to get access to exclusive content and features.",
-      loginButtonText: "Login",
-      signupButtonText: "Sign Up Free",
-    }
-  },
-   call_to_action: {
+  call_to_action: {
     id: "call_to_action",
     label: "Call to Action",
     icon: Megaphone,
     description: "A simple section with text and a button.",
+    category: 'Content Sections',
     defaultConfig: { text: "Ready to get started?", buttonText: "Contact Us", buttonLink: "/contact" }
   },
   stats: {
@@ -315,6 +322,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Stats Section",
     icon: TrendingUp,
     description: "Showcase key numbers and metrics.",
+    category: 'Content Sections',
     defaultConfig: { items: [ { value: "1M+", label: "Users" }, { value: "99%", label: "Satisfaction" } ] }
   },
   team: {
@@ -322,20 +330,15 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Team Section",
     icon: Users,
     description: "Introduce your team members.",
+    category: 'Content Sections',
     defaultConfig: { title: "Meet Our Team", members: [ { name: "Jane Doe", role: "CEO", image: "https://placehold.co/200x200.png", dataAiHint:"ceo person" } ] }
-  },
-  newsletter_signup: {
-    id: "newsletter_signup",
-    label: "Newsletter Signup",
-    icon: Mail,
-    description: "A form to collect email subscribers.",
-    defaultConfig: { title: "Subscribe", placeholder: "Enter your email", buttonText: "Join" }
   },
   blog_posts: {
     id: "blog_posts",
     label: "Blog Posts",
     icon: Newspaper,
     description: "A list or grid of recent blog posts.",
+    category: 'Content Sections',
     defaultConfig: { title: "From Our Blog", posts: [ { title: "First Post", excerpt: "This is an excerpt." } ] }
   },
   services_list: {
@@ -343,6 +346,7 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "Services List",
     icon: Briefcase,
     description: "Detail the services you offer.",
+    category: 'Content Sections',
     defaultConfig: { title: "Our Services", items: [ { name: "Service One", description: "Description of service." } ] }
   },
   about_section: {
@@ -350,7 +354,35 @@ export const componentRegistry: Record<string, ComponentConfig> = {
     label: "About Section",
     icon: Info,
     description: "A section with text and an optional image.",
+    category: 'Content Sections',
     defaultConfig: { title: "About Us", content: "<p>Learn more about our company...</p>", imageUrl: "https://placehold.co/500x350.png", dataAiHint:"company team" }
+  },
+  map_embed: {
+    id: "map_embed",
+    label: "Map Embed",
+    icon: MapPin,
+    description: "Embed maps (e.g., Google Maps).",
+    category: 'Advanced',
+    defaultConfig: { provider: "google", embedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.521106361757!2d106.8166656147691!3d-6.194420095514903!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f5d2e764b12d%3A0x3d2c6eff0b6c2e6d!2sNational%20Monument!5e0!3m2!1sen!2sid!4v1620987473405!5m2!1sen!2sid", height: "400px" }
+  },
+  customCode: {
+    id: "customCode",
+    label: "Custom Code",
+    icon: Code2,
+    description: "Embed HTML, CSS, or JS snippets.",
+    category: 'Advanced',
+    defaultConfig: { html: "<div>\\n  <!-- Your custom HTML code here -->\\n  <p>This is a custom code block.</p>\\n</div>" }
+  },
+  locked_content: {
+    id: "locked_content",
+    label: "Premium Content",
+    icon: EyeOff,
+    description: "Content visible only to premium users.",
+    category: 'Advanced',
+    defaultConfig: {
+      upgradeMessage: "Upgrade to Pro to view this content",
+      elements: []
+    }
   },
 };
 

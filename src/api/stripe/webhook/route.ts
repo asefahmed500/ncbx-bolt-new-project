@@ -197,7 +197,6 @@ export async function POST(req: NextRequest) {
               }
             } else {
               console.log(`[Stripe Webhook] General payment (non-template specific) for user ${userId} of ${paymentIntent.amount / 100} ${paymentIntent.currency.toUpperCase()} succeeded.`);
-              // Other types of one-time purchases can be fulfilled here based on metadata.
             }
 
             // Increment coupon usage if a coupon was applied to this PaymentIntent

@@ -45,9 +45,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Minimum purchase of ${minPurchaseDisplay} ${currency} required for this coupon.` }, { status: 400 });
     }
 
-    // Per-user usage limit validation requires a more complex tracking schema, which is not implemented.
-    // This feature can be added in the future by tracking user coupon redemptions.
-
     let discountApplied = 0;
     let finalAmount = amountInCents;
 
