@@ -211,7 +211,7 @@ export default function DashboardPage() {
             title: "Subscription Updated!",
             description: "Your subscription details may take a moment to refresh.",
         });
-        updateSession();
+        updateSession({ refreshSubscription: true });
         router.replace('/dashboard', undefined); 
     }
   }, [session, status, router, toast, updateSession]);
