@@ -13,14 +13,8 @@ import {z} from 'genkit';
 import {componentRegistry} from '@/components/editor/componentRegistry';
 
 // Define Zod schemas that mirror the Mongoose models for type-safe AI output.
-const PageComponentConfigSchema_Zod = z.object({
-    text: z.string().optional(),
-    src: z.string().optional(),
-    alt: z.string().optional(),
-    htmlContent: z.string().optional(),
-    backgroundColor: z.string().optional(),
-    textColor: z.string().optional(),
-}).passthrough().describe('A flexible object for component configuration. For images, use `src` for the URL and `dataAiHint` for a 1-2 word hint for image search. For text, use `text` or `htmlContent`.');
+const PageComponentConfigSchema_Zod = z.record(z.string(), z.any())
+  .describe('A flexible object for component configuration. For images, use `src` for the URL and `dataAiHint` for a 1-2 word hint for image search. For text, use `text` or `htmlContent`.');
 
 const PageComponentSchema_Zod = z.object({
   _id: z.string().optional().describe("A unique identifier for the component."),

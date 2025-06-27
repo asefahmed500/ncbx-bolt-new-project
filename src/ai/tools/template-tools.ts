@@ -9,14 +9,8 @@ import { getTemplateByName } from '@/actions/templates';
 import { z } from 'genkit';
 
 // Define the Zod schema for the tool's output to match a template's page structure.
-const PageComponentConfigSchema_Zod = z.object({
-    text: z.string().optional(),
-    src: z.string().optional(),
-    alt: z.string().optional(),
-    htmlContent: z.string().optional(),
-    backgroundColor: z.string().optional(),
-    textColor: z.string().optional(),
-}).passthrough();
+const PageComponentConfigSchema_Zod = z.record(z.string(), z.any());
+
 const PageComponentSchema_Zod = z.object({
   _id: z.string().optional(),
   type: z.string(),
