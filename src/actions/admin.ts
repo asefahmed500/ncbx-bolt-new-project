@@ -724,6 +724,54 @@ export async function updateTemplateMetadataByAdmin(data: UpdateTemplateMetadata
   }
 }
 
+export async function deleteTemplateByAdmin(templateId: string): Promise<{ success?: string; error?: string }> {
+  const session = await auth();
+  if (session?.user?.role !== 'admin') {
+    return { error: 'Unauthorized' };
+  }
+  if (!mongoose.Types.ObjectId.isValid(templateId)) {
+    return { error: 'Invalid Template ID format' };
+  }
+
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
+
+  try {
+    await dbConnect();
+    const template = await Template.findById(templateId).session(dbSession);
+    if (!template) {
+      await dbSession.abortTransaction();
+      dbSession.endSession();
+      return { error: 'Template not found' };
+    }
+
+    // Find reviews associated with the template to also delete their moderation items
+    const reviews = await TemplateReview.find({ templateId: template._id }).session(dbSession).select('_id').lean();
+    const reviewIds = reviews.map(r => r._id);
+
+    // Concurrently delete the template and its related data
+    await Template.deleteOne({ _id: templateId }).session(dbSession);
+    await TemplateReview.deleteMany({ templateId }).session(dbSession);
+    await ModerationQueueItem.deleteMany({
+        $or: [
+          { contentId: templateId, contentRefModel: 'Template' },
+          { contentRefModel: 'TemplateReview', contentId: { $in: reviewIds } }
+        ]
+    }).session(dbSession);
+
+    await dbSession.commitTransaction();
+    dbSession.endSession();
+    
+    return { success: `Template ${template.name} and all associated data deleted successfully.` };
+
+  } catch (error: any) {
+    await dbSession.abortTransaction();
+    dbSession.endSession();
+    console.error(`[AdminAction_DeleteTemplate] Error deleting template ${templateId}:`, error);
+    return { error: `Failed to delete template: ${error.message}` };
+  }
+}
+
 
 interface GetTemplateDataResult {
   template?: ITemplate;
