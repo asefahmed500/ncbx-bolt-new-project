@@ -15,9 +15,9 @@ interface NavigationPanelProps {
   websiteId: string | null;
   allSiteNavigations: INavigation[];
   isNavigationsLoading: boolean;
-  handleCreateNavigation: (name: string) => Promise<void>;
-  handleUpdateNavigation: (navId: string, name: string, items: INavigationItem[]) => Promise<void>;
-  handleDeleteNavigation: (navId: string) => Promise<void>;
+  handleCreateNavigation: (name: string) => Promise<any>;
+  handleUpdateNavigation: (navId: string, name: string, items: INavigationItem[]) => Promise<any>;
+  handleDeleteNavigation: (navId: string) => Promise<any>;
 }
 
 export function NavigationPanel({
@@ -37,7 +37,7 @@ export function NavigationPanel({
   const onEditClick = (nav: INavigation) => {
     setSelectedNav(nav);
     setEditingNavName(nav.name);
-    setEditingNavItems(nav.items);
+    setEditingNavItems(JSON.parse(JSON.stringify(nav.items)));
   };
 
   const onSaveClick = async () => {

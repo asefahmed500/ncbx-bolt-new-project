@@ -1,4 +1,4 @@
-// src/components/editor/editor-page-client.tsx
+
 "use client";
 
 import { useState, useEffect, Suspense, useCallback } from 'react';
@@ -90,7 +90,9 @@ export default function EditorPageComponent() {
     if (navUpdatePromises.length > 0) {
       await Promise.all(navUpdatePromises);
       toast({ title: "Navigations Updated", description: "Removed links to the deleted page." });
-      await fetchSiteNavigations(websiteId);
+      if (websiteId) {
+        await fetchSiteNavigations(websiteId);
+      }
     }
     setActivePageIndex(Math.max(0, pageToDeleteIndex - 1));
     setSelectedElement(null); setPageToDeleteIndex(null); setShowPageDeleteConfirm(false);
@@ -205,7 +207,7 @@ export default function EditorPageComponent() {
       toast({ title: "Template Applied", description: `"${template.name}" has been applied. Use Undo to revert.` });
     } else toast({ title: "Empty Template", description: "Selected template has no content.", variant: "destructive" });
     setIsTemplateGalleryModalOpen(false);
-  }, [toast, updatePagesWithHistory]);
+  }, [toast, updatePagesWithHistory, setActivePageIndex, setSelectedElement]);
 
   const handleAiPromptSubmit = async (prompt: string): Promise<string | null> => {
     if (!websiteId) { toast({ title: "No Website Selected", description: "Please save your website first before using the AI assistant.", variant: "destructive"}); return "I can't edit until the website is saved. Please save your work first."; }
@@ -275,19 +277,19 @@ export default function EditorPageComponent() {
             createNavigation={async (name) => {
               if (!websiteId) return;
               setIsAiProcessing(true);
-              try { const res = await editorState.createNavigation(name); if (res.success) fetchSiteNavigations(websiteId); else toast({title: "Error", description: res.error}); } catch (e) { toast({title: "Error", description: (e as Error).message}); }
+              try { const res = await editorState.createNavigation(name); if (res.success) { if (websiteId) await fetchSiteNavigations(websiteId); } else toast({title: "Error", description: res.error}); } catch (e) { toast({title: "Error", description: (e as Error).message}); }
               finally { setIsAiProcessing(false); }
             }}
             updateNavigation={async (navId, name, items) => {
               if (!websiteId) return;
               setIsAiProcessing(true);
-              try { const res = await editorState.updateNavigation(navId, name, items); if (res.success) fetchSiteNavigations(websiteId); else toast({title: "Error", description: res.error}); } catch (e) { toast({title: "Error", description: (e as Error).message}); }
+              try { const res = await editorState.updateNavigation(navId, name, items); if (res.success) { if (websiteId) await fetchSiteNavigations(websiteId); } else toast({title: "Error", description: res.error}); } catch (e) { toast({title: "Error", description: (e as Error).message}); }
               finally { setIsAiProcessing(false); }
             }}
             deleteNavigation={async (navId) => {
               if (!websiteId) return;
               setIsAiProcessing(true);
-              try { const res = await editorState.deleteNavigation(navId); if (res.success) fetchSiteNavigations(websiteId); else toast({title: "Error", description: res.error}); } catch (e) { toast({title: "Error", description: (e as Error).message}); }
+              try { const res = await editorState.deleteNavigation(navId); if (res.success) { if (websiteId) await fetchSiteNavigations(websiteId); } else toast({title: "Error", description: res.error}); } catch (e) { toast({title: "Error", description: (e as Error).message}); }
               finally { setIsAiProcessing(false); }
             }}
           />

@@ -1,12 +1,11 @@
 // src/hooks/useEditor.ts
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import type { IWebsite, SaveWebsiteContentInput } from '@/models/Website';
 import type { IWebsiteVersion, IWebsiteVersionPage, IPageComponent } from '@/models/WebsiteVersion';
-import type { ITemplate } from '@/models/Template';
 import type { INavigation, INavigationItem } from '@/models/Navigation';
 import { getWebsiteEditorData, saveWebsiteContent } from '@/actions/website';
 import { createNavigation, getNavigationsByWebsiteId, updateNavigation, deleteNavigation } from '@/actions/navigation';
@@ -47,8 +46,8 @@ export function useEditor() {
   const [isLoadingWebsite, setIsLoadingWebsite] = useState(true);
   const [editorSaveStatus, setEditorSaveStatus] = useState<EditorSaveStatus>('idle');
   
-  const [history, setHistory] = useState<IWebsiteVersionPage[][]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [history, setHistory] = useState<IWebsiteVersionPage[][]>([JSON.parse(JSON.stringify([defaultInitialPage]))]);
+  const [historyIndex, setHistoryIndex] = useState(0);
   
   const [activeDraggedItem, setActiveDraggedItem] = useState<Active | null>(null);
   
@@ -77,7 +76,7 @@ export function useEditor() {
     if (canUndo) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      setCurrentPages(history[newIndex]);
+      setCurrentPages(JSON.parse(JSON.stringify(history[newIndex])));
       setSelectedElement(null);
       setEditorSaveStatus('unsaved_changes');
     }
@@ -87,7 +86,7 @@ export function useEditor() {
     if (canRedo) {
       const newIndex = historyIndex + 1;
       setHistoryIndex(newIndex);
-      setCurrentPages(history[newIndex]);
+      setCurrentPages(JSON.parse(JSON.stringify(history[newIndex])));
       setSelectedElement(null);
       setEditorSaveStatus('unsaved_changes');
     }
@@ -119,8 +118,9 @@ export function useEditor() {
             if (pages && pages.length > 0) initialPages = pages.map(p => ({ ...p, _id: (p._id || newObjectId()).toString(), elements: p.elements.map(el => ({ ...el, _id: (el._id || newObjectId()).toString() })) })) as IWebsiteVersionPage[];
            setGlobalSettings(result.currentVersion.globalSettings || {});
         } else setGlobalSettings({});
-        setCurrentPages(initialPages);
-        setHistory([JSON.parse(JSON.stringify(initialPages))]);
+        const initialPagesCopy = JSON.parse(JSON.stringify(initialPages));
+        setCurrentPages(initialPagesCopy);
+        setHistory([initialPagesCopy]);
         setHistoryIndex(0);
         setActivePageIndex(0);
         setEditorSaveStatus('saved');
@@ -233,7 +233,7 @@ export function useEditor() {
     setActivePageIndex(currentPages.length);
     setSelectedElement(null);
     toast({ title: "Page Added", description: `Page "${newPage.name}" created. Don't forget to save.` });
-  }, [currentPages, updatePagesWithHistory, toast]);
+  }, [currentPages, updatePagesWithHistory, toast, setActivePageIndex, setSelectedElement]);
 
   const getEditorContentForSave = useCallback((): SaveWebsiteContentInput['pages'] => {
     const reorderAndClean = (elements: IPageComponent[]): any[] => {
@@ -261,7 +261,8 @@ export function useEditor() {
       if (result.success && result.website && result.versionId) {
         setEditorSaveStatus('saved');
         setWebsiteData(result.website);
-        setHistory([JSON.parse(JSON.stringify(getEditorContentForSave()))]);
+        const savedPagesCopy = JSON.parse(JSON.stringify(getEditorContentForSave()));
+        setHistory([savedPagesCopy]);
         setHistoryIndex(0);
         toast({ title: "Changes Saved!", description: "Your website content has been updated." });
       } else { setEditorSaveStatus('error'); toast({ title: "Save Failed", description: result.error || "Could not save changes.", variant: "destructive" }); }
@@ -271,107 +272,72 @@ export function useEditor() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDraggedItem(null);
-    if (!over) return;
-    const activeId = active.id.toString();
-    const overId = over.id.toString();
-
+    if (!over || active.id === over.id) return;
     updatePagesWithHistory(prevPages => {
-        const newPages = JSON.parse(JSON.stringify(prevPages));
-        const findElementAndParentList = (pages: IWebsiteVersionPage[], elementId: string): { list: IPageComponent[]; index: number; element: IPageComponent } | null => {
-            for (const page of pages) {
-                const queue: { list: IPageComponent[] }[] = [{ list: page.elements }];
-                while (queue.length > 0) {
-                    const { list } = queue.shift()!;
-                    const index = list.findIndex(el => el._id === elementId);
-                    if (index !== -1) return { list, index, element: list[index] };
-                    for (const el of list) {
-                        if (el.type === 'section' && el.config?.elements) queue.push({ list: el.config.elements });
-                        else if (el.type === 'columns' && Array.isArray(el.config?.columns)) el.config.columns.forEach((col: any) => { if (col.elements) queue.push({ list: col.elements }); });
-                    }
-                }
-            }
-            return null;
-        };
-        const findContainerList = (pages: IWebsiteVersionPage[], containerId: string): IPageComponent[] | null => {
-            const activePage = pages[activePageIndex];
-            if (!activePage) return null;
-            if (containerId === 'canvas-drop-area') return activePage.elements;
-            const queue: IPageComponent[] = [...activePage.elements];
-            while (queue.length > 0) {
-                const el = queue.shift()!;
-                if (el.config.id === containerId && (el.type === 'section' || el.type === 'columns')) if (el.type === 'section') return el.config.elements;
-                if (el.type === 'columns' && Array.isArray(el.config?.columns)) {
-                    for (let i = 0; i < el.config.columns.length; i++) {
-                        if (el.config.columns[i].id === containerId) return el.config.columns[i].elements;
-                        if (el.config.columns[i].elements) queue.push(...el.config.columns[i].elements);
-                    }
-                }
-                if (el.type === 'section' && el.config.elements) queue.push(...el.config.elements);
-            }
-            return null;
-        };
-
-        if (active.data.current?.isSidebarItem) {
-            const componentType = active.data.current.type as string;
-            const componentConfig = getComponentConfig(componentType);
-            if (!componentConfig) return newPages;
-            const newElement: IPageComponent = { _id: newObjectId(), type: componentType, label: componentConfig.label, config: JSON.parse(JSON.stringify(componentConfig.defaultConfig || {})), order: 0 };
-            if (newElement.type === 'columns' && Array.isArray(newElement.config.columns)) newElement.config.columns.forEach((col: any) => { col.id = newObjectId(); });
-            if (newElement.type === 'section') newElement.config.id = newObjectId();
-            let targetList = findContainerList(newPages, overId);
-            let dropIndex = -1;
-            if (!targetList) { const overElementInfo = findElementAndParentList(newPages, overId); if (overElementInfo) { targetList = overElementInfo.list; dropIndex = overElementInfo.index + 1; } }
-            if (targetList) { if (dropIndex === -1) dropIndex = targetList.length; targetList.splice(dropIndex, 0, newElement); }
-        } else {
-            const sourceInfo = findElementAndParentList(newPages, activeId);
-            if (!sourceInfo) return newPages;
-            const [movedElement] = sourceInfo.list.splice(sourceInfo.index, 1);
-            let destinationList = findContainerList(newPages, overId);
-            let destinationIndex = -1;
-            if (destinationList) { destinationIndex = destinationList.length; } else { const overElementInfo = findElementAndParentList(newPages, overId); if (overElementInfo) { destinationList = overElementInfo.list; destinationIndex = overElementInfo.index; } }
-            if (destinationList) { destinationList.splice(destinationIndex, 0, movedElement); } else { sourceInfo.list.splice(sourceInfo.index, 0, movedElement); }
+      const newPages = JSON.parse(JSON.stringify(prevPages));
+      const findAndRemove = (elementId: string, elements: IPageComponent[]): [IPageComponent, IPageComponent[]] | [null, IPageComponent[]] => {
+        const index = elements.findIndex(el => el._id === elementId);
+        if (index !== -1) { const found = elements[index]; elements.splice(index, 1); return [found, elements]; }
+        for (const el of elements) {
+          if (el.config?.elements) { const [found, updated] = findAndRemove(elementId, el.config.elements); if (found) { el.config.elements = updated; return [found, elements]; } }
+          if (el.config?.columns) { for (const col of el.config.columns) { if (col.elements) { const [found, updated] = findAndRemove(elementId, col.elements); if (found) { col.elements = updated; return [found, elements]; } } } }
         }
-        const reorderRecursively = (elements: IPageComponent[]) => { elements.forEach((el, index) => { el.order = index; if (el.type === 'section' && el.config.elements) reorderRecursively(el.config.elements); if (el.type === 'columns' && Array.isArray(el.config.columns)) el.config.columns.forEach((col: any) => reorderRecursively(col.elements || [])); }); };
-        newPages.forEach(page => reorderRecursively(page.elements));
-        return newPages;
+        return [null, elements];
+      };
+      const insertElement = (movedElement: IPageComponent, elements: IPageComponent[], targetId: string, isSidebarItem: boolean): boolean => {
+        if (!isSidebarItem && targetId === 'canvas-drop-area') { elements.push(movedElement); return true; }
+        const index = elements.findIndex(el => el._id === targetId);
+        if (index !== -1) { elements.splice(isSidebarItem ? index : index + 1, 0, movedElement); return true; }
+        for (const el of elements) {
+          if (el.config?.elements && insertElement(movedElement, el.config.elements, targetId, isSidebarItem)) return true;
+          if (el.config?.columns) { for (const col of el.config.columns) { if (col.id === targetId) { col.elements.push(movedElement); return true; } if (col.elements && insertElement(movedElement, col.elements, targetId, isSidebarItem)) return true; } }
+          if (el.config?.id === targetId && el.type === 'section') { el.config.elements.push(movedElement); return true; }
+        }
+        return false;
+      };
+      const activeIsSidebarItem = active.data.current?.isSidebarItem ?? false;
+      if (activeIsSidebarItem) {
+        const componentType = active.data.current.type as string;
+        const componentConfig = getComponentConfig(componentType);
+        if (!componentConfig) return newPages;
+        const newElement: IPageComponent = { _id: newObjectId(), type: componentType, label: componentConfig.label, config: JSON.parse(JSON.stringify(componentConfig.defaultConfig || {})), order: 0 };
+        if (newElement.type === 'columns' && Array.isArray(newElement.config.columns)) newElement.config.columns.forEach((col: any) => { col.id = newObjectId(); });
+        if (newElement.type === 'section') newElement.config.id = newObjectId();
+        const pageToUpdate = newPages[activePageIndex];
+        if (insertElement(newElement, pageToUpdate.elements, over.id.toString(), true)) return newPages;
+        pageToUpdate.elements.push(newElement); // Fallback to add to canvas root
+      } else {
+        const page = newPages[activePageIndex];
+        const [movedElement, updatedElements] = findAndRemove(active.id.toString(), page.elements);
+        if (movedElement) {
+          page.elements = updatedElements;
+          if (!insertElement(movedElement, page.elements, over.id.toString(), false)) { page.elements.push(movedElement); }
+        }
+      }
+      return newPages;
     }, "Drag & Drop");
   };
 
+  const createNav = async (name: string) => {
+    if (!websiteId) return { success: false, error: 'Website ID not found' };
+    return await createNavigation({ websiteId, name });
+  };
+  const updateNav = async (id: string, name: string, items: INavigationItem[]) => {
+    return await updateNavigation({ navigationId: id, name, items });
+  };
+  const deleteNav = async (id: string) => {
+    return await deleteNavigation(id);
+  };
+  
   return {
-    websiteId,
-    websiteData,
-    currentPages,
-    setCurrentPages,
-    globalSettings,
-    setGlobalSettings,
-    activePageIndex,
-    setActivePageIndex,
-    selectedElement,
-    setSelectedElement,
-    handleElementSelect,
-    isLoadingWebsite,
-    editorSaveStatus,
-    setEditorSaveStatus,
-    history,
-    historyIndex,
-    canUndo,
-    canRedo,
-    handleUndo,
-    handleRedo,
-    updatePagesWithHistory,
-    allSiteNavigations,
-    setAllSiteNavigations,
-    isNavigationsLoading,
-    setIsNavigationsLoading,
-    fetchSiteNavigations,
-    handlePropertyChange,
-    handlePageDetailsChange,
-    handleGlobalSettingsChange,
-    handleAddNewPage,
-    getEditorContentForSave,
-    handleEditorSaveChanges,
-    handleDragEnd,
-    activeDraggedItem,
-    setActiveDraggedItem,
+    websiteId, websiteData, currentPages, setCurrentPages, globalSettings, setGlobalSettings,
+    activePageIndex, setActivePageIndex, selectedElement, setSelectedElement,
+    isLoadingWebsite, editorSaveStatus, setEditorSaveStatus, history, historyIndex,
+    canUndo, canRedo, handleUndo, handleRedo, updatePagesWithHistory, allSiteNavigations,
+    setAllSiteNavigations, isNavigationsLoading, setIsNavigationsLoading, fetchSiteNavigations,
+    handlePropertyChange, handlePageDetailsChange, handleGlobalSettingsChange, handleAddNewPage,
+    getEditorContentForSave, handleEditorSaveChanges, handleDragEnd, activeDraggedItem,
+    setActiveDraggedItem, handleElementSelect,
+    createNavigation: createNav, updateNavigation: updateNav, deleteNavigation: deleteNav,
   };
 }

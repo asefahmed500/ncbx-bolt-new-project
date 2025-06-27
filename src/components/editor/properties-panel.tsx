@@ -34,9 +34,9 @@ interface PropertiesPanelProps {
   allSiteNavigations: INavigation[];
   websiteId: string | null;
   isNavigationsLoading: boolean;
-  createNavigation: (name: string) => Promise<void>;
-  updateNavigation: (navId: string, name: string, items: INavigationItem[]) => Promise<void>;
-  deleteNavigation: (navId: string) => Promise<void>;
+  createNavigation: (name: string) => Promise<any>;
+  updateNavigation: (navId: string, name: string, items: INavigationItem[]) => Promise<any>;
+  deleteNavigation: (navId: string) => Promise<any>;
 }
 
 export function PropertiesPanel({
