@@ -91,10 +91,11 @@ export function PremiumTemplatePaymentModal({ isOpen, onOpenChange, template, on
 
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && template) {
       createIntent(debouncedCouponCode);
     }
-  }, [isOpen, debouncedCouponCode, createIntent]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, template, debouncedCouponCode]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -176,5 +177,3 @@ export function PremiumTemplatePaymentModal({ isOpen, onOpenChange, template, on
     </Dialog>
   );
 }
-
-    

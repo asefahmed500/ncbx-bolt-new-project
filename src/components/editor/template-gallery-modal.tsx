@@ -15,9 +15,9 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import Image from 'next/image';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { getApprovedTemplates, grantTemplateAccess } from '@/actions/templates';
+import { getApprovedTemplates } from '@/actions/templates';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ShoppingCart, Search, ExternalLink, Tags, LayoutGrid } from 'lucide-react';
+import { Loader2, ShoppingCart, Search, ExternalLink, Tags, LayoutGrid, Star } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
@@ -103,6 +103,10 @@ export function TemplateGalleryModal({ isOpen, onOpenChange, onApplyTemplate }: 
     const hasPurchased = session.user.purchasedTemplateIds?.includes(templateIdString);
 
     if (template.isPremium && !hasPurchased && template.price) {
+      if (!stripePromise) {
+        toast({ title: "Payments Not Configured", description: "The payment system is not available. Please contact support.", variant: "destructive" });
+        return;
+      }
       setTemplateForPurchase(template);
       setIsPaymentModalOpen(true);
     } else {
@@ -115,17 +119,8 @@ export function TemplateGalleryModal({ isOpen, onOpenChange, onApplyTemplate }: 
   const onPaymentSuccess = async (purchasedTemplate: ITemplate) => {
     toast({ title: "Purchase Successful!", description: `Granting you access to "${purchasedTemplate.name}"...` });
     
-    // Call server action to grant access immediately
-    const grantResult = await grantTemplateAccess((purchasedTemplate._id as unknown as string).toString());
-
-    if (grantResult.error) {
-        toast({ title: "Access Grant Failed", description: `There was an issue granting you access. Please contact support. Error: ${grantResult.error}`, variant: "destructive", duration: 10000 });
-        setIsPaymentModalOpen(false);
-        onOpenChange(false);
-        return;
-    }
-
-    // Now that DB is updated, refresh the session to get the new purchasedTemplateIds
+    // The webhook will handle adding the template ID to the user.
+    // We just need to refresh the session to get the latest data.
     await updateSession({ refreshSubscription: true });
     
     onApplyTemplate(purchasedTemplate); // Apply it to the editor
@@ -182,7 +177,7 @@ export function TemplateGalleryModal({ isOpen, onOpenChange, onApplyTemplate }: 
                     <Card key={templateIdString} className="overflow-hidden bg-card border-border hover:shadow-lg transition-shadow flex flex-col">
                       <CardHeader className="p-0 relative">
                         <Image src={template.previewImageUrl || "https://placehold.co/300x200.png"} alt={template.name} width={300} height={200} className="w-full h-auto object-cover aspect-[3/2]" data-ai-hint={(template as any).dataAiHint || template.tags?.join(" ") || template.name} />
-                        {template.isPremium && (<Badge variant={hasPurchased ? "default" : "destructive"} className="absolute top-2 right-2">{hasPurchased ? "Purchased" : "Premium"}</Badge>)}
+                        {template.isPremium && (<Badge variant={hasPurchased ? "default" : "destructive"} className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 border-yellow-500"><Star className="mr-1 h-3 w-3"/>{hasPurchased ? "Purchased" : "Premium"}</Badge>)}
                         <Badge variant="outline" className="absolute top-2 left-2 bg-card/80 backdrop-blur-sm capitalize">{template.category || 'General'}</Badge>
                       </CardHeader>
                       <CardContent className="p-4 flex-grow"><CardTitle className="text-md font-headline text-card-foreground">{template.name}</CardTitle>{template.isPremium && !hasPurchased && template.price && (<p className="text-sm font-semibold text-primary mt-1">Price: ${(template.price / 100).toFixed(2)}</p>)}{template.tags && template.tags.length > 0 && (<div className="mt-2 flex flex-wrap gap-1 items-center"><Tags className="w-3 h-3 text-muted-foreground mr-1" />{template.tags.slice(0, 3).map(tag => (<Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>))}{template.tags.length > 3 && <Badge variant="secondary" className="text-xs">...</Badge>}</div>)}</CardContent>

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, Settings2 as SettingsIcon, BarChart2, Tag, ArrowUpCircle, ExternalLink, PlusSquare, Edit3, Globe, Trash2, Link2, CheckCircle, AlertCircle, FileText, AlertTriangle, XCircle } from "lucide-react";
+import { Lightbulb, Loader2, CreditCard, ShoppingCart, ListChecks, Settings2 as SettingsIcon, BarChart2, Tag, ArrowUpCircle, ExternalLink, PlusSquare, Edit3, Globe, Trash2, Link2, CheckCircle, AlertCircle, FileText, AlertTriangle, XCircle, Star } from "lucide-react";
 import { createStripeCheckoutSession, createOneTimePaymentIntent, createStripeCustomerPortalSession } from '@/actions/stripe';
 import { getUserWebsites, deleteWebsite as deleteWebsiteAction } from '@/actions/website'; 
 import type { IWebsite, DomainConnectionStatus } from '@/models/Website';
@@ -220,22 +220,24 @@ export default function DashboardPage() {
          router.replace('/admin/dashboard');
          return;
       }
-      fetchWebsites();
-
+      
       const queryParams = new URLSearchParams(window.location.search);
       const sessionIdFromUrl = queryParams.get('session_id');
 
       if (sessionIdFromUrl && sessionIdFromUrl !== processedSessionId.current) {
-        processedSessionId.current = sessionIdFromUrl; // Mark as processed
+        processedSessionId.current = sessionIdFromUrl;
         setIsUpdatingSession(true);
 
         toast({
             title: "Finalizing Subscription...",
-            description: "Please wait while we update your account details.",
+            description: "Please wait while we update your account details. This may take a moment.",
             duration: 10000,
         });
+        
+        // Remove session_id from URL
+        router.replace('/dashboard', undefined);
 
-        // Wait a couple of seconds to increase the chance of the webhook having completed
+        // Wait a few seconds for Stripe webhook to process, then update session
         setTimeout(() => {
           updateSession({ refreshSubscription: true }).finally(() => {
             setIsUpdatingSession(false);
@@ -243,14 +245,17 @@ export default function DashboardPage() {
               title: "Account Updated!",
               description: "Your new subscription plan is now active.",
             });
-            fetchWebsites(); // Re-fetch websites to reflect new limits
+            // Re-fetch websites after session update to reflect new limits
+            fetchWebsites();
           });
-        }, 3000); // 3-second delay
+        }, 4000); // Increased delay to 4 seconds for webhook reliability
 
-        router.replace('/dashboard', undefined); 
+      } else if (!isUpdatingSession) {
+         // Only fetch websites if not in the middle of a session update
+         fetchWebsites();
       }
     }
-  }, [session, status, router, toast, updateSession, fetchWebsites]);
+  }, [session, status, router, toast, updateSession, fetchWebsites, isUpdatingSession]);
 
   const handleSubscribeToPro = async () => {
     setIsSubscribing(true);
@@ -274,7 +279,7 @@ export default function DashboardPage() {
         variant: "destructive",
       });
     } else if (result.url) {
-      router.push(result.url);
+      window.location.href = result.url;
     }
     setIsSubscribing(false);
   };
@@ -285,7 +290,7 @@ export default function DashboardPage() {
     if (result.error) {
         toast({ title: "Error", description: result.error, variant: "destructive" });
     } else if (result.url) {
-        router.push(result.url);
+        window.location.href = result.url;
     }
     setIsManagingSubscription(false);
   };
@@ -348,7 +353,15 @@ export default function DashboardPage() {
   return (
     <div className="flex-1 p-6 md:p-10">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-headline font-semibold">Dashboard</h1>
+        <h1 className="text-3xl font-headline font-semibold flex items-center">
+            Dashboard
+            {isActiveSubscription && (
+                <Badge variant="default" className="ml-3 bg-yellow-400 text-yellow-900">
+                    <Star className="mr-1.5 h-4 w-4" />
+                    Pro User
+                </Badge>
+            )}
+        </h1>
         <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!canCreateWebsite || isUpdatingSession}>
           <Link href="/dashboard/websites/create">
             <PlusSquare className="mr-2 h-4 w-4" /> Create New Website
@@ -356,7 +369,7 @@ export default function DashboardPage() {
         </Button>
       </div>
       {!canCreateWebsite && (
-        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 text-yellow-700 rounded-md text-sm flex items-center">
+        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 text-yellow-700 rounded-md text-sm flex items-center dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-300">
            <AlertTriangle className="h-5 w-5 mr-2" />
           You've reached your website limit of {websiteLimit} for the {currentPlan?.name || 'current plan'}. Please upgrade to create more websites.
         </div>
