@@ -415,11 +415,13 @@ export async function saveWebsiteContent(input: SaveWebsiteContentInput): Promis
       websiteId: website._id,
       versionNumber: Date.now(), 
       pages: pages.map(p => ({
-        _id: p._id || new mongoose.Types.ObjectId().toString(), // Use existing string ID or generate new if not present
+        // Conditionally include _id only if it's a valid ObjectId string.
+        // Otherwise, let Mongoose generate a new one automatically.
+        ...(mongoose.Types.ObjectId.isValid(p._id as string) && { _id: p._id }),
         name: p.name,
         slug: p.slug,
         elements: p.elements?.map(el => ({
-            _id: el._id || new mongoose.Types.ObjectId().toString(), // Use existing string ID or generate new
+            ...(mongoose.Types.ObjectId.isValid(el._id as string) && { _id: el._id }),
             type: el.type,
             config: el.config,
             order: el.order,
