@@ -260,7 +260,7 @@ export function useEditor() {
     setActivePageIndex(currentPages.length);
     setSelectedElement(null);
     toast({ title: "Page Added", description: `Page "${newPage.name}" created. Don't forget to save.` });
-  }, [currentPages, updatePagesWithHistory, toast, setActivePageIndex, setSelectedElement]);
+  }, [currentPages, updatePagesWithHistory, toast]);
 
   const getEditorContentForSave = useCallback((): SaveWebsiteContentInput['pages'] => {
     const reorderAndClean = (elements: IPageComponent[]): any[] => {
@@ -355,6 +355,17 @@ export function useEditor() {
   const deleteNav = async (id: string) => {
     return await deleteNavigation(id);
   };
+  const fetchSiteNavigations = useCallback(async (id: string) => {
+      setIsNavigationsLoading(true);
+      const navResult = await getNavigationsByWebsiteId(id);
+      if (navResult.success && navResult.data) {
+        setAllSiteNavigations(navResult.data);
+      } else {
+        setAllSiteNavigations([]);
+        if (navResult.error) toast({ title: "Error", description: `Could not fetch navigations: ${navResult.error}`, variant: "destructive" });
+      }
+      setIsNavigationsLoading(false);
+  }, [toast]);
   
   return {
     websiteId, websiteData, currentPages, setCurrentPages, globalSettings, setGlobalSettings,
@@ -366,5 +377,6 @@ export function useEditor() {
     getEditorContentForSave, handleEditorSaveChanges, handleDragEnd, activeDraggedItem,
     setActiveDraggedItem, handleElementSelect,
     createNavigation: createNav, updateNavigation: updateNav, deleteNavigation: deleteNav,
+    fetchSiteNavigations,
   };
 }
