@@ -60,10 +60,16 @@ export async function editWebsite(input: EditWebsiteInput): Promise<EditWebsiteO
   return editWebsiteFlow(input);
 }
 
+const EditWebsitePromptInputSchema = EditWebsiteInputSchema.extend({ 
+    componentExamplesJson: z.string(),
+    globalSettingsJson: z.string(),
+    currentPagesJson: z.string(),
+});
+
 const editWebsitePrompt = ai.definePrompt({
   name: 'editWebsitePrompt',
   tools: [applyTemplate],
-  input: {schema: EditWebsiteInputSchema.extend({ componentExamples: z.any() })},
+  input: {schema: EditWebsitePromptInputSchema},
   output: {schema: EditWebsiteOutputSchema},
   model: 'googleai/gemini-1.5-flash-latest',
   prompt: `You are an expert web designer AI assistant integrated into a website builder.
@@ -74,7 +80,7 @@ Currently Active Page Slug: "{{{activePageSlug}}}"
 
 Available Components and their default structures:
 \`\`\`json
-{{{jsonEncode componentExamples}}}
+{{{componentExamplesJson}}}
 \`\`\`
 A list of recommended Google Fonts: "Inter", "Poppins", "Roboto", "Lato", "Montserrat", "Oswald", "Raleway", "Merriweather", "Playfair Display".
 
@@ -96,12 +102,12 @@ Instructions:
 
 Current Global Settings JSON:
 \`\`\`json
-{{{jsonEncode globalSettings}}}
+{{{globalSettingsJson}}}
 \`\`\`
 
 Current Website Pages JSON:
 \`\`\`json
-{{{jsonEncode currentPages}}}
+{{{currentPagesJson}}}
 \`\`\`
 `,
 });
@@ -124,10 +130,12 @@ const editWebsiteFlow = ai.defineFlow(
       ])
     );
     
-    // Augment the input object for the prompt
+    // Augment the input object for the prompt with JSON strings
     const promptInput = {
       ...input,
-      componentExamples,
+      componentExamplesJson: JSON.stringify(componentExamples, null, 2),
+      globalSettingsJson: JSON.stringify(input.globalSettings, null, 2),
+      currentPagesJson: JSON.stringify(input.currentPages, null, 2),
     };
 
     const {output} = await editWebsitePrompt(promptInput);
