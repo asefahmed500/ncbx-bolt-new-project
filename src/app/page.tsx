@@ -114,6 +114,25 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      <Link
+        href="https://bolt.new/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-lg bg-card px-3 py-2 text-sm shadow-lg transition-transform hover:scale-105 border border-border"
+      >
+        <Image
+          src="/bolt.new.jpg"
+          alt="bolt.new logo"
+          width={24}
+          height={24}
+          className="h-6 w-6 rounded-sm"
+          data-ai-hint="bolt logo"
+        />
+        <span className="font-medium text-muted-foreground">
+          Made with <span className="font-bold text-primary">bolt.new</span>
+        </span>
+      </Link>
     </div>
   );
 }
