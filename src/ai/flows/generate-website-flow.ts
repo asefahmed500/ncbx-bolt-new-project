@@ -13,7 +13,8 @@ import {z} from 'genkit';
 import {componentRegistry} from '@/components/editor/componentRegistry';
 
 // Define Zod schemas that mirror the Mongoose models for type-safe AI output.
-const PageComponentConfigSchema_Zod = z.record(z.any()).describe('A flexible object for component configuration. For images, use `src` for the URL and `dataAiHint` for a 1-2 word hint for image search. For text, use `text` or `htmlContent`.');
+// Using passthrough() to allow flexible properties while defining a base object, which resolves the API error.
+const PageComponentConfigSchema_Zod = z.object({}).passthrough().describe('A flexible object for component configuration. For images, use `src` for the URL and `dataAiHint` for a 1-2 word hint for image search. For text, use `text` or `htmlContent`.');
 
 const PageComponentSchema_Zod = z.object({
   _id: z.string().optional().describe("A unique identifier for the component."),
