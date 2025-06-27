@@ -104,6 +104,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // The `authorized` callback from auth.config is already included via the spread.
     ...authConfig.callbacks,
     async jwt({ token, user, trigger, session }) {
+        // Initial sign-in
         if (user && (trigger === "signIn" || trigger === "signUp")) {
           token.id = user.id;
           token.name = user.name;
@@ -117,27 +118,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.subscriptionLimits = user.subscriptionLimits;
         }
 
+        // When client calls `useSession().update(newData)`
         if (trigger === "update" && session) {
+            // Standard profile updates
             if (session.name !== undefined) token.name = session.name;
             if (session.avatarUrl !== undefined) token.avatarUrl = session.avatarUrl;
             
+            // Explicit trigger to re-fetch subscription data from DB
             if (session.refreshSubscription) { 
                 await dbConnect();
 
-                // Re-fetch the user to get the latest data, including purchased templates
                 const dbUser = await User.findById(token.id).lean();
                 if (dbUser) {
                     token.purchasedTemplateIds = dbUser.purchasedTemplateIds?.map(id => id.toString()) || [];
                 }
 
                 const dbSub = await Subscription.findOne({ userId: token.id }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
+                
                 let planDetails;
-                if (dbSub) {
+                if (dbSub && dbSub.stripePriceId) {
+                    console.log(`[Auth JWT Callback] Found DB subscription for user ${token.id}. Price ID: ${dbSub.stripePriceId}, Status: ${dbSub.stripeSubscriptionStatus}`);
                     planDetails = getPlanByStripePriceId(dbSub.stripePriceId);
-                    token.subscriptionStatus = dbSub.stripeSubscriptionStatus as string;
-                    token.subscriptionPlanId = planDetails?.id || 'free';
-                    token.subscriptionLimits = planDetails?.limits || getPlanById('free')?.limits;
+                    if (planDetails) {
+                        token.subscriptionStatus = dbSub.stripeSubscriptionStatus as string;
+                        token.subscriptionPlanId = planDetails.id;
+                        token.subscriptionLimits = planDetails.limits;
+                         console.log(`[Auth JWT Callback] User ${token.id} updated to plan: ${planDetails.id}`);
+                    } else {
+                        // This case can happen if the price ID in DB is old/invalid. Default to free.
+                        console.warn(`[Auth JWT Callback] Could not find plan for Price ID ${dbSub.stripePriceId}. Defaulting to free.`);
+                        planDetails = getPlanById('free');
+                        token.subscriptionStatus = dbSub.stripeSubscriptionStatus as string;
+                        token.subscriptionPlanId = 'free';
+                        token.subscriptionLimits = planDetails?.limits;
+                    }
                 } else {
+                    console.log(`[Auth JWT Callback] No active subscription found in DB for user ${token.id}. Setting to free plan.`);
                     planDetails = getPlanById('free');
                     token.subscriptionStatus = null;
                     token.subscriptionPlanId = 'free';

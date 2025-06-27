@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, FormEvent } from 'react';
+import React, { useEffect, useState, FormEvent, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -166,6 +166,7 @@ export default function DashboardPage() {
   const { data: session, status, update: updateSession } = useSession();
   const router = useRouter();
   const { toast } = useToast();
+  
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("10.00");
   const [couponCode, setCouponCode] = useState("");
@@ -176,10 +177,25 @@ export default function DashboardPage() {
   const [isStripePublishableKeyMissing, setIsStripePublishableKeyMissing] = useState(false);
   const [isStripeProPriceIdMissing, setIsStripeProPriceIdMissing] = useState(false);
 
+  const [isUpdatingSession, setIsUpdatingSession] = useState(false);
+  const processedSessionId = useRef<string | null>(null);
+
 
   const currentPlan = session?.user?.subscriptionPlanId ? getPlanById(session.user.subscriptionPlanId) : getPlanById('free');
   const subscriptionStatus = session?.user?.subscriptionStatus;
   const isActiveSubscription = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
+
+  const fetchWebsites = useCallback(async () => {
+    setIsLoadingWebsites(true);
+    const result = await getUserWebsites();
+    if (result.error) {
+      toast({ title: "Error", description: `Failed to load your websites: ${result.error}`, variant: "destructive" });
+      setUserWebsites([]);
+    } else if (result.websites) {
+      setUserWebsites(result.websites);
+    }
+    setIsLoadingWebsites(false);
+  }, [toast]);
   
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.includes('YOUR_STRIPE_PUBLISHABLE_KEY')) {
@@ -199,34 +215,42 @@ export default function DashboardPage() {
 
 
   useEffect(() => {
-    if (status === 'authenticated' && session?.user?.role === 'admin') {
-      router.replace('/admin/dashboard');
-    }
     if (status === 'authenticated') {
-        fetchWebsites();
-    }
-    const queryParams = new URLSearchParams(window.location.search);
-    if (queryParams.get('session_id')) {
-        toast({
-            title: "Subscription Updated!",
-            description: "Your subscription details may take a moment to refresh.",
-        });
-        updateSession({ refreshSubscription: true });
-        router.replace('/dashboard', undefined); 
-    }
-  }, [session, status, router, toast, updateSession]);
+      if(session?.user?.role === 'admin') {
+         router.replace('/admin/dashboard');
+         return;
+      }
+      fetchWebsites();
 
-  const fetchWebsites = async () => {
-    setIsLoadingWebsites(true);
-    const result = await getUserWebsites();
-    if (result.error) {
-      toast({ title: "Error", description: `Failed to load your websites: ${result.error}`, variant: "destructive" });
-      setUserWebsites([]);
-    } else if (result.websites) {
-      setUserWebsites(result.websites);
+      const queryParams = new URLSearchParams(window.location.search);
+      const sessionIdFromUrl = queryParams.get('session_id');
+
+      if (sessionIdFromUrl && sessionIdFromUrl !== processedSessionId.current) {
+        processedSessionId.current = sessionIdFromUrl; // Mark as processed
+        setIsUpdatingSession(true);
+
+        toast({
+            title: "Finalizing Subscription...",
+            description: "Please wait while we update your account details.",
+            duration: 10000,
+        });
+
+        // Wait a couple of seconds to increase the chance of the webhook having completed
+        setTimeout(() => {
+          updateSession({ refreshSubscription: true }).finally(() => {
+            setIsUpdatingSession(false);
+            toast({
+              title: "Account Updated!",
+              description: "Your new subscription plan is now active.",
+            });
+            fetchWebsites(); // Re-fetch websites to reflect new limits
+          });
+        }, 3000); // 3-second delay
+
+        router.replace('/dashboard', undefined); 
+      }
     }
-    setIsLoadingWebsites(false);
-  };
+  }, [session, status, router, toast, updateSession, fetchWebsites]);
 
   const handleSubscribeToPro = async () => {
     setIsSubscribing(true);
@@ -278,11 +302,11 @@ export default function DashboardPage() {
     setDeletingWebsiteId(null);
   };
 
-  if (status === 'loading') {
+  if (status === 'loading' || isUpdatingSession) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)]">
         <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-        <p className="text-lg font-medium text-muted-foreground">Loading dashboard...</p>
+        <p className="text-lg font-medium text-muted-foreground">{isUpdatingSession ? 'Finalizing your new plan...' : 'Loading dashboard...'}</p>
       </div>
     );
   }
@@ -325,7 +349,7 @@ export default function DashboardPage() {
     <div className="flex-1 p-6 md:p-10">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-headline font-semibold">Dashboard</h1>
-        <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!canCreateWebsite}>
+        <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!canCreateWebsite || isUpdatingSession}>
           <Link href="/dashboard/websites/create">
             <PlusSquare className="mr-2 h-4 w-4" /> Create New Website
           </Link>
@@ -472,7 +496,7 @@ export default function DashboardPage() {
                      <TooltipTrigger asChild>
                         <Button
                           onClick={handleSubscribeToPro}
-                          disabled={isSubscribing || isStripeProPriceIdMissing}
+                          disabled={isSubscribing || isStripeProPriceIdMissing || isUpdatingSession}
                           className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                           {isSubscribing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" /> }
@@ -506,7 +530,7 @@ export default function DashboardPage() {
                 <TooltipProvider>
                   <Tooltip open={isStripeProPriceIdMissing ? undefined : false}>
                     <TooltipTrigger asChild>
-                        <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleSubscribeToPro} disabled={isStripeProPriceIdMissing || isStripePublishableKeyMissing}>
+                        <Button className="mt-4 w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleSubscribeToPro} disabled={isStripeProPriceIdMissing || isStripePublishableKeyMissing || isUpdatingSession}>
                             <ArrowUpCircle className="mr-2 h-4 w-4" />
                             Upgrade Plan to Increase Limits
                         </Button>
