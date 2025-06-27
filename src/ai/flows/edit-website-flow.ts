@@ -14,8 +14,15 @@ import {componentRegistry} from '@/components/editor/componentRegistry';
 import { applyTemplate } from '@/ai/tools/template-tools';
 
 // Re-using schemas from the generation flow for consistency.
-// Using passthrough() to allow flexible properties while defining a base object, which resolves the API error.
-const PageComponentConfigSchema_Zod = z.object({}).passthrough().describe('A flexible object for component configuration.');
+const PageComponentConfigSchema_Zod = z.object({
+    text: z.string().optional(),
+    src: z.string().optional(),
+    alt: z.string().optional(),
+    htmlContent: z.string().optional(),
+    backgroundColor: z.string().optional(),
+    textColor: z.string().optional(),
+}).passthrough().describe('A flexible object for component configuration.');
+
 const PageComponentSchema_Zod = z.object({
   _id: z.string().optional().describe("A unique identifier for the component."),
   type: z.string().describe('The type of the component to render.'),
