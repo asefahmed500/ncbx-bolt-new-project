@@ -8,8 +8,7 @@ import ElementRenderer from '@/components/site-renderer/ElementRenderer';
 // This page handles the root slug "/" for sites identified by hostname.
 
 export default async function SiteRootPage() {
-  const headersList = headers();
-  const host = headersList.get('host') || '';
+  const host = headers().get('host') || '';
   const slug = '/'; // This page specifically handles the root
 
   const { website, publishedVersion, navigations, error } = await getPublishedSiteDataByHost(host);

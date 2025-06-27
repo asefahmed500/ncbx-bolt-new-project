@@ -10,8 +10,7 @@ type SiteSlugPageProps = {
 };
 
 export default async function SiteSlugPage({ params }: SiteSlugPageProps) {
-  const headersList = headers();
-  const host = headersList.get('host') || '';
+  const host = headers().get('host') || '';
   // params.siteSlug is guaranteed to be an array of strings here, e.g., ['about'] or ['products', 'item']
   const slug = `/${params.siteSlug.join('/')}`;
 
