@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/auth';
 import { updateTemplateMetadataByAdmin, updateTemplateStatusByAdmin, getTemplateDataForExport } from '@/actions/admin';
 import Template from '@/models/Template'; // For GET
+import TemplateReview from '@/models/TemplateReview';
+import ModerationQueueItem from '@/models/ModerationQueueItem';
 import dbConnect from '@/lib/dbConnect';
 import mongoose from 'mongoose';
 
@@ -112,15 +114,39 @@ export async function DELETE(
     }
 
     await dbConnect();
-    const deletedTemplate = await Template.findByIdAndDelete(templateId);
-    // TODO: Also delete related TemplateReviews and ModerationQueueItems if necessary
-
-    if (!deletedTemplate) {
+    
+    // Find the template to ensure it exists before proceeding
+    const template = await Template.findById(templateId);
+    if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
-    // Note: Admin actions for delete might be more complex (e.g., cascade deletes)
-    // This is a direct DB delete.
-    return NextResponse.json({ success: `Template ${templateId} deleted successfully.` }, { status: 200 });
+    
+    // Find reviews associated with the template to also delete their moderation items
+    const reviews = await TemplateReview.find({ templateId: template._id }).select('_id').lean();
+    const reviewIds = reviews.map(r => r._id);
+
+    // Concurrently delete the template and its related data
+    const [templateDeletionResult, reviewDeletionResult, moderationDeletionResult] = await Promise.all([
+      Template.deleteOne({ _id: templateId }),
+      TemplateReview.deleteMany({ templateId }),
+      ModerationQueueItem.deleteMany({
+        $or: [
+          // Moderation items for the template itself (e.g., submission)
+          { contentId: templateId, contentRefModel: 'Template' },
+          // Moderation items for any of the template's reviews
+          { contentRefModel: 'TemplateReview', contentId: { $in: reviewIds } }
+        ]
+      })
+    ]);
+
+    if (templateDeletionResult.deletedCount === 0) {
+        return NextResponse.json({ error: 'Template not found or already deleted during process.' }, { status: 404 });
+    }
+    
+    console.log(`[API_DELETE_TEMPLATE_${templateId}] Deleted template. Reviews deleted: ${reviewDeletionResult.deletedCount}. Moderation items deleted: ${moderationDeletionResult.deletedCount}.`);
+
+    return NextResponse.json({ success: `Template ${templateId} and all associated data deleted successfully.` }, { status: 200 });
+
   } catch (error: any) {
     console.error(`[API_DELETE_TEMPLATE_${params.templateId}] Error:`, error);
     return NextResponse.json({ error: 'Failed to delete template: ' + error.message }, { status: 500 });
