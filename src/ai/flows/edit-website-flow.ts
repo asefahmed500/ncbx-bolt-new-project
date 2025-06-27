@@ -39,7 +39,7 @@ const GlobalSettingsSchema_Zod = z.object({
 
 
 // Input and Output types for the flow
-export const EditWebsiteInputSchema = z.object({
+const EditWebsiteInputSchema = z.object({
   prompt: z.string().describe('The user\'s command for editing the website.'),
   currentPages: z.array(PageSchema_Zod).describe('The current JSON structure of all pages on the website.'),
   globalSettings: GlobalSettingsSchema_Zod.optional().describe('The current global settings of the website.'),
@@ -47,7 +47,7 @@ export const EditWebsiteInputSchema = z.object({
 });
 export type EditWebsiteInput = z.infer<typeof EditWebsiteInputSchema>;
 
-export const EditWebsiteOutputSchema = z.object({
+const EditWebsiteOutputSchema = z.object({
   modifiedPages: z.array(PageSchema_Zod).describe('The complete, modified JSON structure of the pages.'),
   modifiedGlobalSettings: GlobalSettingsSchema_Zod.optional().describe('The complete, modified JSON structure for the global settings.'),
   explanation: z.string().describe('A brief, user-facing explanation of what changes were made.'),
