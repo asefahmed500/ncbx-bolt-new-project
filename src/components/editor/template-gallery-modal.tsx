@@ -17,7 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { getApprovedTemplates } from '@/actions/templates';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ShoppingCart, Search, ExternalLink, Tags, LayoutGrid, Star } from 'lucide-react';
+import { Loader2, ShoppingCart, Search, ExternalLink, Tags, LayoutGrid, Star, Lock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,7 @@ import type { ITemplate } from '@/models/Template';
 import { PremiumTemplatePaymentModal } from './premium-template-payment-modal';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
+import Link from 'next/link';
 
 let stripePromise: Promise<Stripe | null> | null = null;
 const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
@@ -101,7 +102,17 @@ export function TemplateGalleryModal({ isOpen, onOpenChange, onApplyTemplate }: 
     }
     
     const hasPurchased = session.user.purchasedTemplateIds?.includes(templateIdString);
+    const isProUser = session.user.subscriptionPlanId === 'pro' || session.user.subscriptionPlanId === 'enterprise';
 
+    // Pro users get all premium templates for free
+    if (template.isPremium && isProUser) {
+        toast({ title: "Pro Access!", description: `Using premium template "${template.name}" as part of your Pro plan.`});
+        onApplyTemplate(template);
+        onOpenChange(false);
+        return;
+    }
+
+    // Handle one-time purchase for non-pro users
     if (template.isPremium && !hasPurchased && template.price) {
       if (!stripePromise) {
         toast({ title: "Payments Not Configured", description: "The payment system is not available. Please contact support.", variant: "destructive" });
@@ -167,22 +178,41 @@ export function TemplateGalleryModal({ isOpen, onOpenChange, onApplyTemplate }: 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
                 {filteredTemplates.map((template) => {
                   const templateIdString = (template._id as unknown as string).toString();
+                  const isProUser = session?.user?.subscriptionPlanId === 'pro' || session?.user?.subscriptionPlanId === 'enterprise';
                   const hasPurchased = session?.user?.purchasedTemplateIds?.includes(templateIdString);
+                  const hasAccess = !template.isPremium || isProUser || hasPurchased;
+                  
                   let buttonText = "Use Template";
-                  if (template.isPremium && !hasPurchased && template.price) {
-                    buttonText = `Buy for $${(template.price / 100).toFixed(2)}`;
+                  let buttonAction = () => onApplyTemplate(template);
+                  
+                  if (template.isPremium && !hasAccess) {
+                    if(template.price) {
+                        buttonText = `Buy for $${(template.price / 100).toFixed(2)}`;
+                        buttonAction = () => handleTemplateAction(template);
+                    } else {
+                        buttonText = "Upgrade to Use";
+                        // This will link to pricing page instead of trying to buy
+                        buttonAction = () => router.push('/pricing');
+                    }
+                  } else if (template.isPremium && hasAccess) {
+                    buttonText = "Use Template";
+                    buttonAction = () => {
+                       if(!isProUser) toast({title: "Template Unlocked", description: "You have access because you previously purchased this template."});
+                       onApplyTemplate(template);
+                    };
                   }
 
                   return (
                     <Card key={templateIdString} className="overflow-hidden bg-card border-border hover:shadow-lg transition-shadow flex flex-col">
                       <CardHeader className="p-0 relative">
                         <Image src={template.previewImageUrl || "https://placehold.co/300x200.png"} alt={template.name} width={300} height={200} className="w-full h-auto object-cover aspect-[3/2]" data-ai-hint={(template as any).dataAiHint || template.tags?.join(" ") || template.name} />
-                        {template.isPremium && (<Badge variant={hasPurchased ? "default" : "destructive"} className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 border-yellow-500"><Star className="mr-1 h-3 w-3"/>{hasPurchased ? "Purchased" : "Premium"}</Badge>)}
+                        {template.isPremium && (<Badge variant={hasAccess ? "default" : "destructive"} className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 border-yellow-500"><Star className="mr-1 h-3 w-3"/>Premium</Badge>)}
+                        {!hasAccess && template.isPremium && <div className="absolute inset-0 bg-black/30 flex items-center justify-center"><Lock className="h-8 w-8 text-white/80"/></div>}
                         <Badge variant="outline" className="absolute top-2 left-2 bg-card/80 backdrop-blur-sm capitalize">{template.category || 'General'}</Badge>
                       </CardHeader>
-                      <CardContent className="p-4 flex-grow"><CardTitle className="text-md font-headline text-card-foreground">{template.name}</CardTitle>{template.isPremium && !hasPurchased && template.price && (<p className="text-sm font-semibold text-primary mt-1">Price: ${(template.price / 100).toFixed(2)}</p>)}{template.tags && template.tags.length > 0 && (<div className="mt-2 flex flex-wrap gap-1 items-center"><Tags className="w-3 h-3 text-muted-foreground mr-1" />{template.tags.slice(0, 3).map(tag => (<Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>))}{template.tags.length > 3 && <Badge variant="secondary" className="text-xs">...</Badge>}</div>)}</CardContent>
+                      <CardContent className="p-4 flex-grow"><CardTitle className="text-md font-headline text-card-foreground">{template.name}</CardTitle>{template.isPremium && template.price && (<p className="text-sm font-semibold text-primary mt-1">Price: ${(template.price / 100).toFixed(2)}</p>)}{template.tags && template.tags.length > 0 && (<div className="mt-2 flex flex-wrap gap-1 items-center"><Tags className="w-3 h-3 text-muted-foreground mr-1" />{template.tags.slice(0, 3).map(tag => (<Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>))}{template.tags.length > 3 && <Badge variant="secondary" className="text-xs">...</Badge>}</div>)}</CardContent>
                       <CardFooter className="p-4 pt-0 mt-auto flex flex-col sm:flex-row gap-2">
-                        <Button size="sm" className="w-full sm:flex-1 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => handleTemplateAction(template)} disabled={isLoadingSession}>{(template.isPremium && !hasPurchased && template.price) ? <ShoppingCart className="mr-2 h-4 w-4" /> : null}{buttonText}</Button>
+                        <Button size="sm" className="w-full sm:flex-1 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={buttonAction} disabled={isLoadingSession}>{(template.isPremium && !hasAccess) ? <ShoppingCart className="mr-2 h-4 w-4" /> : null}{buttonText}</Button>
                         {template.liveDemoUrl && (<Button asChild size="sm" variant="outline" className="w-full sm:flex-1"><a href={template.liveDemoUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" />Live Demo</a></Button>)}
                       </CardFooter>
                     </Card>

@@ -54,6 +54,9 @@ export function useEditor() {
   
   const [allSiteNavigations, setAllSiteNavigations] = useState<INavigation[]>([]);
   const [isNavigationsLoading, setIsNavigationsLoading] = useState(false);
+
+  const [aiUsageCount, setAiUsageCount] = useState(0);
+  const AI_USAGE_LIMIT_FREE = 5;
   
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -378,5 +381,6 @@ export function useEditor() {
     setActiveDraggedItem, handleElementSelect,
     createNavigation: createNav, updateNavigation: updateNav, deleteNavigation: deleteNav,
     fetchSiteNavigations,
+    aiUsageCount, setAiUsageCount, AI_USAGE_LIMIT_FREE,
   };
 }

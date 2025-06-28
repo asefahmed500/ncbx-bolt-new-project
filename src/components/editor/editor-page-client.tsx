@@ -2,13 +2,14 @@
 "use client";
 
 import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { useEditor } from '@/hooks/useEditor';
 import { AppHeader, type DeviceType } from '@/components/editor/app-header';
 import { ComponentLibrarySidebar } from '@/components/editor/component-library-sidebar';
 import { CanvasEditor } from '@/components/editor/canvas-editor';
 import { PropertiesPanel } from '@/components/editor/properties-panel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertTriangle, Trash2 } from 'lucide-react';
+import { Loader2, AlertTriangle, Trash2, Wand2 as Wand2Icon } from 'lucide-react';
 import { SaveTemplateModal } from '@/components/editor/save-template-modal';
 import { TemplateGalleryModal } from '@/components/editor/template-gallery-modal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -27,6 +28,7 @@ import { getComponentConfig } from './componentRegistry';
 const newObjectId = () => Math.random().toString(36).substring(2, 15);
 
 export default function EditorPageComponent() {
+  const { data: session } = useSession();
   const { toast } = useToast();
   const editorState = useEditor();
   const {
@@ -42,6 +44,9 @@ export default function EditorPageComponent() {
     activeDraggedItem,
     canUndo,
     canRedo,
+    aiUsageCount,
+    AI_USAGE_LIMIT_FREE,
+    setAiUsageCount,
     setActivePageIndex,
     setSelectedElement,
     updatePagesWithHistory,
@@ -211,8 +216,21 @@ export default function EditorPageComponent() {
 
   const handleAiPromptSubmit = async (prompt: string): Promise<string | null> => {
     if (!websiteId) { toast({ title: "No Website Selected", description: "Please save your website first before using the AI assistant.", variant: "destructive"}); return "I can't edit until the website is saved. Please save your work first."; }
+    
+    const isPro = session?.user?.subscriptionPlanId === 'pro' || session?.user?.subscriptionPlanId === 'enterprise';
+    if (!isPro && aiUsageCount >= AI_USAGE_LIMIT_FREE) {
+        toast({
+            title: "AI Usage Limit Reached",
+            description: `You have used your ${AI_USAGE_LIMIT_FREE} free AI generations. Please upgrade to Pro for unlimited use.`,
+            variant: "destructive",
+            action: <AlertDialogAction onClick={() => router.push('/pricing')}>Upgrade</AlertDialogAction>
+        });
+        return `You've reached the AI usage limit for free users (${aiUsageCount}/${AI_USAGE_LIMIT_FREE}).`;
+    }
+
     setIsAiProcessing(true);
     try {
+        if(!isPro) setAiUsageCount(prev => prev + 1);
         const input: EditWebsiteInput = { prompt, currentPages: getEditorContentForSave(), globalSettings: globalSettings, activePageSlug: currentPages[activePageIndex]?.slug || '/', };
         const result = await editWebsite(input);
         const newPagesFromAI = result.modifiedPages || [];
@@ -222,7 +240,8 @@ export default function EditorPageComponent() {
             setSelectedElement(null);
         }
         if (result.modifiedGlobalSettings) { handleGlobalSettingsChange('fontFamily', result.modifiedGlobalSettings.fontFamily); handleGlobalSettingsChange('fontHeadline', result.modifiedGlobalSettings.fontHeadline); handleGlobalSettingsChange('siteName', result.modifiedGlobalSettings.siteName); }
-        toast({ title: "AI Assistant", description: result.explanation });
+        const usageMessage = !isPro ? ` (${aiUsageCount + 1}/${AI_USAGE_LIMIT_FREE} uses left)` : '';
+        toast({ title: "AI Assistant", description: `${result.explanation}${usageMessage}` });
         logAiInteraction({ websiteId, prompt, response: result.explanation, status: 'success' });
         return result.explanation;
     } catch (error: any) {
@@ -236,7 +255,7 @@ export default function EditorPageComponent() {
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   
   if (isLoadingWebsite) return ( <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center"> <Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="mt-4 text-muted-foreground">Loading editor...</p> </div> );
-  if (!websiteId && !isLoadingWebsite) return ( <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center p-8"> <Card className="max-w-md text-center"><CardHeader><CardTitle className="text-destructive flex items-center justify-center"><AlertTriangle className="mr-2" />Error: Website Not Specified</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">No website ID was provided. Select a website from your dashboard.</p><Button asChild className="mt-6"><a href="/dashboard">Go to Dashboard</a></Button></CardContent></Card> </div> );
+  if (!websiteId && !isLoadingWebsite) return ( <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden items-center justify-center p-8"> <Card className="max-w-md text-center"><CardHeader><CardTitle className="text-destructive flex items-center justify-center"><AlertTriangle className="mr-2" />Error: Website Not Specified</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">No website ID was provided. Select a website from your dashboard.</p><Button asChild className="mt-6"><a href="/dashboard">Go to Dashboard</a></Button></CardContent></Card></div> );
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(event) => setActiveDraggedItem(event.active)} onDragEnd={handleDragEnd}>

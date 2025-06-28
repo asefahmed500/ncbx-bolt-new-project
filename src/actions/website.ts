@@ -176,8 +176,9 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
     if (templateId) {
       const template = await Template.findById(templateId).lean(); // Use lean for plain object
       const hasPurchased = session.user.purchasedTemplateIds?.includes(templateId);
+      const isProUser = session.user.subscriptionPlanId === 'pro' || session.user.subscriptionPlanId === 'enterprise';
 
-      if (template && template.status === 'approved' && (!template.isPremium || hasPurchased)) {
+      if (template && template.status === 'approved' && (!template.isPremium || hasPurchased || isProUser)) {
         initialPages = template.pages.map(p => ({
           _id: new mongoose.Types.ObjectId().toString(), // New ID for this instance
           name: p.name,
@@ -191,8 +192,8 @@ export async function createWebsite(input: CreateWebsiteInput): Promise<CreateWe
           seoTitle: p.seoTitle,
           seoDescription: p.seoDescription,
         }));
-      } else if (template?.isPremium && !hasPurchased) {
-          return { error: "You have not purchased this premium template." };
+      } else if (template?.isPremium && !hasPurchased && !isProUser) {
+          return { error: "You need to purchase this premium template or upgrade to a Pro plan to use it." };
       } else {
         console.warn(`[CreateWebsite] Template ${templateId} not found, not approved, or purchase issue. Creating blank website.`);
       }

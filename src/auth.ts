@@ -74,10 +74,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         let planDetails: AppPlan | undefined;
         let subscriptionStatusForSession: string | null = null;
 
-        if (currentSubscription && currentSubscription.stripePriceId) {
+        if (currentSubscription && currentSubscription.stripePriceId && (currentSubscription.stripeSubscriptionStatus === 'active' || currentSubscription.stripeSubscriptionStatus === 'trialing')) {
             planDetails = getPlanByStripePriceId(currentSubscription.stripePriceId);
             subscriptionStatusForSession = currentSubscription.stripeSubscriptionStatus as string;
         }
+        
         if (!planDetails) {
             planDetails = getPlanById('free');
         }
@@ -133,11 +134,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     token.purchasedTemplateIds = dbUser.purchasedTemplateIds?.map(id => id.toString()) || [];
                 }
 
-                const dbSub = await Subscription.findOne({ userId: token.id }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
+                const dbSub = await Subscription.findOne({ 
+                  userId: token.id,
+                  stripeSubscriptionStatus: { $in: ['active', 'trialing'] } // Only look for active subscriptions
+                }).sort({ stripeCurrentPeriodEnd: -1 }).lean();
                 
                 let planDetails;
                 if (dbSub && dbSub.stripePriceId) {
-                    console.log(`[Auth JWT Callback] Found DB subscription for user ${token.id}. Price ID: ${dbSub.stripePriceId}, Status: ${dbSub.stripeSubscriptionStatus}`);
+                    console.log(`[Auth JWT Callback] Found active DB subscription for user ${token.id}. Price ID: ${dbSub.stripePriceId}, Status: ${dbSub.stripeSubscriptionStatus}`);
                     planDetails = getPlanByStripePriceId(dbSub.stripePriceId);
                     if (planDetails) {
                         token.subscriptionStatus = dbSub.stripeSubscriptionStatus as string;
