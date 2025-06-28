@@ -537,12 +537,18 @@ export async function deleteWebsite(input: { websiteId: string }): Promise<Omit<
       return { error: "Unauthorized to delete this website." };
     }
 
-    const deletionResult = await WebsiteVersion.deleteMany({ websiteId: website._id });
-    console.log(`[WebsiteAction_Delete] Deleted ${deletionResult.deletedCount} versions for website ${websiteId}.`);
-    await Website.findByIdAndDelete(website._id);
+    // Concurrently delete the website, all its versions, and all its navigations
+    const [_, versionDeletionResult, navigationDeletionResult] = await Promise.all([
+      Website.deleteOne({ _id: website._id }),
+      WebsiteVersion.deleteMany({ websiteId: website._id }),
+      Navigation.deleteMany({ websiteId: website._id }),
+    ]);
     
     console.log(`[WebsiteAction_Delete] Website ${websiteId} deleted successfully.`);
-    return { success: "Website and all its versions deleted successfully." };
+    console.log(`[WebsiteAction_Delete] Deleted ${versionDeletionResult.deletedCount} versions for website ${websiteId}.`);
+    console.log(`[WebsiteAction_Delete] Deleted ${navigationDeletionResult.deletedCount} navigations for website ${websiteId}.`);
+
+    return { success: "Website and all its associated data deleted successfully." };
   } catch (error: any) {
     console.error(`[WebsiteAction_Delete] Error deleting website ${websiteId}:`, error);
     return { error: `Failed to delete website: ${error.message}` };
