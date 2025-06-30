@@ -1,20 +1,44 @@
 
 import NextAuth from 'next-auth';
 import { authConfig } from './auth.config';
- 
-export default NextAuth(authConfig).auth;
- 
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+const { auth } = NextAuth(authConfig);
+
+// This is our new middleware function that wraps NextAuth's logic
+export default auth((request) => {
+  const url = request.nextUrl;
+  const hostname = request.headers.get('host')!;
+  
+  // Use a base domain without port for comparison.
+  // In Vercel, this will be your production domain. Locally, it's 'localhost'.
+  const appBaseDomain = process.env.NEXT_PUBLIC_APP_BASE_DOMAIN || 'localhost';
+  
+  const path = url.pathname;
+
+  // Don't rewrite for API routes or static files
+  if (path.startsWith('/api') || path.startsWith('/_next') || path.match(/\.(jpeg|jpg|gif|png|svg|ico|webp)$/)) {
+    return;
+  }
+  
+  // Check if the request is for the main marketing/app site
+  // This check works for `localhost:9003` and `www.ncbx.com`
+  const isMainApp = hostname.startsWith(appBaseDomain) || hostname.startsWith(`www.${appBaseDomain}`);
+  
+  if (!isMainApp) {
+    // It's a subdomain or custom domain, rewrite to the /sites directory
+    return NextResponse.rewrite(new URL(`/sites${path}`, request.url));
+  }
+  
+  // If it is the main app, the auth() wrapper handles protected route logic automatically.
+  // We don't need to do anything else here for the main app's auth.
+});
+
+
 export const config = {
-  // https://nextjs.org/docs/app/building-your-application/routing/middleware#matcher
+  // Match all paths except for the ones explicitly excluded
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - any other files with extensions like .png, .jpg, etc
-     */
     '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };
