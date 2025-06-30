@@ -40,7 +40,7 @@ NCBX is a full-featured, no-code website builder that empowers users to create p
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/ncbx-canvas.git
+git clone https://github.com/asefahmed500/ncbx-bolt-new-project
 cd ncbx-canvas
 ```
 
