@@ -5,20 +5,21 @@ import { getPublishedSiteDataByHost } from '@/actions/website';
 import type { IWebsiteVersionPage } from '@/models/WebsiteVersion';
 import ElementRenderer from '@/components/site-renderer/ElementRenderer';
 
-// This is an optional catch-all route.
-// - For `yoursite.com/`, `params.siteSlug` will be undefined.
-// - For `yoursite.com/about`, `params.siteSlug` will be `['about']`.
-// - For `yoursite.com/products/item1`, `params.siteSlug` will be `['products', 'item1']`.
-type SitePageProps = {
-  params: { siteSlug?: string[] };
+/**
+ * This is a required catch-all route that handles all sub-pages of a user's site.
+ * e.g., yoursite.com/about -> params.siteSlug will be ['about']
+ * e.g., yoursite.com/products/item1 -> params.siteSlug will be ['products', 'item1']
+ */
+type SiteSlugPageProps = {
+  params: { siteSlug: string[] }; // This is now a required array
 };
 
-export default async function SitePage({ params }: SitePageProps) {
+export default async function SiteSlugPage({ params }: SiteSlugPageProps) {
   const headersList = await headers();
   const host = headersList.get('host') || '';
 
-  // If siteSlug exists, join it to form a path. Otherwise, it's the root page ("/").
-  const slug = params.siteSlug && params.siteSlug.length > 0 ? `/${params.siteSlug.join('/')}` : '/';
+  // params.siteSlug is guaranteed to be an array of strings here.
+  const slug = `/${params.siteSlug.join('/')}`;
 
   const { website, publishedVersion, navigations, error } = await getPublishedSiteDataByHost(host);
 
