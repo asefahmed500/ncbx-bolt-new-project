@@ -28,7 +28,7 @@ export default auth((request) => {
   
   if (!isMainApp) {
     // It's a subdomain or custom domain, rewrite to the /sites directory
-    return NextResponse.rewrite(new URL(`/sites${path}`, request.url));
+    return NextResponse.rewrite(new URL(`/sites${path === '/' ? '' : path}`, request.url));
   }
   
   // If it is the main app, the auth() wrapper handles protected route logic automatically.
