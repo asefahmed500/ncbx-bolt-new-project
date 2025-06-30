@@ -1,3 +1,4 @@
+
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getPublishedSiteDataByHost } from '@/actions/website';
@@ -5,18 +6,20 @@ import type { IWebsiteVersionPage } from '@/models/WebsiteVersion';
 import ElementRenderer from '@/components/site-renderer/ElementRenderer';
 
 /**
- * This is the optional catch-all route that handles rendering ALL pages for a user's site.
+ * This is the NEW catch-all route that handles rendering ALL pages for a user's site.
+ * It's served from the /sites/ directory, but middleware rewrites user domains to it.
  * - yoursite.com/ -> params.siteSlug will be undefined
  * - yoursite.com/about -> params.siteSlug will be ['about']
  * - yoursite.com/products/item1 -> params.siteSlug will be ['products', 'item1']
  */
 type SitePageProps = {
-  params: { siteSlug?: string[] }; // siteSlug is optional
+  params: { siteSlug?: string[] };
 };
 
 export default async function SitePage({ params }: SitePageProps) {
   const headersList = headers();
-  const host = headersList.get('host') || '';
+  // Vercel might add the port, so we remove it for consistent matching.
+  const host = headersList.get('host')?.split(':')[0] || '';
 
   // Construct the slug from the params.
   // If params.siteSlug is undefined (root page), slug is '/'. Otherwise, join the parts.
