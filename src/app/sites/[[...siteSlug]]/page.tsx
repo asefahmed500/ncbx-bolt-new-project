@@ -1,4 +1,3 @@
-
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getPublishedSiteDataByHost } from '@/actions/website';
@@ -6,20 +5,22 @@ import type { IWebsiteVersionPage } from '@/models/WebsiteVersion';
 import ElementRenderer from '@/components/site-renderer/ElementRenderer';
 
 /**
- * This is a required catch-all route that handles all sub-pages of a user's site.
- * e.g., yoursite.com/about -> params.siteSlug will be ['about']
- * e.g., yoursite.com/products/item1 -> params.siteSlug will be ['products', 'item1']
+ * This is the optional catch-all route that handles rendering ALL pages for a user's site.
+ * - yoursite.com/ -> params.siteSlug will be undefined
+ * - yoursite.com/about -> params.siteSlug will be ['about']
+ * - yoursite.com/products/item1 -> params.siteSlug will be ['products', 'item1']
  */
-type SiteSlugPageProps = {
-  params: { siteSlug: string[] }; // This is now a required array
+type SitePageProps = {
+  params: { siteSlug?: string[] }; // siteSlug is optional
 };
 
-export default async function SiteSlugPage({ params }: SiteSlugPageProps) {
-  const headersList = await headers();
+export default async function SitePage({ params }: SitePageProps) {
+  const headersList = headers();
   const host = headersList.get('host') || '';
 
-  // params.siteSlug is guaranteed to be an array of strings here.
-  const slug = `/${params.siteSlug.join('/')}`;
+  // Construct the slug from the params.
+  // If params.siteSlug is undefined (root page), slug is '/'. Otherwise, join the parts.
+  const slug = params.siteSlug ? `/${params.siteSlug.join('/')}` : '/';
 
   const { website, publishedVersion, navigations, error } = await getPublishedSiteDataByHost(host);
 

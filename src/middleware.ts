@@ -1,4 +1,3 @@
-
 import NextAuth from 'next-auth';
 import { authConfig } from './auth.config';
 import { NextResponse } from 'next/server';
@@ -17,21 +16,22 @@ export default auth((request) => {
   
   const path = url.pathname;
 
-  // Don't rewrite for API routes or static files
+  // Prevent rewrite for API routes, static files, and images
   if (path.startsWith('/api') || path.startsWith('/_next') || path.match(/\.(jpeg|jpg|gif|png|svg|ico|webp)$/)) {
-    return;
+    return; // Do nothing, let Next.js handle it
   }
   
   // Check if the request is for the main marketing/app site
-  // This check works for `localhost:9003` and `www.ncbx.com`
+  // This check works for `localhost:9003`, `ncbx.com`, and `www.ncbx.com`
   const isMainApp = hostname.startsWith(appBaseDomain) || hostname.startsWith(`www.${appBaseDomain}`);
   
   if (!isMainApp) {
-    // It's a subdomain or custom domain, rewrite to the /sites directory
-    return NextResponse.rewrite(new URL(`/sites${path === '/' ? '' : path}`, request.url));
+    // It's a subdomain or custom domain, so rewrite to the /sites directory
+    // Note: `url.pathname` already includes the leading slash
+    return NextResponse.rewrite(new URL(`/sites${url.pathname}`, request.url));
   }
   
-  // If it is the main app, the auth() wrapper handles protected route logic automatically.
+  // If it IS the main app, the auth() wrapper handles protected route logic automatically.
   // We don't need to do anything else here for the main app's auth.
 });
 

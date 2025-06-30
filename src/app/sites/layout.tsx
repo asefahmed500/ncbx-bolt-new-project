@@ -1,4 +1,3 @@
-
 import type { Metadata, ResolvingMetadata } from 'next';
 import { headers } from 'next/headers';
 import { getPublishedSiteDataByHost } from '@/actions/website';
@@ -12,7 +11,7 @@ export async function generateMetadata(
   { params }: Props,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const headersList = await headers();
+  const headersList = headers();
   const host = headersList.get('host') || '';
   const slug = params.siteSlug && params.siteSlug.length > 0 ? `/${params.siteSlug.join('/')}` : '/';
 
@@ -39,7 +38,7 @@ export default async function SiteLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const headersList = await headers();
+  const headersList = headers();
   const host = headersList.get('host') || '';
   const { publishedVersion } = await getPublishedSiteDataByHost(host);
 
@@ -56,8 +55,8 @@ export default async function SiteLayout({
         <link href={googleFontsUrl} rel="stylesheet" />
         <style dangerouslySetInnerHTML={{ __html: `
           :root {
-            --font-body: "${fontBody}";
-            --font-headline: "${fontHeadline}";
+            --font-body: "${fontBody}", sans-serif;
+            --font-headline: "${fontHeadline}", sans-serif;
           }
         `}} />
       </head>
