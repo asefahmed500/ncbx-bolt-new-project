@@ -1,31 +1,32 @@
-
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getPublishedSiteDataByHost } from '@/actions/website';
 import type { IWebsiteVersionPage } from '@/models/WebsiteVersion';
 import ElementRenderer from '@/components/site-renderer/ElementRenderer';
 
-type SiteSlugPageProps = {
-  params: { siteSlug: string[] }; // siteSlug will always be present and have items
+// This becomes an optional catch-all route
+type SitePageProps = {
+  params: { siteSlug?: string[] }; // siteSlug is now optional
 };
 
-export default async function SiteSlugPage({ params }: SiteSlugPageProps) {
+export default async function SitePage({ params }: SitePageProps) {
   const headersList = await headers();
   const host = headersList.get('host') || '';
-  // params.siteSlug is guaranteed to be an array of strings here, e.g., ['about'] or ['products', 'item']
-  const slug = `/${params.siteSlug.join('/')}`;
+  
+  // If siteSlug exists, join it to form a path. Otherwise, it's the root page ("/").
+  const slug = params.siteSlug && params.siteSlug.length > 0 ? `/${params.siteSlug.join('/')}` : '/';
 
   const { website, publishedVersion, navigations, error } = await getPublishedSiteDataByHost(host);
 
   if (error || !website || !publishedVersion) {
-    console.warn(`[SiteSlugPage] Site not found or error for host "${host}", slug "${slug}":`, error);
+    console.warn(`[SitePage] Site not found or error for host "${host}", slug "${slug}":`, error);
     notFound();
   }
 
   const currentPage: IWebsiteVersionPage | undefined = publishedVersion.pages.find(p => p.slug === slug);
 
   if (!currentPage) {
-    console.warn(`[SiteSlugPage] Page not found for slug "${slug}" on host "${host}"`);
+    console.warn(`[SitePage] Page not found for slug "${slug}" on host "${host}"`);
     notFound();
   }
 
