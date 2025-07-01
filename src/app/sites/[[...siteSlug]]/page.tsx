@@ -6,7 +6,7 @@ import type { IWebsiteVersionPage } from '@/models/WebsiteVersion';
 import ElementRenderer from '@/components/site-renderer/ElementRenderer';
 
 /**
- * This is the NEW catch-all route that handles rendering ALL pages for a user's site.
+ * This is the catch-all route that handles rendering ALL pages for a user's site.
  * It's served from the /sites/ directory, but middleware rewrites user domains to it.
  * - yoursite.com/ -> params.siteSlug will be undefined
  * - yoursite.com/about -> params.siteSlug will be ['about']
